@@ -25,6 +25,8 @@ Apunta en cada versión: fecha, versión, dispositivo (iPhone / Mac / Android) y
 - [ ] ⋯ → Editar abre el mismo formulario; tocar el nombre con el formulario abierto lo cierra sin guardar.
 - [ ] Lo mismo en carrera (metros, tiempo y descanso) y natación. Los bloques ×N y el modo entreno siguen igual.
 
+- [ ] ⋯ de un ejercicio → «Eliminar ejercicio y sus series» → pulsar otra vez: desaparece con todas sus series; «Deshacer» lo recupera.
+
 ## 2c. Totales de distancia
 - [ ] Día de carrera con calentamiento, 6 × 1000 con 200 m de recuperación (4 hechas): «Total carrera: hecho … de … planificados · tiempo · series · rec. · calent. y calma».
 - [ ] Natación en metros con punto de miles («2.400 m»).
