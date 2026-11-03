@@ -16,6 +16,22 @@ Apunta en cada versión: fecha, versión, dispositivo (iPhone / Mac / Android) y
 - [ ] Añadir una serie de carrera (metros y tiempo): se ve el ritmo y, si es planificada, el objetivo.
 - [ ] La tarjeta del ejercicio con series queda limpia (sin formulario abierto) y muestra «hechas/total».
 
+## 2b. Ejercicio con ×N y OK
+- [ ] Añadir un ejercicio, poner 60 kg × 8 y ×4, pulsar OK: se crean 4 series pendientes y el ejercicio se pliega («60 kg × 8 · ×4», 0/4).
+- [ ] Tocar el nombre: se abre con los valores y ×4. Cambiar a 62,5 kg y ×6 → OK: las pendientes cambian y hay 6.
+- [ ] Con 2 hechas, poner ×1 → pregunta si quitar hechas; «Dejar las hechas» deja solo las 2 hechas. «Deshacer» vuelve atrás.
+- [ ] Cambiar el ejercicio en el selector (p. ej. sentadilla → otro de fuerza): se mantienen todas las series.
+- [ ] «+ Serie» añade una suelta distinta; tocar una serie la edita sola («Guardar N»).
+- [ ] ⋯ → Editar abre el mismo formulario; tocar el nombre con el formulario abierto lo cierra sin guardar.
+- [ ] Lo mismo en carrera (metros, tiempo y descanso) y natación. Los bloques ×N y el modo entreno siguen igual.
+
+## 2c. Totales de distancia
+- [ ] Día de carrera con calentamiento, 6 × 1000 con 200 m de recuperación (4 hechas): «Total carrera: hecho … de … planificados · tiempo · series · rec. · calent. y calma».
+- [ ] Natación en metros con punto de miles («2.400 m»).
+- [ ] Carrera en dos sesiones del mismo día: total de cada sesión y «Total del día».
+- [ ] El día plegado muestra los km; al terminar el modo entreno aparece el total; el resumen semanal suma lo mismo (con recuperaciones en metros).
+- [ ] Un día solo de fuerza no muestra ningún total.
+
 ## 3. Marcar, deshacer y deslizar
 - [ ] Marcar una serie como hecha tocando su círculo; el número de la serie aparece.
 - [ ] «Deshacer» en el aviso la deja como estaba.

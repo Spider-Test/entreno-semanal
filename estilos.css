@@ -875,3 +875,21 @@ html.ampliado label, html.ampliado summary, html.ampliado .tarjeta, html.ampliad
 .bloque-cab .g-prog { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; flex: none; }
 .mas-serie { align-self: flex-start; font-size: 14px; font-weight: 700; padding: 4px 2px; min-height: 32px; }
 @media (max-width: 760px) { .mas-serie { min-height: 40px; font-size: 15px; } }
+
+/* Sumatorio de distancia (carrera en km, natación en metros) al final de cada sesión y del día */
+.total-dist { margin: 6px 0 2px; padding: 8px 10px; border-radius: 10px; background: var(--accent-soft); font-size: 14px; font-variant-numeric: tabular-nums; }
+.total-dist p { margin: 0; line-height: 1.4; }
+.total-dist p + p { margin-top: 4px; }
+.total-dist span { color: var(--muted); font-size: 13px; }
+.total-dist.del-dia { margin-top: 10px; border: 1px solid var(--accent); }
+.en-total { white-space: pre-line; color: var(--muted); font-variant-numeric: tabular-nums; margin: 4px 0 12px; }
+
+/* Ejercicio suelto: ×N series iguales y OK; al editarlo se puede cambiar el ejercicio */
+.veces-l { flex: none; display: flex; align-items: center; gap: 2px; font-weight: 700; color: var(--muted); }
+.veces-l[hidden], .cambiar-ej[hidden] { display: none; }
+.ns-fila .veces-l .veces { flex: none; width: 3.2em; padding: 6px 4px; text-align: center; font-weight: 700; }
+.anadir.ok { min-width: 3.4em; }
+.cambiar-ej { display: flex; align-items: center; gap: 8px; margin-top: 6px; font-size: 13px; font-weight: 600; color: var(--muted); }
+.cambiar-ej select { flex: 1; min-width: 0; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--fg); font-size: 14px; }
+.ej-resumen { font-size: 13px; font-weight: 600; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; margin-left: 6px; }
+@media (max-width: 760px) { .ns-fila .veces-l .veces { padding: 10px 4px; font-size: 18px; } .cambiar-ej select { min-height: 44px; font-size: 16px; } }
