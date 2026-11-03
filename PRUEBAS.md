@@ -99,6 +99,8 @@ Apunta en cada versión: fecha, versión, dispositivo (iPhone / Mac / Android) y
 - [ ] «Entrenamiento suelto»: tipo, duración e intensidad cambian el prompt; pegar una sesión de ejemplo → vista previa → «Añadir al día» (con «guardarla también como plantilla»): aparece en el día con el nombre de la sesión y en Plantillas.
 - [ ] Objetivo «Maratón» con marca y fecha: el prompt cuenta las semanas hasta la carrera, incluye las marcas previstas y pide tapering; pegar un plan de maratón de ejemplo con SEMANA 1…N y una tirada larga por tramos («1x8km @5:20/km + 1x6km @4:50/km») y crear el mesociclo.
 
+- [ ] Pegar una sesión con «Bicicleta estática [fuerza]: 1x5min» y «Plancha [fuerza]: 3x45s»: se lee sin error y en el día sale «5 min» y «45 s».
+
 ## 11c. Aviso de novedades
 - [ ] Con una versión nueva, el «?» lleva un punto (y pulso suave; sin animación con «Reducir movimiento»). Al pulsarlo se abren las Novedades y el punto desaparece; en otro dispositivo con la misma cuenta tampoco sale.
 

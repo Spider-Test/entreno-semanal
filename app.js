@@ -271,6 +271,7 @@ function serieTexto(s) {
     return fmtDist(s.distancia) + (n0(s.tiempo) > 0 ? " · " + fmtTiempo(s.tiempo) + " · " + ritmo(s, tipo) + (n0(s.ritmo_ajustado) > 0 ? " (aj. " + fmtTiempo(s.ritmo_ajustado) + "/km)" : "") : "");
   }
   const kg = pesoMostrado(s), reps = n0(s.reps) > 0 ? n0(s.reps) : "máx";
+  if (n0(s.tiempo) > 0 && !(n0(s.reps) > 0)) return (kg > 0 ? num(kg) + " kg · " : "") + fmtDuracion(s.tiempo);   // por tiempo: bici, plancha…
   return (s.ciclo_id ? "Bilbo · " : "") + (n0(s.pct) > 0 ? num(s.pct) + " % · " : "") + (kg > 0 ? num(kg) + " kg × " + reps : reps + " reps");
 }
 const descTexto = s => n0(s.rec_dist) > 0 ? "rec. " + fmtDist(s.rec_dist) : n0(s.descanso) > 0 ? "desc. " + fmtTiempo(s.descanso) : "";
@@ -3049,10 +3050,12 @@ function leerValor(txt, tipo) {
   else if (/^(m[aá]x|amrap|fallo)/.test(tok)) v.reps = 0;
   else return { error: "no entiendo «" + tok + "» (usa 8, máx, 400m, 40min o 3:30)" };
   if (tipo !== "fuerza" && v.reps >= 25) { v.distancia = v.reps; v.reps = 0; }   // «6x1000» en carrera son metros
-  if (tipo === "fuerza" && (v.distancia || v.tiempo)) return { error: "en fuerza las series van en repeticiones (por ejemplo 3x12)" };
+  // En fuerza también valen series por tiempo (calentamiento en bici, movilidad, plancha…): 1x5min, 3x45s
+  if (tipo === "fuerza" && v.distancia) return { error: "en fuerza las series van en repeticiones o tiempo (por ejemplo 3x12 o 3x45s)" };
   if (tipo !== "fuerza" && !v.distancia && !v.tiempo) return { error: "en " + TIPOS[tipo].nombre.toLowerCase() + " las series van en metros o tiempo (por ejemplo 5x1000m o 1x40min)" };
   // RPE en fuerza → % del 1RM con la misma fórmula del 1RM estimado (reps + las que quedan en reserva)
-  if (tipo === "fuerza" && rpe && v.reps && !v.pct && !v.peso) v.pct = Math.max(50, Math.min(100, Math.round(100 / (1 + (v.reps + 10 - rpe) / 30))));
+  // (con RPE bajo —calentamiento o movilidad— no se calcula carga)
+  if (tipo === "fuerza" && rpe >= 6 && v.reps && !v.pct && !v.peso) v.pct = Math.max(50, Math.min(100, Math.round(100 / (1 + (v.reps + 10 - rpe) / 30))));
   if (ritmoM && v.distancia) v.tiempo = Math.round(leerTiempo(ritmoM[1]) * v.distancia / (/km/i.test(ritmoM[2]) ? 1000 : 100));
   return v;
 }
@@ -3133,7 +3136,7 @@ function leerRutina(texto) {
 // Texto corto de un ejercicio de la rutina: «Press banca 4×8 · 75 % · desc. 2:00»
 function textoValor(v, tipo) {
   const base = esDistancia(tipo) ? (v.distancia ? fmtDist(v.distancia) + (v.tiempo ? " en " + fmtTiempo(v.tiempo) : "") : fmtDuracion(v.tiempo))
-    : (v.reps || "máx") + (v.pct ? " · " + num(v.pct) + " %" : "") + (v.peso ? " · " + num(v.peso) + " kg" : "");
+    : (v.tiempo && !v.reps ? fmtDuracion(v.tiempo) : (v.reps || "máx")) + (v.pct ? " · " + num(v.pct) + " %" : "") + (v.peso ? " · " + num(v.peso) + " kg" : "");
   return base + (v.rec_dist ? " · rec. " + fmtDist(v.rec_dist) : v.descanso ? " · desc. " + fmtTiempo(v.descanso) : "");
 }
 const textoItemRutina = it => it.bloque
@@ -3349,7 +3352,7 @@ function textoPrompt() {
     "- Si todas las semanas son iguales, pon «SEMANAS: número» y escribe las sesiones una sola vez. Si el plan cambia cada semana, escribe «SEMANA 1», «SEMANA 2»… y debajo las sesiones de esa semana.",
     "- Cada sesión empieza por «## Nombre @ Día» (Lunes, Martes, Miércoles, Jueves, Viernes, Sábado o Domingo; varios días separados por comas).",
     "- Un ejercicio por línea: «- Nombre [tipo]: series». El tipo es fuerza, carrera o natacion. Usa nombres de ejercicios comunes en español.",
-    "- Series: 4x8 (repeticiones), 3xmáx, 5x1000m, 8x100m, 1x40min, 6x2min. Sin rangos: 4x10, no 4x8-12.",
+    "- Series: 4x8 (repeticiones), 3xmáx, 5x1000m, 8x100m, 1x40min, 6x2min. Sin rangos: 4x10, no 4x8-12. En fuerza también por tiempo: 1x5min (bici de calentamiento), 3x45s (plancha).",
     "- Intensidad: @RPE8 o @75% (del 1RM) en fuerza, @4:30/km en carrera, @1:50/100m en natación. No pongas kilos fijos.",
     "- Descanso: «desc 2:00» o «desc 90» (segundos). En carrera y natación la recuperación también puede ir en metros: «rec 200m».",
     "- Tramos que se repiten seguidos: «- BLOQUE x4: Ejercicio [tipo] 400m rec 200m | Ejercicio [tipo] 200m».",
@@ -3381,6 +3384,7 @@ function textoPromptSesion() {
     "- Empieza por «RUTINA: nombre» y «NOTA:» con una o dos frases. Después UNA sola línea «## Nombre de la sesión» (sin día).",
     "- Un ejercicio por línea: «- Nombre [tipo]: series». El tipo es fuerza, carrera o natacion. Incluye calentamiento y vuelta a la calma si encajan.",
     "- Series: 4x8, 3xmáx, 5x1000m, 8x100m, 1x40min, 6x2min. Sin rangos. Intensidad: @RPE8 o @75% en fuerza, @4:30/km en carrera, @1:50/100m en natación.",
+    "- Calentamiento, movilidad o isométricos por tiempo: «- Bicicleta estática [fuerza]: 1x5min», «- Plancha [fuerza]: 3x45s».",
     "- Descanso: «desc 2:00» o «desc 90»; en carrera y natación también «rec 200m».",
     "- Tramos que se repiten: «- BLOQUE x4: Ejercicio [tipo] 400m rec 200m | Ejercicio [tipo] 200m». Tirada por tramos: «- Tirada larga [carrera]: 1x8km @5:20/km + 1x6km @4:50/km»."].filter(Boolean).join("\n");
 }
@@ -4239,7 +4243,7 @@ $("enSalir").addEventListener("click", salirEntreno);
 $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); abrirRpe(d); });
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
-const VERSION_APP = "v46" + (BETA ? " beta" : "");
+const VERSION_APP = "v47" + (BETA ? " beta" : "");
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";
