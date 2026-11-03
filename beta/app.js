@@ -5240,8 +5240,12 @@ if (window.visualViewport) {
 // Novedades sin ver: el «?» lleva un punto (y un pulso suave) hasta que abres la Ayuda; se recuerda en tu perfil y en el dispositivo
 const VERSION_NOV = VERSION_APP.split(" ")[0];
 const novedadesVistas = () => [(perfil && perfil.novedades_vistas) || "", leer("novedades-vistas-v1") || ""].includes(VERSION_NOV);
+// Versiones con novedades que merece la pena avisar; en las demás (o para quien entra por primera vez) no hay aviso
+const AVISAR_NOVEDADES = false;
 function pintarAvisoNovedades() {
-  const nuevo = !!sesion && !novedadesVistas();
+  // Quien nunca ha visto ninguna versión entra por primera vez: para él todo es nuevo, así que se da por vista
+  if (sesion && perfil && !perfil.novedades_vistas && !leer("novedades-vistas-v1")) { marcarNovedadesVistas(); return; }
+  const nuevo = AVISAR_NOVEDADES && !!sesion && !novedadesVistas();
   $("ayudaBtn").classList.toggle("nuevo", nuevo);
   $("ayudaBtn").setAttribute("aria-label", nuevo ? "Instrucciones de uso (hay novedades)" : "Instrucciones de uso");
 }
