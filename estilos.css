@@ -686,3 +686,109 @@ dialog.pantalla[open] { display: flex; flex-direction: column; }
 .imp-v.c-rec .imp-d, .imp-v.c-parado .imp-d, .imp-v.c-calent .imp-d, .imp-v.c-calma .imp-d { color: var(--muted); }
 .imp-v.c-ignorar .imp-d { text-decoration: line-through; color: var(--muted); }
 @media (max-width: 760px) { .imp-v select, .imp-modo { font-size: 16px; min-height: 40px; } }
+
+/* ===== Más compacto y ligero ===== */
+/* Bloques sin borde discontinuo; el día de hoy, con un borde fino de color */
+.bloque-rep { border-style: solid; border-color: transparent; border-left: 3px solid var(--accent); border-radius: 0 10px 10px 0; }
+.dia.hoy { border-color: transparent; box-shadow: var(--sombra), inset 3px 0 0 var(--accent); }
+.dia.hoy .dia-cab { background: none; }
+.dia.hoy .dia-nombre { color: var(--accent); }
+/* En la vista de un día, la fecha ya está arriba: la cabecera de la tarjeta solo deja sus botones */
+.solo-dia .dia-abrir { visibility: hidden; }
+.solo-dia .dia-cab { min-height: 0; padding-top: 0; padding-bottom: 0; }
+/* Círculo de marcar: 22 px a la vista y 44 px al tocar */
+.marcar { position: relative; }
+.marcar::after { content: ""; position: absolute; inset: -11px; }
+@media (max-width: 760px) {
+  body { font-size: 16px; padding-left: max(14px, env(safe-area-inset-left, 0px)); padding-right: max(14px, env(safe-area-inset-right, 0px)); }
+  h1 { font-size: 21px; }
+  .dia-nombre { font-size: 18px; }
+  .dia-fecha { font-size: 13px; }
+  .dia-cab { padding: 2px 2px 2px 4px; gap: 2px; }
+  .editor { min-height: 44px; padding: 8px 12px; font-size: 16px; line-height: 1.45; }
+  .bloques { padding: 0 8px; gap: 6px; }
+  .bloques:not(:empty) { padding-top: 6px; }
+  .grupo { gap: 6px; }
+  .bloque { padding: 4px 4px 6px 10px; gap: 2px; border: 0; border-left: 3px solid var(--line); border-radius: 0 8px 8px 0; }
+  .ej-nombre, .br-tit { font-size: 16px; }
+  .grupo-cab .g-nombre { font-size: 15px; }
+  .series li { font-size: 15.5px; padding: 1px 0; gap: 6px; min-height: 40px; }
+  .series .n { font-size: 12px; }
+  .marcar { width: 22px; height: 22px; margin: 0 4px; border-width: 2px; }
+  .desc, .discos, .objetivo { font-size: 13px; }
+  .ns-fila input { font-size: 16px; padding: 7px 6px; }
+  .ns-fila .paso { height: 40px; }
+  .paso button { width: 32px; font-size: 17px; }
+  .modo, .modo-dist { height: 40px; min-width: 40px; font-size: 15px; }
+  .veces { min-height: 40px; font-size: 15px; }
+  .anadir { min-height: 40px; padding: 8px 12px; font-size: 15px; }
+  .quitar, .borrar { width: 36px; height: 40px; font-size: 14px; }
+  .asa { width: 34px; height: 40px; font-size: 18px; }
+  .menu-btn { width: 40px; height: 40px; font-size: 20px; }
+  .dia-max { width: 40px; height: 40px; font-size: 17px; }
+  .add-fila { margin: 6px 8px 8px; gap: 6px; }
+  .add-ej { padding: 9px; font-size: 15px; }
+  .empezar { font-size: 16px; padding: 11px; margin: 2px 8px 8px; }
+  .rpe-dia { margin: 0 8px 6px; font-size: 13px; }
+  .dia-resumen { font-size: 14px; padding: 0 12px 10px 30px; }
+  .semana { gap: 8px; }
+  .records { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
+  .rec .r-val { font-size: 21px; }
+  .dia-nav-t { font-size: 17px; }
+  .calent-sug { font-size: 13px; padding: 6px 8px; }
+}
+
+/* ===== Liquid Glass: solo en lo que flota (pestañas, cabecera, ventanas, avisos, botones del modo entreno) ===== */
+:root {
+  --vidrio: color-mix(in srgb, var(--card) 62%, transparent);
+  --vidrio-denso: color-mix(in srgb, var(--card) 80%, transparent);
+  --vidrio-luz: rgba(255, 255, 255, 0.55);
+  --vidrio-brillo: linear-gradient(180deg, rgba(255, 255, 255, 0.32), rgba(255, 255, 255, 0.04) 60%);
+  --vidrio-sombra: 0 10px 30px rgba(20, 30, 25, 0.14), 0 1px 3px rgba(20, 30, 25, 0.08);
+}
+@media (prefers-color-scheme: dark) {
+  :root { --vidrio: color-mix(in srgb, var(--card) 58%, transparent); --vidrio-denso: color-mix(in srgb, var(--card) 78%, transparent);
+          --vidrio-luz: rgba(255, 255, 255, 0.14); --vidrio-brillo: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0) 60%);
+          --vidrio-sombra: 0 10px 30px rgba(0, 0, 0, 0.45), 0 1px 3px rgba(0, 0, 0, 0.3); }
+}
+.tabbar, .cabecera, dialog:not(.pantalla), .toast, .en-pie, .en-cab {
+  -webkit-backdrop-filter: blur(24px) saturate(170%); backdrop-filter: blur(24px) saturate(170%);
+}
+/* Barra de pestañas: cápsula flotante */
+.tabbar { background: var(--vidrio-brillo), var(--vidrio); border: 1px solid var(--vidrio-luz); box-shadow: var(--vidrio-sombra), inset 0 1px 0 var(--vidrio-luz); }
+@media (max-width: 760px) {
+  .tabbar { left: 12px; right: 12px; bottom: calc(8px + env(safe-area-inset-bottom, 0px)); padding: 4px 6px; border-radius: 28px; }
+  .tabbar button { min-height: 52px; border-radius: 22px; }
+  .tabbar button[aria-selected="true"] { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+  body { padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 96px); }
+  .toast, dialog .toast { bottom: calc(env(safe-area-inset-bottom, 0px) + 84px); }
+  /* Cabecera fija al hacer scroll */
+  body { padding-top: 0; }
+  .cabecera { position: sticky; top: 0; z-index: 15; margin: 0 calc(-1 * max(14px, env(safe-area-inset-left, 0px))); padding: max(10px, env(safe-area-inset-top, 0px)) max(14px, env(safe-area-inset-right, 0px)) 8px;
+    background: var(--vidrio-brillo), var(--vidrio); border-bottom: 1px solid var(--vidrio-luz); }
+}
+/* Ventanas y hojas */
+dialog:not(.pantalla) { background: var(--vidrio-brillo), var(--vidrio-denso); border: 1px solid var(--vidrio-luz); box-shadow: 0 24px 60px rgba(0, 0, 0, 0.3), inset 0 1px 0 var(--vidrio-luz); }
+dialog:not(.pantalla) .d-cab { background: transparent; border-bottom-color: color-mix(in srgb, var(--line) 70%, transparent); }
+dialog::backdrop { background: rgba(0, 0, 0, 0.35); }
+.toast { background: color-mix(in srgb, var(--toast-bg) 82%, transparent); border: 1px solid rgba(255, 255, 255, 0.18); }
+.toast.pr { background: color-mix(in srgb, var(--gold) 88%, transparent); }
+/* Modo entreno: barras de arriba y abajo de cristal sobre el fondo */
+.en-cab, .en-pie { background: var(--vidrio-brillo), var(--vidrio); border-color: var(--vidrio-luz); }
+/* Sin cristal: sin soporte, o si se pide menos transparencia o más contraste */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .tabbar, .cabecera, dialog:not(.pantalla), .en-cab, .en-pie { background: var(--card); }
+  .toast { background: var(--toast-bg); }
+}
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  .tabbar, .cabecera, dialog:not(.pantalla), .en-cab, .en-pie { background: var(--card); -webkit-backdrop-filter: none; backdrop-filter: none; }
+  .toast { background: var(--toast-bg); -webkit-backdrop-filter: none; backdrop-filter: none; }
+  .toast.pr { background: var(--gold); }
+}
+/* 7 columnas: el ⋯ y el asa del ejercicio solo aparecen al pasar el ratón, para dejar sitio al nombre */
+@media (min-width: 1240px) {
+  #vistaSemana:not(.solo-dia) .bloque:not(:hover):not(:focus-within) > .bloque-cab .asa,
+  #vistaSemana:not(.solo-dia) .bloque:not(:hover):not(:focus-within) > .bloque-cab .menu-btn { display: none; }
+  #vistaSemana:not(.solo-dia) .bloque-cab .asa, #vistaSemana:not(.solo-dia) .bloque-cab .menu-btn { width: 26px; }
+  #vistaSemana:not(.solo-dia) .ej-nombre { overflow-wrap: break-word; }
+}

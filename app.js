@@ -1101,7 +1101,9 @@ function tarjetaBloque(dia, bloqueId, series) {
         li.querySelector(".n").replaceWith(m);
       }
       deslizable(li, !hecha(s) ? () => marcarHecha(s, { ...s, hecha: true, peso: pesoMostrado(s) }) : null, null);
-      li.querySelector(".sv-p").textContent = (variosTramos ? nombreEj(s.ejercicio_id) + " · " : "") + serieTexto(s);
+      // El nombre del tramo solo si aporta algo: «Series 1000 m · 1000 m» se queda en «1000 m»
+      const nomTramo = variosTramos && !distDeNombre(nombreEj(s.ejercicio_id)) ? nombreEj(s.ejercicio_id) + " · " : "";
+      li.querySelector(".sv-p").textContent = nomTramo + serieTexto(s);
       if (descTexto(s)) { const d = document.createElement("span"); d.className = "desc"; d.textContent = descTexto(s); li.querySelector(".sv").appendChild(d); }
       if (!hecha(s) && tipoDe(s.ejercicio_id) === "carrera") { const o = objetivoSerie(s); if (o) { const ob = document.createElement("span"); ob.className = "objetivo"; ob.textContent = textoObjetivo(o); li.querySelector(".sv").appendChild(ob); } }
       li.querySelector(".sv").setAttribute("aria-label", "Apuntar ronda " + r + ", " + nombreEj(s.ejercicio_id) + ": " + serieTexto(s));
@@ -1791,8 +1793,8 @@ function objetivoSerie(s, extra) {
   }
   return { tiempo, ritmo: tiempo / n0(s.distancia) * 1000, ajustado, fatiga: fatiga > 0 };
 }
-const textoObjetivo = o => !o ? "" : (o.suave ? "objetivo suave ~" + fmtTiempo(o.ritmo) + "/km"
-  : "objetivo " + fmtTiempo(o.tiempo) + " (" + fmtTiempo(o.ritmo) + "/km)" + (o.ajustado ? " · ajustado a cómo vas" : "")) + (o.fatiga ? " · más suave por tu esfuerzo reciente" : "");
+const textoObjetivo = o => !o ? "" : (o.suave ? "obj. suave ~" + fmtTiempo(o.ritmo) + "/km"
+  : "obj. " + fmtTiempo(o.tiempo) + " · " + fmtTiempo(o.ritmo) + "/km" + (o.ajustado ? " · ajustado a cómo vas" : "")) + (o.fatiga ? " · más suave por tu esfuerzo" : "");
 // Mejores marcas por distancia: exactas o, dentro de una serie algo más larga, a su ritmo medio
 function marcasDe(tipo) {
   const lista = seriesVivas().filter(s => hecha(s) && !s.calentamiento && tipoDe(s.ejercicio_id) === tipo && n0(s.distancia) > 0 && n0(s.tiempo) > 0);
@@ -3488,7 +3490,7 @@ $("enSalir").addEventListener("click", salirEntreno);
 $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); abrirRpe(d); });
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
-const VERSION_APP = "v24";
+const VERSION_APP = "v26";
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";
