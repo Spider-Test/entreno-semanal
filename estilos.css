@@ -826,3 +826,19 @@ body.seleccionando { padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 150
 .plant-barra #buscarPlantilla { flex: 1 1 auto; min-width: 0; }
 .plant-barra .nav-btn { flex: none; }
 @media (max-width: 760px) { .plant-barra #buscarPlantilla { flex-basis: auto; } }
+
+/* Ejercicios: secciones desplegables por tipo */
+#catalogo { display: flex; flex-direction: column; gap: 12px; }
+.cat-sec { background: var(--card); border-radius: 14px; padding: 8px 14px; box-shadow: var(--sombra); }
+.cat-sec .sec-toggle { width: 100%; }
+.cat-sec h3 { margin: 0; }
+.cat-sec.t-fuerza h3 { color: var(--fuerza); }
+.cat-sec.t-carrera h3 { color: var(--carrera); }
+.cat-sec.t-natacion h3 { color: var(--natacion); }
+.cat-sec.cerrada .sec-cuerpo { grid-template-rows: 0fr; }
+.cat-sec.cerrada .sec-cuerpo-in { padding-top: 0; padding-bottom: 0; }
+.cat-sec:not(.cerrada) .sec-toggle .flecha-dia { transform: rotate(90deg); }
+.cat-sec .sec-cuerpo-in { padding: 6px 4px 8px; }
+.cat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 8px; }
+.cat-grid .tarjeta { background: var(--bg); box-shadow: none; }
+@media (prefers-color-scheme: dark) { .cat-sec { border: 1px solid var(--line); } }

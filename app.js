@@ -1357,23 +1357,48 @@ function pintarCatalogo() {
     cont.appendChild(p);
     return;
   }
-  ejs.forEach(e => {
-    const st = estadisticas(e.id);
-    const t = document.createElement("button");
-    t.type = "button";
-    t.className = "tarjeta";
-    t.innerHTML = '<span class="t-nombre"></span><span class="t-mejor"></span><span class="t-ultima"></span>';
-    const nombre = t.querySelector(".t-nombre");
-    nombre.textContent = e.nombre || "Sin nombre";
-    nombre.appendChild(etiquetaTipo(st.tipo));
-    if (e.compartido) { const c = document.createElement("span"); c.className = "comun-tag"; c.textContent = "común"; nombre.appendChild(c); }
-    if (e.video_url) { const v = document.createElement("span"); v.className = "ico"; v.textContent = "▶ vídeo"; nombre.appendChild(v); }
-    t.querySelector(".t-mejor").textContent = st.resumen;
-    t.querySelector(".t-ultima").textContent = st.ultima;
-    if (!st.ultima) t.querySelector(".t-ultima").remove();
-    t.addEventListener("click", () => abrirDetalle(e.id));
-    cont.appendChild(t);
+  // Agrupado por tipo en secciones desplegables; al buscar se abren las que tienen resultados y se ocultan las vacías
+  Object.keys(TIPOS).forEach(tipo => {
+    const deTipo = ejs.filter(e => tipoDe(e.id) === tipo);
+    if (!deTipo.length) return;
+    const abierta = q ? true : catAbiertas[tipo] !== false;
+    const sec = document.createElement("section");
+    sec.className = "cat-sec t-" + tipo + (abierta ? "" : " cerrada");
+    sec.innerHTML = '<button type="button" class="sec-toggle"><span class="flecha-dia" aria-hidden="true">▸</span><h3></h3><span class="sec-n"></span></button><div class="sec-cuerpo"><div class="sec-cuerpo-in"><div class="cat-grid"></div></div></div>';
+    sec.querySelector("h3").textContent = TIPOS[tipo].nombre;
+    sec.querySelector(".sec-n").textContent = "· " + deTipo.length;
+    const boton = sec.querySelector(".sec-toggle"), cuerpo = sec.querySelector(".sec-cuerpo");
+    boton.setAttribute("aria-expanded", String(abierta));
+    cuerpo.inert = !abierta;
+    boton.addEventListener("click", () => {
+      const abrir = sec.classList.contains("cerrada");
+      sec.classList.toggle("cerrada", !abrir);
+      boton.setAttribute("aria-expanded", String(abrir));
+      cuerpo.inert = !abrir;
+      if (!q) { catAbiertas[tipo] = abrir; escribir("catalogo-abiertas-v1", catAbiertas); }
+    });
+    const grid = sec.querySelector(".cat-grid");
+    deTipo.forEach(e => grid.appendChild(tarjetaEjercicio(e)));
+    cont.appendChild(sec);
   });
+}
+let catAbiertas = leer("catalogo-abiertas-v1") || {};
+function tarjetaEjercicio(e) {
+  const st = estadisticas(e.id);
+  const t = document.createElement("button");
+  t.type = "button";
+  t.className = "tarjeta";
+  t.innerHTML = '<span class="t-nombre"></span><span class="t-mejor"></span><span class="t-ultima"></span>';
+  const nombre = t.querySelector(".t-nombre");
+  nombre.textContent = e.nombre || "Sin nombre";
+  nombre.appendChild(etiquetaTipo(st.tipo));
+  if (e.compartido) { const c = document.createElement("span"); c.className = "comun-tag"; c.textContent = "común"; nombre.appendChild(c); }
+  if (e.video_url) { const v = document.createElement("span"); v.className = "ico"; v.textContent = "▶ vídeo"; nombre.appendChild(v); }
+  t.querySelector(".t-mejor").textContent = st.resumen;
+  t.querySelector(".t-ultima").textContent = st.ultima;
+  if (!st.ultima) t.querySelector(".t-ultima").remove();
+  t.addEventListener("click", () => abrirDetalle(e.id));
+  return t;
 }
 $("filtroEj").addEventListener("input", pintarCatalogo);
 $("nuevoEj").addEventListener("click", () => {
@@ -3529,7 +3554,7 @@ $("enSalir").addEventListener("click", salirEntreno);
 $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); abrirRpe(d); });
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
-const VERSION_APP = "v29";
+const VERSION_APP = "v30";
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";
