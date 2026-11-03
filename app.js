@@ -18,17 +18,24 @@ const $ = id => document.getElementById(id);
 const leer = k => { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } };
 const escribir = (k, v) => { try { v === null ? localStorage.removeItem(k) : localStorage.setItem(k, JSON.stringify(v)); } catch {} };
 
-// Cada tabla se sincroniza igual: gana la edición más reciente de cada fila
+// Cada tabla se sincroniza igual: gana la edición más reciente de cada fila.
+// El orden importa al subir: primero ejercicios y plantillas, después las series que los usan.
 const TABLAS = {
   ejercicios: { clave: "id", conflicto: "id", campos: ["id", "nombre", "tipo", "video_url", "notas", "borrado", "actualizado"] },
-  series: { clave: "id", conflicto: "id", campos: ["id", "fecha", "ejercicio_id", "orden", "peso", "reps", "distancia", "tiempo", "descanso", "borrado", "actualizado"] },
+  plantillas: { clave: "id", conflicto: "id", campos: ["id", "nombre", "items", "borrado", "actualizado"] },
+  mesociclos: { clave: "id", conflicto: "id", campos: ["id", "nombre", "inicio", "semanas", "dias", "progresion", "notas", "borrado", "actualizado"] },
+  series: { clave: "id", conflicto: "id", campos: ["id", "fecha", "ejercicio_id", "orden", "peso", "reps", "distancia", "tiempo", "descanso", "hecha", "grupo", "meso_id", "borrado", "actualizado"] },
   entrenos: { clave: "fecha", conflicto: "user_id,fecha", campos: ["fecha", "html", "texto", "actualizado"] }
 };
+const DEFECTOS = { tipo: "fuerza", hecha: true, grupo: "", meso_id: "", items: [], dias: {}, nombre: "", video_url: "", notas: "", html: "", texto: "", borrado: false };
 let sesion = leer("sesion-v1");                 // {access_token, refresh_token, expires_at, user_id, email}
-let db = leer("datos-v2");
-if (!db) { db = { entrenos: leer("entrenos-v1") || {}, ejercicios: {}, series: {} }; }
+let perfil = leer("perfil-v1");                 // {aprobado, es_admin, email}
+let usuarios = [];                              // solo para el administrador
+let db = leer("datos-v2") || { entrenos: leer("entrenos-v1") || {} };
+Object.keys(TABLAS).forEach(t => { db[t] = db[t] || {}; });
 let cursores = leer("cursores-v2") || {};       // última marca de servidor leída por tabla
 let enEspera = leer("bloques-v1") || {};        // fecha -> ejercicios añadidos que aún no tienen series
+let porta = leer("portapapeles-v1");            // lo último copiado: {nombre, html, items}
 const guardarLocal = () => { escribir("datos-v2", db); escribir("cursores-v2", cursores); };
 const guardarEspera = () => escribir("bloques-v1", enEspera);
 
@@ -96,6 +103,7 @@ const aTexto = html => { const t = document.createElement("div"); t.innerHTML = 
 const marcarVacio = ed => ed.classList.toggle("vacio", ed.textContent.trim() === "");
 
 // ---------- Datos derivados: ejercicios, series y récords ----------
+const vivos = tabla => Object.values(db[tabla]).filter(x => !x.borrado);
 const ejercicioVivo = id => { const e = db.ejercicios[id]; return e && !e.borrado ? e : null; };
 const tipoDe = id => { const e = db.ejercicios[id]; return e && TIPOS[e.tipo] ? e.tipo : "fuerza"; };
 const esDistancia = tipo => tipo === "carrera" || tipo === "natacion";
@@ -105,6 +113,7 @@ function adivinarTipo(nombre) {
   if (/(carrera|correr|rodaje|tirada|sprint|series de|fartlek|cuesta|trote|running|\d+ ?m\b|\d+ ?km\b)/.test(n)) return "carrera";
   return "fuerza";
 }
+const hecha = s => s.hecha !== false;   // las series planificadas tienen hecha = false
 const rm = s => n0(s.reps) <= 1 ? n0(s.peso) : n0(s.peso) * (1 + n0(s.reps) / 30);    // 1RM estimado (Epley)
 const ritmoSeg = (s, tipo) => n0(s.tiempo) / (n0(s.distancia) / TIPOS[tipo].porMetros);
 const ritmo = (s, tipo) => fmtTiempo(ritmoSeg(s, tipo)) + TIPOS[tipo].sufijo;
@@ -117,7 +126,7 @@ function serieTexto(s) {
 const descTexto = s => n0(s.descanso) > 0 ? "desc. " + fmtTiempo(s.descanso) : "";
 const seriesVivas = () => Object.values(db.series).filter(s => !s.borrado && ejercicioVivo(s.ejercicio_id));
 const ordenSerie = (a, b) => a.fecha < b.fecha ? -1 : a.fecha > b.fecha ? 1 : a.orden - b.orden;
-const seriesDe = id => seriesVivas().filter(s => s.ejercicio_id === id).sort(ordenSerie);
+const seriesDe = id => seriesVivas().filter(s => s.ejercicio_id === id && hecha(s)).sort(ordenSerie);   // solo lo hecho cuenta para récords
 // PR: más peso (o más reps sin peso) en fuerza; menos tiempo para la misma distancia en carrera y natación
 function prsDe(lista, tipo) {
   const prs = new Set();
@@ -140,8 +149,7 @@ function prsDe(lista, tipo) {
 function ejerciciosOrdenados() {
   const ultimo = {};
   seriesVivas().forEach(s => { if (!ultimo[s.ejercicio_id] || s.fecha > ultimo[s.ejercicio_id]) ultimo[s.ejercicio_id] = s.fecha; });
-  return Object.values(db.ejercicios).filter(e => !e.borrado)
-    .sort((a, b) => (ultimo[b.id] || "").localeCompare(ultimo[a.id] || "") || a.nombre.localeCompare(b.nombre, "es"));
+  return vivos("ejercicios").sort((a, b) => (ultimo[b.id] || "").localeCompare(ultimo[a.id] || "") || a.nombre.localeCompare(b.nombre, "es"));
 }
 function porSesion(lista) {
   const ses = {};
@@ -205,16 +213,32 @@ async function api(ruta, opciones = {}, reintento = false) {
   return r;
 }
 
+// Perfil: las cuentas nuevas quedan pendientes hasta que el administrador las aprueba
+async function cargarPerfil() {
+  const r = await api("/rest/v1/perfiles?select=user_id,email,aprobado,es_admin,creado&order=creado.asc");
+  if (!r.ok) throw new Error("perfil " + r.status);
+  const lista = await r.json();
+  const mio = lista.find(p => p.user_id === sesion.user_id);
+  perfil = mio ? { aprobado: mio.aprobado, es_admin: mio.es_admin, email: mio.email } : { aprobado: false, es_admin: false, email: sesion.email };
+  usuarios = perfil.es_admin ? lista : [];
+  escribir("perfil-v1", perfil);
+  avisoUsuarios();
+  return perfil;
+}
+
 // Guarda una edición en el dispositivo y la deja pendiente de subir
 let timerSync;
-function cambiar(tabla, fila) {
-  fila.actualizado = new Date().toISOString();
-  fila.sucio = true;
-  db[tabla][fila[TABLAS[tabla].clave]] = fila;
+function persistir() {
   guardarLocal();
   setEstado("Guardado en el dispositivo");
   clearTimeout(timerSync);
   timerSync = setTimeout(sincronizar, 1000);
+}
+function cambiar(tabla, fila, enLote) {
+  fila.actualizado = new Date().toISOString();
+  fila.sucio = true;
+  db[tabla][fila[TABLAS[tabla].clave]] = fila;
+  if (!enLote) persistir();
 }
 function mezclar(tabla, f) {
   const k = f[TABLAS[tabla].clave], local = db[tabla][k];
@@ -235,6 +259,9 @@ async function sincronizar() {
   if (sincronizando) { repetir = true; return; }
   sincronizando = true;
   try {
+    await cargarPerfil();
+    if (!perfil.aprobado) { mostrarPendiente(); return; }
+    if ($("app").hidden) mostrarApp();
     do {
       repetir = false;
       let cambio = false;
@@ -250,11 +277,11 @@ async function sincronizar() {
       }
       guardarLocal();
       if (cambio) pintarTodo();
-      // Subir lo pendiente (primero los ejercicios, luego sus series)
+      // Subir lo pendiente
       for (const t of Object.keys(TABLAS)) {
         const pend = Object.values(db[t]).filter(v => v.sucio);
         if (!pend.length) continue;
-        const filas = pend.map(v => { const f = { user_id: sesion.user_id }; TABLAS[t].campos.forEach(c => { f[c] = v[c] ?? (c === "tipo" ? "fuerza" : 0); }); return f; });
+        const filas = pend.map(v => { const f = { user_id: sesion.user_id }; TABLAS[t].campos.forEach(c => { f[c] = v[c] ?? (c in DEFECTOS ? DEFECTOS[c] : 0); }); return f; });
         const w = await api("/rest/v1/" + t + "?on_conflict=" + TABLAS[t].conflicto, {
           method: "POST", headers: { Prefer: "resolution=merge-duplicates,return=minimal" }, body: JSON.stringify(filas)
         });
@@ -319,11 +346,46 @@ function tic() {
 setInterval(tic, 500);
 $("crono").addEventListener("click", pararCrono);
 
+// ---------- Ventanas pequeñas: menú de opciones y pedir un nombre ----------
+function abrirMenu(titulo, detalle, opciones) {
+  $("menuTit").textContent = titulo;
+  $("menuDet").textContent = detalle || "";
+  $("menuDet").hidden = !detalle;
+  const cont = $("menuOpciones");
+  cont.textContent = "";
+  opciones.filter(Boolean).forEach(o => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "opcion" + (o.peligro ? " peligro-op" : "");
+    b.textContent = o.texto;
+    b.addEventListener("click", () => {
+      if (o.peligro && !b.dataset.confirmar) { b.dataset.confirmar = "1"; b.textContent = o.confirmar || "Pulsa otra vez para confirmar"; return; }
+      if (!o.mantener) $("menu").close();
+      o.accion();
+    });
+    cont.appendChild(b);
+  });
+  if (!$("menu").open) $("menu").showModal();
+}
+function pedirNombre(titulo, valor, ayuda) {
+  return new Promise(resolver => {
+    const d = $("dlgNombre");
+    $("nomTit").textContent = titulo;
+    $("nomAyuda").textContent = ayuda || "";
+    $("nomInput").value = valor || "";
+    d.returnValue = "";
+    d.onclose = () => resolver(d.returnValue === "ok" ? $("nomInput").value.trim() || null : null);
+    d.showModal();
+    $("nomInput").select();
+  });
+}
+
 // ---------- Semana ----------
 const dias = DIAS.map((_, i) => {
   const col = document.createElement("section");
   col.className = "dia";
   col.innerHTML = '<div class="dia-cab"><span class="dia-nombre"></span><span class="dia-fecha"></span>' +
+                  '<button type="button" class="menu-btn" aria-label="Opciones del día">⋯</button>' +
                   '<button type="button" class="negrita" aria-pressed="false" title="Negrita (⌘B)">N</button></div>' +
                   '<div class="editor vacio" role="textbox" aria-multiline="true" contenteditable="true"></div>' +
                   '<div class="bloques"></div><button type="button" class="add-ej">+ Ejercicio</button>';
@@ -337,6 +399,7 @@ const dias = DIAS.map((_, i) => {
   $("semana").appendChild(col);
   const dia = { i, col, ed, btn, fechaEl: col.querySelector(".dia-fecha"), bloquesEl: col.querySelector(".bloques"), id: "" };
   col.querySelector(".add-ej").addEventListener("click", () => abrirSelector(dia));
+  col.querySelector(".menu-btn").addEventListener("click", () => menuDia(dia));
   return dia;
 });
 
@@ -350,6 +413,18 @@ function rellenar() {
   });
 }
 
+function mesoDe(fechaIso) {
+  return vivos("mesociclos").find(m => m.inicio && fechaIso >= m.inicio && fechaIso < iso(sumarDias(deIso(m.inicio), n0(m.semanas) * 7)));
+}
+// Aviso de la semana del mesociclo en curso
+function pintarBanda() {
+  const lunes = lunesVista(), m = mesoDe(iso(lunes));
+  $("mesoBanda").hidden = !m;
+  if (m) {
+    const semana = Math.floor((lunes - lunesDe(deIso(m.inicio))) / (7 * 864e5)) + 1;
+    $("mesoBanda").textContent = "Mesociclo «" + m.nombre + "» · semana " + semana + " de " + n0(m.semanas);
+  }
+}
 function pintarSemana() {
   const lunes = lunesVista();
   const hoyIso = iso(new Date());
@@ -359,12 +434,13 @@ function pintarSemana() {
                   : n < 0 ? "Hace " + -n + " semanas" : "Dentro de " + n + " semanas";
   rel.classList.toggle("actual", n === 0);
   $("hoyBtn").hidden = n === 0;
+  pintarBanda();
   dias.forEach(d => {
     const f = sumarDias(lunes, d.i);
     d.id = iso(f);
     d.fechaEl.textContent = fmt(f);
     d.col.classList.toggle("hoy", d.id === hoyIso);
-    d.ed.innerHTML = "";
+    if (document.activeElement !== d.ed) d.ed.innerHTML = "";
   });
   rellenar();
   pintarBloques(true);
@@ -403,6 +479,99 @@ document.addEventListener("selectionchange", () => {
   });
 });
 
+// ---------- Copiar, pegar y plantillas ----------
+const seriesDelDia = fecha => seriesVivas().filter(s => s.fecha === fecha).sort((a, b) => a.orden - b.orden);
+// Convierte series en una lista de ejercicios con sus series (para copiar o guardar como plantilla)
+function itemsDe(series) {
+  const items = [];
+  series.forEach(s => {
+    let it = items.find(x => x.ejercicio_id === s.ejercicio_id && x.grupo === (s.grupo || ""));
+    if (!it) { it = { ejercicio_id: s.ejercicio_id, grupo: s.grupo || "", series: [] }; items.push(it); }
+    it.series.push({ peso: n0(s.peso), reps: n0(s.reps), distancia: n0(s.distancia), tiempo: n0(s.tiempo), descanso: n0(s.descanso) });
+  });
+  return items;
+}
+// Pega ejercicios como series planificadas; el grupo es el nombre de la sesión (p. ej. «Pierna»)
+function pegarItems(fecha, items, grupo, mesoId, masKg) {
+  let orden = Date.now();
+  items.forEach(it => {
+    if (!ejercicioVivo(it.ejercicio_id)) return;
+    it.series.forEach(v => cambiar("series", {
+      id: nuevoId(), fecha, ejercicio_id: it.ejercicio_id, orden: orden++,
+      peso: n0(v.peso) > 0 ? Math.max(0, n0(v.peso) + n0(masKg)) : 0, reps: n0(v.reps), distancia: n0(v.distancia), tiempo: n0(v.tiempo), descanso: n0(v.descanso),
+      hecha: false, grupo: grupo !== undefined ? grupo : (it.grupo || ""), meso_id: mesoId || "", borrado: false
+    }, true));
+  });
+}
+const resumenItems = items => {
+  const n = items.reduce((a, it) => a + it.series.length, 0);
+  return items.length + (items.length === 1 ? " ejercicio · " : " ejercicios · ") + n + (n === 1 ? " serie" : " series");
+};
+const nombresItems = items => items.map(it => (db.ejercicios[it.ejercicio_id] || {}).nombre).filter(Boolean).join(", ");
+function copiar(nombre, html, series) {
+  porta = { nombre, html: html || "", items: itemsDe(series) };
+  escribir("portapapeles-v1", porta);
+  setEstado("Copiado: " + nombre);
+}
+function pegar(dia) {
+  if (!porta) return;
+  if (porta.html) {
+    const antes = db.entrenos[dia.id]?.html || "";
+    const html = antes ? antes + "<br>" + porta.html : porta.html;
+    cambiar("entrenos", { fecha: dia.id, html, texto: aTexto(html) }, true);
+  }
+  pegarItems(dia.id, porta.items);
+  persistir();
+  rellenar();
+  pintarDia(dia);
+}
+async function guardarPlantilla(nombreSugerido, series) {
+  const nombre = await pedirNombre("Guardar como plantilla", nombreSugerido, "Si ya tienes una plantilla con este nombre, se reemplaza.");
+  if (!nombre) return;
+  const items = itemsDe(series).map(it => ({ ejercicio_id: it.ejercicio_id, series: it.series }));
+  const existe = vivos("plantillas").find(p => norm(p.nombre) === norm(nombre));
+  cambiar("plantillas", { id: existe ? existe.id : nuevoId(), nombre, items, borrado: false });
+  setEstado("Plantilla «" + nombre + "» guardada");
+}
+function aplicarPlantilla(dia, p) {
+  pegarItems(dia.id, p.items, p.nombre);
+  persistir();
+  pintarDia(dia);
+}
+function elegirPlantilla(titulo, alElegir) {
+  const ps = vivos("plantillas").sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
+  abrirMenu(titulo, ps.length ? "" : "Aún no tienes plantillas. Monta un entrenamiento en un día y usa «Guardar ejercicios como plantilla».",
+    ps.map(p => ({ texto: p.nombre + " · " + resumenItems(p.items || []), accion: () => alElegir(p) })));
+}
+function menuDia(dia) {
+  const series = seriesDelDia(dia.id), html = db.entrenos[dia.id]?.html || "";
+  const titulo = NOMBRES[dia.i] + " " + fmt(deIso(dia.id));
+  abrirMenu(titulo, "", [
+    (series.length || aTexto(html).trim()) && { texto: "Copiar día", accion: () => copiar(titulo, html, series) },
+    porta && { texto: "Pegar «" + porta.nombre + "»", accion: () => pegar(dia) },
+    { texto: "Añadir plantilla…", accion: () => elegirPlantilla("Añadir plantilla al " + titulo, p => aplicarPlantilla(dia, p)) },
+    series.length && { texto: "Guardar ejercicios como plantilla…", accion: () => guardarPlantilla(series[0].grupo || "Entrenamiento", series) },
+    series.length && { texto: "Vaciar ejercicios del día", peligro: true, confirmar: "Pulsa otra vez: se borran " + series.length + " series", accion: () => {
+      series.forEach(s => cambiar("series", { ...s, borrado: true }, true)); delete enEspera[dia.id]; guardarEspera(); persistir(); pintarDia(dia);
+    } }
+  ]);
+}
+function menuGrupo(dia, grupo) {
+  const series = seriesDelDia(dia.id).filter(s => (s.grupo || "") === grupo);
+  abrirMenu(grupo, resumenItems(itemsDe(series)), [
+    { texto: "Copiar sesión", accion: () => copiar(grupo, "", series) },
+    { texto: "Guardar como plantilla…", accion: () => guardarPlantilla(grupo, series) },
+    { texto: "Cambiar nombre de la sesión…", accion: async () => {
+      const n = await pedirNombre("Nombre de la sesión", grupo);
+      if (!n) return;
+      series.forEach(s => cambiar("series", { ...s, grupo: n }, true)); persistir(); pintarDia(dia);
+    } },
+    { texto: "Quitar sesión del día", peligro: true, confirmar: "Pulsa otra vez: se borran " + series.length + " series", accion: () => {
+      series.forEach(s => cambiar("series", { ...s, borrado: true }, true)); persistir(); pintarDia(dia);
+    } }
+  ]);
+}
+
 // ---------- Ejercicios de cada día ----------
 let repintarLuego = false;
 const escribiendoSerie = () => document.activeElement && document.activeElement.closest && document.activeElement.closest(".bloques");
@@ -420,14 +589,29 @@ function quitarEspera(fecha, id) {
   guardarEspera();
 }
 
+// Agrupa los ejercicios del día por sesión («Pierna», «Pecho»…); los sueltos van sin título
 function pintarDia(dia) {
   const cont = dia.bloquesEl;
   cont.textContent = "";
-  const delDia = seriesVivas().filter(s => s.fecha === dia.id).sort((a, b) => a.orden - b.orden);
-  const ids = [];
-  delDia.forEach(s => { if (!ids.includes(s.ejercicio_id)) ids.push(s.ejercicio_id); });
-  (enEspera[dia.id] || []).forEach(id => { if (!ids.includes(id) && ejercicioVivo(id)) ids.push(id); });
-  ids.forEach(id => cont.appendChild(bloque(dia, id, delDia.filter(s => s.ejercicio_id === id))));
+  const delDia = seriesDelDia(dia.id);
+  const grupos = [];
+  const grupo = nombre => grupos.find(g => g.nombre === nombre) || grupos[grupos.push({ nombre, ids: [] }) - 1];
+  delDia.forEach(s => { const g = grupo(s.grupo || ""); if (!g.ids.includes(s.ejercicio_id)) g.ids.push(s.ejercicio_id); });
+  (enEspera[dia.id] || []).forEach(id => { if (ejercicioVivo(id) && !grupos.some(g => g.ids.includes(id))) grupo("").ids.push(id); });
+  grupos.forEach(g => {
+    if (g.nombre) {
+      const cab = document.createElement("div");
+      cab.className = "grupo-cab";
+      cab.innerHTML = '<span class="g-nombre"></span><span class="g-prog"></span><button type="button" class="menu-btn">⋯</button>';
+      cab.querySelector(".g-nombre").textContent = g.nombre;
+      const deG = delDia.filter(s => (s.grupo || "") === g.nombre);
+      cab.querySelector(".g-prog").textContent = deG.filter(hecha).length + "/" + deG.length;
+      cab.querySelector(".menu-btn").setAttribute("aria-label", "Opciones de la sesión " + g.nombre);
+      cab.querySelector(".menu-btn").addEventListener("click", () => menuGrupo(dia, g.nombre));
+      cont.appendChild(cab);
+    }
+    g.ids.forEach(id => cont.appendChild(bloque(dia, id, delDia.filter(s => s.ejercicio_id === id && (s.grupo || "") === g.nombre), g.nombre)));
+  });
 }
 
 function etiquetaTipo(tipo) {
@@ -437,13 +621,15 @@ function etiquetaTipo(tipo) {
   return t;
 }
 
-function bloque(dia, id, series) {
+function bloque(dia, id, series, grupo) {
   const ej = db.ejercicios[id], tipo = tipoDe(id), dist = esDistancia(tipo);
   const historia = seriesDe(id);
   const prs = prsDe(historia, tipo);
+  let editando = null;   // serie planificada que se está completando
   const b = document.createElement("div");
   b.className = "bloque";
   b.dataset.ej = id;
+  b.dataset.grupo = grupo;
   b.innerHTML = '<div class="bloque-cab"><button type="button" class="ej-nombre"></button><button type="button" class="quitar" aria-label="Quitar ejercicio">✕</button></div>' +
     '<ol class="series"></ol>' +
     '<form class="nueva-serie">' +
@@ -466,27 +652,55 @@ function bloque(dia, id, series) {
   if (series.length) quitar.remove();
   else quitar.addEventListener("click", () => { quitarEspera(dia.id, id); pintarDia(dia); });
 
+  const fa = b.querySelector(".in-a"), fb = b.querySelector(".in-b"), fc = b.querySelector(".in-c"), boton = b.querySelector(".anadir");
+  const rellenarCon = s => {
+    if (dist) { fa.value = n0(s.distancia) || ""; fb.value = n0(s.tiempo) > 0 ? fmtTiempo(s.tiempo) : ""; }
+    else { fa.value = n0(s.peso) > 0 ? num(s.peso) : ""; fb.value = n0(s.reps) || ""; }
+    fc.value = n0(s.descanso) > 0 ? fmtTiempo(s.descanso) : "";
+  };
+  const terminar = s => {
+    if (n0(s.descanso) > 0) iniciarCrono(n0(s.descanso), ej.nombre);
+    pintarBloques(true);
+  };
+
   const ol = b.querySelector(".series");
-  series.forEach((s, i) => {
+  let numero = 0;
+  series.forEach(s => {
+    numero++;
     const li = document.createElement("li");
-    li.innerHTML = '<span class="n"></span><span class="sv"><span class="sv-p"></span></span><button type="button" class="borrar">✕</button>';
-    li.querySelector(".n").textContent = i + 1;
+    const planificada = !hecha(s);
+    li.className = planificada ? "plan" : "";
+    li.innerHTML = '<span class="n"></span><button type="button" class="sv"><span class="sv-p"></span></button><button type="button" class="borrar">✕</button>';
+    const marca = li.querySelector(".n");
+    if (planificada) {
+      // Círculo para marcarla como hecha tal cual estaba planificada
+      const c = document.createElement("button");
+      c.type = "button"; c.className = "marcar"; c.textContent = "";
+      c.setAttribute("aria-label", "Marcar como hecha la serie " + numero);
+      c.addEventListener("click", () => { const h = { ...s, hecha: true }; cambiar("series", h); terminar(h); });
+      marca.replaceWith(c);
+    } else marca.textContent = numero;
     li.querySelector(".sv-p").textContent = serieTexto(s);
     if (descTexto(s)) { const d = document.createElement("span"); d.className = "desc"; d.textContent = descTexto(s); li.querySelector(".sv").appendChild(d); }
-    li.querySelector(".borrar").setAttribute("aria-label", "Borrar serie " + (i + 1));
+    li.querySelector(".sv").setAttribute("aria-label", (planificada ? "Completar" : "Editar") + " serie " + numero + ": " + serieTexto(s));
+    li.querySelector(".sv").addEventListener("click", () => {
+      editando = s;
+      rellenarCon(s);
+      boton.textContent = "✓ Guardar " + numero;
+      ol.querySelectorAll("li").forEach(x => x.classList.remove("editando"));
+      li.classList.add("editando");
+      fa.focus();
+    });
+    li.querySelector(".borrar").setAttribute("aria-label", "Borrar serie " + numero);
     if (prs.has(s.id)) { const p = document.createElement("span"); p.className = "pr"; p.textContent = "PR"; p.title = "Récord personal"; li.querySelector(".sv").after(p); }
     li.querySelector(".borrar").addEventListener("click", () => { cambiar("series", { ...s, borrado: true }); pintarBloques(true); });
     ol.appendChild(li);
   });
 
-  // Rellena con la última serie de este ejercicio para registrar rápido
-  const fa = b.querySelector(".in-a"), fb = b.querySelector(".in-b"), fc = b.querySelector(".in-c");
-  const ult = series[series.length - 1] || historia[historia.length - 1];
-  if (ult) {
-    if (dist) { fa.value = n0(ult.distancia) || ""; fb.value = n0(ult.tiempo) > 0 ? fmtTiempo(ult.tiempo) : ""; }
-    else { fa.value = n0(ult.peso) > 0 ? num(ult.peso) : ""; fb.value = n0(ult.reps) || ""; }
-    fc.value = n0(ult.descanso) > 0 ? fmtTiempo(ult.descanso) : "";
-  }
+  // Rellena con la primera serie pendiente, o con la última hecha de este ejercicio
+  const pendiente = series.find(s => !hecha(s));
+  const ult = pendiente || series[series.length - 1] || historia[historia.length - 1];
+  if (ult) rellenarCon(ult);
   [fa, fb, fc].forEach((inp, k, todos) => {
     inp.addEventListener("focus", () => inp.select());
     if (k < 2) inp.addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); todos[k + 1].focus(); } });
@@ -495,7 +709,8 @@ function bloque(dia, id, series) {
     e.preventDefault();
     const descanso = leerDescanso(fc.value);
     if (isNaN(descanso)) { fc.focus(); return; }
-    const fila = { id: nuevoId(), fecha: dia.id, ejercicio_id: id, orden: Date.now(), peso: 0, reps: 0, distancia: 0, tiempo: 0, descanso, borrado: false };
+    const fila = editando ? { ...editando } : { id: nuevoId(), fecha: dia.id, ejercicio_id: id, orden: Date.now(), grupo, meso_id: "", borrado: false };
+    Object.assign(fila, { peso: 0, reps: 0, distancia: 0, tiempo: 0, descanso, hecha: true });
     if (dist) {
       fila.distancia = parseFloat(fa.value.replace(",", "."));
       fila.tiempo = leerTiempo(fb.value);
@@ -509,9 +724,8 @@ function bloque(dia, id, series) {
     }
     cambiar("series", fila);
     quitarEspera(dia.id, id);
-    if (descanso > 0) iniciarCrono(descanso, ej.nombre);
-    pintarBloques(true);
-    const otra = dia.bloquesEl.querySelector('[data-ej="' + id + '"] .anadir');
+    terminar(fila);
+    const otra = dia.bloquesEl.querySelector('[data-ej="' + id + '"][data-grupo="' + CSS.escape(grupo) + '"] .anadir');
     if (otra) otra.focus();
   });
   return b;
@@ -700,7 +914,7 @@ function refrescarDetalle() {
   rec.textContent = ""; marcas.textContent = "";
   let puntos = [], etiqueta = v => num(v);
   if (!st.lista.length) {
-    rec.innerHTML = '<p class="vacio-lista">Aún no hay series. Añádelas desde un día de la semana con «+ Ejercicio».</p>';
+    rec.innerHTML = '<p class="vacio-lista">Aún no hay series hechas. Añádelas desde un día de la semana con «+ Ejercicio».</p>';
     $("detGraficaTit").textContent = "Progreso";
   } else if (esDistancia(tipo)) {
     if (st.mejorRitmo) rec.appendChild(recuadro("Mejor ritmo", ritmo(st.mejorRitmo, tipo), fmtDist(st.mejorRitmo.distancia) + " en " + fmtTiempo(st.mejorRitmo.tiempo) + " · " + fechaCorta(st.mejorRitmo.fecha), true));
@@ -794,6 +1008,210 @@ $("detalle").addEventListener("close", () => {
   pintarTodo();
 });
 
+// ---------- Plan: plantillas, mesociclos y usuarios ----------
+function tarjeta(titulo, lineas, alPulsar) {
+  const t = document.createElement("button");
+  t.type = "button";
+  t.className = "tarjeta";
+  t.innerHTML = '<span class="t-nombre"></span>';
+  t.querySelector(".t-nombre").textContent = titulo;
+  lineas.filter(Boolean).forEach((l, i) => { const s = document.createElement("span"); s.className = i ? "t-ultima" : "t-mejor"; s.textContent = l; t.appendChild(s); });
+  t.addEventListener("click", alPulsar);
+  return t;
+}
+function rangoMeso(m) {
+  const ini = deIso(m.inicio), fin = sumarDias(ini, n0(m.semanas) * 7 - 1);
+  return fmt(ini) + " – " + fechaCorta(iso(fin)) + " · " + n0(m.semanas) + (n0(m.semanas) === 1 ? " semana" : " semanas");
+}
+function resumenDiasMeso(m) {
+  const d = m.dias || {};
+  return NOMBRES.map((n, i) => (d[i] || []).length ? n.slice(0, 3) + ": " + d[i].map(pid => (db.plantillas[pid] || {}).nombre || "?").join(" + ") : "").filter(Boolean).join(" · ") || "Sin plantillas asignadas";
+}
+function pintarPlan() {
+  const lp = $("listaPlantillas");
+  lp.textContent = "";
+  const ps = vivos("plantillas").sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
+  if (!ps.length) lp.innerHTML = '<p class="vacio-lista">Monta un entrenamiento en un día de la semana (por ejemplo, Pierna) y en su menú ⋯ elige «Guardar ejercicios como plantilla».</p>';
+  ps.forEach(p => lp.appendChild(tarjeta(p.nombre, [resumenItems(p.items || []), nombresItems(p.items || [])], () => menuPlantilla(p))));
+
+  const lm = $("listaMesos");
+  lm.textContent = "";
+  const hoy = iso(new Date());
+  const ms = vivos("mesociclos").sort((a, b) => (b.inicio || "").localeCompare(a.inicio || ""));
+  if (!ms.length) lm.innerHTML = '<p class="vacio-lista">Un mesociclo reparte tus plantillas por los días de la semana durante varias semanas, con progresión de peso si quieres.</p>';
+  ms.forEach(m => {
+    const actual = m.inicio && hoy >= m.inicio && hoy < iso(sumarDias(deIso(m.inicio), n0(m.semanas) * 7));
+    const semana = actual ? Math.floor((lunesDe(new Date()) - lunesDe(deIso(m.inicio))) / (7 * 864e5)) + 1 : 0;
+    lm.appendChild(tarjeta(m.nombre, [rangoMeso(m) + (actual ? " · ahora en la semana " + semana : ""), resumenDiasMeso(m) + (n0(m.progresion) ? " · +" + num(m.progresion) + " kg/semana" : "")], () => abrirMeso(m.id)));
+  });
+
+  $("bloqueUsuarios").hidden = !(perfil && perfil.es_admin);
+  if (perfil && perfil.es_admin) {
+    const lu = $("listaUsuarios");
+    lu.textContent = "";
+    usuarios.forEach(u => {
+      const fila = document.createElement("div");
+      fila.className = "usuario";
+      fila.innerHTML = '<span class="u-info"><span class="u-email"></span><span class="u-fecha"></span></span><span class="u-estado"></span>';
+      fila.querySelector(".u-email").textContent = u.email || "(sin email)";
+      fila.querySelector(".u-fecha").textContent = "Registrado el " + fechaCorta(iso(new Date(u.creado))) + (u.es_admin ? " · administrador" : "");
+      const est = fila.querySelector(".u-estado");
+      if (u.user_id === sesion.user_id) est.textContent = "Tú";
+      else {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = u.aprobado ? "nav-btn" : "anadir";
+        b.textContent = u.aprobado ? "Quitar acceso" : "Aprobar";
+        b.addEventListener("click", () => aprobar(u.user_id, !u.aprobado));
+        if (!u.aprobado) { const p = document.createElement("span"); p.className = "pr"; p.textContent = "PENDIENTE"; est.appendChild(p); }
+        est.appendChild(b);
+      }
+      lu.appendChild(fila);
+    });
+  }
+}
+function menuPlantilla(p) {
+  abrirMenu(p.nombre, resumenItems(p.items || []) + ": " + nombresItems(p.items || []), [
+    { texto: "Añadir a un día de esta semana…", accion: () => abrirMenu("¿A qué día?", "", dias.map(d => ({ texto: NOMBRES[d.i] + " " + fmt(deIso(d.id)), accion: () => { aplicarPlantilla(d, p); verPestana("semana"); } }))) },
+    { texto: "Cambiar nombre…", accion: async () => { const n = await pedirNombre("Nombre de la plantilla", p.nombre); if (n) { cambiar("plantillas", { ...p, nombre: n }); pintarPlan(); } } },
+    { texto: "Eliminar plantilla", peligro: true, accion: () => { cambiar("plantillas", { ...p, borrado: true }); pintarPlan(); } }
+  ]);
+}
+async function aprobar(uid, valor) {
+  try {
+    const r = await api("/rest/v1/perfiles?user_id=eq." + encodeURIComponent(uid), { method: "PATCH", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ aprobado: valor }) });
+    if (!r.ok) throw new Error();
+    await cargarPerfil();
+    setEstado(valor ? "Usuario aprobado" : "Acceso retirado");
+  } catch { setEstado("No se ha podido cambiar. Revisa la conexión.", true); }
+  pintarPlan();
+}
+function avisoUsuarios() {
+  const n = usuarios.filter(u => !u.aprobado).length;
+  $("tabPlan").textContent = n ? "Plan · " + n : "Plan";
+  $("tabPlan").classList.toggle("con-aviso", n > 0);
+}
+
+// Editor de mesociclo
+let mesoEdit = null;
+function abrirMeso(id) {
+  const m = id ? db.mesociclos[id] : null;
+  mesoEdit = m ? { ...m, dias: JSON.parse(JSON.stringify(m.dias || {})) }
+               : { id: nuevoId(), nombre: "", inicio: iso(lunesDe(new Date())), semanas: 4, dias: {}, progresion: 0, notas: "", borrado: false, nuevo: true };
+  $("mesoNombre").value = mesoEdit.nombre;
+  $("mesoInicio").value = mesoEdit.inicio;
+  $("mesoSemanas").value = mesoEdit.semanas;
+  $("mesoProg").value = n0(mesoEdit.progresion) ? num(mesoEdit.progresion) : "";
+  $("mesoNotas").value = mesoEdit.notas || "";
+  $("mesoBorrar").hidden = !!mesoEdit.nuevo;
+  $("mesoQuitar").hidden = !!mesoEdit.nuevo;
+  $("mesoBorrar").classList.remove("confirmar"); $("mesoBorrar").textContent = "Eliminar mesociclo";
+  $("mesoAviso").textContent = "";
+  pintarDiasMeso();
+  $("dlgMeso").showModal();
+}
+function pintarDiasMeso() {
+  const cont = $("mesoDias");
+  cont.textContent = "";
+  NOMBRES.forEach((n, i) => {
+    const fila = document.createElement("div");
+    fila.className = "meso-dia";
+    fila.innerHTML = '<span class="md-n"></span><span class="md-chips"></span><button type="button" class="nav-btn md-mas">+</button>';
+    fila.querySelector(".md-n").textContent = n;
+    const chips = fila.querySelector(".md-chips");
+    (mesoEdit.dias[i] || []).forEach((pid, k) => {
+      const c = document.createElement("button");
+      c.type = "button";
+      c.className = "chip";
+      c.textContent = ((db.plantillas[pid] || {}).nombre || "Plantilla borrada") + " ✕";
+      c.setAttribute("aria-label", "Quitar " + c.textContent.slice(0, -2) + " del " + n);
+      c.addEventListener("click", () => { mesoEdit.dias[i].splice(k, 1); pintarDiasMeso(); });
+      chips.appendChild(c);
+    });
+    if (!(mesoEdit.dias[i] || []).length) { const v = document.createElement("span"); v.className = "md-vacio"; v.textContent = "Descanso"; chips.appendChild(v); }
+    const mas = fila.querySelector(".md-mas");
+    mas.setAttribute("aria-label", "Añadir plantilla al " + n);
+    mas.addEventListener("click", () => {
+      const ps = vivos("plantillas").sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
+      if (!ps.length) { $("mesoAviso").textContent = "Primero crea alguna plantilla desde un día de la semana (menú ⋯ → Guardar ejercicios como plantilla)."; return; }
+      // Lista sencilla dentro del propio editor para no abrir otra ventana encima
+      const lista = document.createElement("div");
+      lista.className = "md-lista";
+      ps.forEach(p => {
+        const o = document.createElement("button");
+        o.type = "button"; o.className = "chip chip-op"; o.textContent = p.nombre;
+        o.addEventListener("click", () => { (mesoEdit.dias[i] = mesoEdit.dias[i] || []).push(p.id); pintarDiasMeso(); });
+        lista.appendChild(o);
+      });
+      fila.after(lista);
+      mas.disabled = true;
+    });
+    cont.appendChild(fila);
+  });
+}
+function leerMeso() {
+  const nombre = $("mesoNombre").value.trim(), inicio = $("mesoInicio").value, semanas = parseInt($("mesoSemanas").value, 10);
+  const progresion = parseFloat(($("mesoProg").value || "0").replace(",", "."));
+  if (!nombre) { $("mesoAviso").textContent = "Ponle un nombre (por ejemplo, Fuerza · bloque 1)."; $("mesoNombre").focus(); return null; }
+  if (!inicio) { $("mesoAviso").textContent = "Elige la fecha de inicio."; return null; }
+  if (!(semanas >= 1 && semanas <= 26)) { $("mesoAviso").textContent = "El número de semanas debe estar entre 1 y 26."; return null; }
+  if (isNaN(progresion)) { $("mesoAviso").textContent = "La progresión debe ser un número de kg (puede ser 0)."; return null; }
+  const m = { ...mesoEdit, nombre, inicio: iso(lunesDe(deIso(inicio))), semanas, progresion, notas: $("mesoNotas").value };
+  delete m.nuevo;
+  return m;
+}
+function quitarMesoDelCalendario(mesoId) {
+  let n = 0;
+  seriesVivas().filter(s => s.meso_id === mesoId && !hecha(s)).forEach(s => { cambiar("series", { ...s, borrado: true }, true); n++; });
+  return n;
+}
+// Rellena el calendario: cada semana, cada día con sus plantillas; la progresión suma kg cada semana
+function aplicarMeso(m) {
+  quitarMesoDelCalendario(m.id);
+  const lunes = deIso(m.inicio);
+  let total = 0;
+  for (let w = 0; w < m.semanas; w++) {
+    for (let d = 0; d < 7; d++) {
+      const fecha = iso(sumarDias(lunes, w * 7 + d));
+      (m.dias[d] || []).forEach(pid => {
+        const p = db.plantillas[pid];
+        if (!p || p.borrado) return;
+        pegarItems(fecha, p.items || [], p.nombre, m.id, w * n0(m.progresion));
+        total += (p.items || []).reduce((a, it) => a + it.series.length, 0);
+      });
+    }
+  }
+  return total;
+}
+$("mesoGuardar").addEventListener("click", () => {
+  const m = leerMeso(); if (!m) return;
+  cambiar("mesociclos", m);
+  $("dlgMeso").close(); pintarPlan();
+});
+$("mesoAplicar").addEventListener("click", () => {
+  const m = leerMeso(); if (!m) return;
+  cambiar("mesociclos", m, true);
+  const n = aplicarMeso(m);
+  persistir();
+  $("dlgMeso").close();
+  setEstado("Mesociclo aplicado: " + n + " series planificadas");
+  desplazamiento = Math.round((lunesDe(deIso(m.inicio)) - lunesDe(new Date())) / (7 * 864e5));
+  verPestana("semana");
+});
+$("mesoQuitar").addEventListener("click", () => {
+  const n = quitarMesoDelCalendario(mesoEdit.id);
+  persistir();
+  $("mesoAviso").textContent = n ? "Quitadas " + n + " series planificadas (las que ya hiciste se conservan)." : "No había series planificadas de este mesociclo.";
+});
+$("mesoBorrar").addEventListener("click", () => {
+  const b = $("mesoBorrar");
+  if (!b.classList.contains("confirmar")) { b.classList.add("confirmar"); b.textContent = "Pulsa otra vez: se quitan también sus series planificadas"; return; }
+  quitarMesoDelCalendario(mesoEdit.id);
+  cambiar("mesociclos", { ...db.mesociclos[mesoEdit.id], borrado: true });
+  $("dlgMeso").close(); pintarPlan();
+});
+$("nuevoMeso").addEventListener("click", () => abrirMeso(null));
+
 // ---------- Navegación ----------
 function irA(n) {
   if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
@@ -804,22 +1222,27 @@ $("antBtn").addEventListener("click", () => irA(desplazamiento - 1));
 $("sigBtn").addEventListener("click", () => irA(desplazamiento + 1));
 $("hoyBtn").addEventListener("click", () => irA(0));
 
+const VISTAS = { semana: "vistaSemana", ejercicios: "vistaEjercicios", plan: "vistaPlan" };
+const TABS = { semana: "tabSemana", ejercicios: "tabEjercicios", plan: "tabPlan" };
 function verPestana(cual) {
-  const ej = cual === "ejercicios";
-  $("tabSemana").setAttribute("aria-selected", String(!ej));
-  $("tabEjercicios").setAttribute("aria-selected", String(ej));
-  $("vistaSemana").hidden = ej;
-  $("vistaEjercicios").hidden = !ej;
+  if (!VISTAS[cual]) cual = "semana";
+  Object.keys(VISTAS).forEach(k => {
+    $(VISTAS[k]).hidden = k !== cual;
+    $(TABS[k]).setAttribute("aria-selected", String(k === cual));
+  });
   escribir("pestana-v1", cual);
-  if (ej) pintarCatalogo(); else pintarSemana();
+  if (cual === "ejercicios") pintarCatalogo();
+  else if (cual === "plan") pintarPlan();
+  else pintarSemana();
 }
-$("tabSemana").addEventListener("click", () => verPestana("semana"));
-$("tabEjercicios").addEventListener("click", () => verPestana("ejercicios"));
+Object.keys(TABS).forEach(k => $(TABS[k]).addEventListener("click", () => verPestana(k)));
 
 function pintarTodo() {
   rellenar();
   pintarBloques(false);
+  pintarBanda();
   if (!$("vistaEjercicios").hidden) pintarCatalogo();
+  if (!$("vistaPlan").hidden) pintarPlan();
   if ($("detalle").open) refrescarDetalle();
 }
 
@@ -828,7 +1251,7 @@ document.addEventListener("visibilitychange", () => { if (!document.hidden) { if
 addEventListener("online", sincronizar);
 setInterval(() => { if (!document.hidden) sincronizar(); }, 30000);
 
-// ---------- Inicio de sesión ----------
+// ---------- Inicio de sesión y cuentas pendientes ----------
 let creando = false;
 $("modoBtn").addEventListener("click", () => {
   creando = !creando;
@@ -836,14 +1259,14 @@ $("modoBtn").addEventListener("click", () => {
   $("modoBtn").textContent = creando ? "Ya tengo cuenta" : "¿Primera vez? Crear cuenta";
   $("password").autocomplete = creando ? "new-password" : "current-password";
   $("loginTexto").textContent = creando
-    ? "Elige tu email y una contraseña de al menos 6 caracteres. Con ellos entrarás en el iPhone y en el Mac."
+    ? "Elige tu email y una contraseña de al menos 6 caracteres. Tu cuenta quedará pendiente hasta que el administrador la apruebe."
     : "Entra con tu email y tu contraseña. Solo hace falta una vez en cada dispositivo.";
   $("loginError").textContent = "";
 });
 const traducir = m => /invalid login/i.test(m) ? "Email o contraseña incorrectos."
   : /already registered|already exists/i.test(m) ? "Ya existe una cuenta con ese email. Pulsa «Ya tengo cuenta» y entra."
   : /at least 6|password should/i.test(m) ? "La contraseña debe tener al menos 6 caracteres."
-  : /signups not allowed|signup is disabled/i.test(m) ? "No se pueden crear cuentas nuevas. Entra con tu cuenta."
+  : /signups not allowed|signup is disabled/i.test(m) ? "Ahora mismo no se pueden crear cuentas nuevas."
   : /valid email|invalid format/i.test(m) ? "Escribe un email válido."
   : m || "No se ha podido entrar.";
 $("loginForm").addEventListener("submit", async e => {
@@ -857,11 +1280,12 @@ $("loginForm").addEventListener("submit", async e => {
     const j = await r.json().catch(() => ({}));
     if (!r.ok || !j.access_token) throw new Error(traducir(j.msg || j.error_description || j.message || ""));
     if (leer("entrenos-dueno") !== j.user.id) {
-      db = { entrenos: {}, ejercicios: {}, series: {} }; cursores = {}; enEspera = {};
-      guardarLocal(); guardarEspera(); escribir("entrenos-dueno", j.user.id);
+      db = {}; Object.keys(TABLAS).forEach(t => { db[t] = {}; }); cursores = {}; enEspera = {}; perfil = null; porta = null;
+      guardarLocal(); guardarEspera(); escribir("perfil-v1", null); escribir("portapapeles-v1", null); escribir("entrenos-dueno", j.user.id);
     }
     guardarSesion(j);
     $("password").value = "";
+    try { await cargarPerfil(); } catch {}
     mostrarApp();
   } catch (err) {
     $("loginError").textContent = navigator.onLine === false ? "Necesitas conexión para entrar la primera vez." : err.message;
@@ -871,16 +1295,23 @@ $("loginForm").addEventListener("submit", async e => {
 });
 function cerrarSesion(msg) {
   sesion = null; escribir("sesion-v1", null);
-  $("app").hidden = true; $("login").hidden = false;
+  $("app").hidden = true; $("pendiente").hidden = true; $("login").hidden = false;
   $("loginError").textContent = msg || "";
 }
 $("salirBtn").addEventListener("click", () => {
   if (hayPendientes()) { setEstado("Hay cambios sin subir. Conéctate a internet antes de cerrar sesión.", true); return; }
   cerrarSesion("");
 });
+function mostrarPendiente() {
+  $("login").hidden = true; $("app").hidden = true; $("pendiente").hidden = false;
+  $("pendEmail").textContent = sesion.email || "";
+}
+$("pendReintentar").addEventListener("click", () => { $("pendAviso").textContent = "Comprobando…"; sincronizar().then(() => { $("pendAviso").textContent = perfil && perfil.aprobado ? "" : "Tu cuenta sigue pendiente."; }); });
+$("pendSalir").addEventListener("click", () => cerrarSesion(""));
 function mostrarApp() {
-  $("login").hidden = true; $("app").hidden = false;
-  verPestana(leer("pestana-v1") === "ejercicios" ? "ejercicios" : "semana");
+  if (perfil && perfil.aprobado === false) { mostrarPendiente(); return; }
+  $("login").hidden = true; $("pendiente").hidden = true; $("app").hidden = false;
+  verPestana(leer("pestana-v1") || "semana");
   setEstado("Sincronizando…");
   sincronizar();
 }

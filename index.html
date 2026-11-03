@@ -31,12 +31,21 @@
   </form>
 </section>
 
+<section id="pendiente" hidden>
+  <h1>Entreno Semanal</h1>
+  <p>Tu cuenta <b id="pendEmail"></b> está pendiente de aprobación. Cuando el administrador la apruebe, podrás usar la app.</p>
+  <button class="primario" id="pendReintentar" type="button">Comprobar de nuevo</button>
+  <p id="pendAviso" role="status"></p>
+  <button class="enlace" id="pendSalir" type="button">Cerrar sesión</button>
+</section>
+
 <section id="app" hidden>
   <header class="cabecera">
     <h1>Entreno Semanal</h1>
     <div class="tabs" role="tablist" aria-label="Vista">
       <button type="button" role="tab" id="tabSemana" aria-selected="true">Semana</button>
       <button type="button" role="tab" id="tabEjercicios" aria-selected="false">Ejercicios</button>
+      <button type="button" role="tab" id="tabPlan" aria-selected="false">Plan</button>
     </div>
   </header>
 
@@ -47,6 +56,7 @@
       <button type="button" class="nav-btn flecha" id="sigBtn" aria-label="Semana siguiente">›</button>
       <button type="button" class="nav-btn" id="hoyBtn" hidden>Hoy</button>
     </nav>
+    <p class="meso-banda" id="mesoBanda" hidden></p>
     <main class="semana" id="semana"></main>
   </div>
 
@@ -56,6 +66,22 @@
       <button type="button" class="nav-btn" id="nuevoEj">+ Nuevo</button>
     </div>
     <div id="catalogo"></div>
+  </div>
+
+  <div id="vistaPlan" hidden>
+    <section class="plan-sec">
+      <h3>Plantillas</h3>
+      <div class="lista-tarjetas" id="listaPlantillas"></div>
+    </section>
+    <section class="plan-sec">
+      <div class="sec-cab"><h3>Mesociclos</h3><button type="button" class="nav-btn" id="nuevoMeso">+ Nuevo</button></div>
+      <div class="lista-tarjetas" id="listaMesos"></div>
+    </section>
+    <section class="plan-sec" id="bloqueUsuarios" hidden>
+      <h3>Usuarios</h3>
+      <p class="vacio-lista">Las cuentas nuevas no pueden ver ni guardar nada hasta que las apruebes.</p>
+      <div id="listaUsuarios"></div>
+    </section>
   </div>
 
   <div class="pie">
@@ -113,6 +139,56 @@
       <ol class="historial" id="detHistorial"></ol>
     </section>
     <button type="button" id="detBorrar" class="peligro">Eliminar ejercicio</button>
+  </div>
+</dialog>
+
+<dialog id="menu" aria-labelledby="menuTit">
+  <form method="dialog" class="d-cab">
+    <h3 id="menuTit" class="d-tit"></h3>
+    <button class="cerrar" aria-label="Cerrar" autofocus>✕</button>
+  </form>
+  <p id="menuDet" class="menu-det"></p>
+  <div id="menuOpciones" class="menu-op"></div>
+</dialog>
+
+<dialog id="dlgNombre" aria-labelledby="nomTit">
+  <form method="dialog" class="d-form">
+    <h3 id="nomTit"></h3>
+    <input id="nomInput" aria-label="Nombre" autocomplete="off" enterkeyhint="done">
+    <p id="nomAyuda" class="menu-det"></p>
+    <div class="d-botones">
+      <button value="" class="nav-btn" formnovalidate>Cancelar</button>
+      <button value="ok" class="anadir">Guardar</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="dlgMeso" aria-label="Mesociclo">
+  <form method="dialog" class="d-cab">
+    <h3 class="d-tit">Mesociclo</h3>
+    <button class="cerrar" aria-label="Cerrar">✕</button>
+  </form>
+  <div class="d-cuerpo">
+    <label class="campo">Nombre <input id="mesoNombre" placeholder="Ej.: Fuerza · bloque 1" autocomplete="off"></label>
+    <div class="fila">
+      <label class="campo">Empieza la semana del <input id="mesoInicio" type="date"></label>
+      <label class="campo">Semanas <input id="mesoSemanas" type="number" min="1" max="26" inputmode="numeric"></label>
+    </div>
+    <label class="campo">Progresión de peso por semana (kg) <input id="mesoProg" inputmode="decimal" placeholder="Ej.: 2,5 (déjalo vacío si no quieres)"></label>
+    <section>
+      <h3>Plantillas de cada día</h3>
+      <div id="mesoDias"></div>
+    </section>
+    <label class="campo">Notas <textarea id="mesoNotas" placeholder="Objetivo del bloque, RPE, semana de descarga…"></textarea></label>
+    <p id="mesoAviso" class="aviso" role="status"></p>
+    <div class="d-botones">
+      <button type="button" class="nav-btn" id="mesoGuardar">Guardar</button>
+      <button type="button" class="anadir" id="mesoAplicar">Guardar y rellenar calendario</button>
+    </div>
+    <div class="d-botones">
+      <button type="button" class="enlace" id="mesoQuitar">Quitar sus series planificadas del calendario</button>
+      <button type="button" class="peligro" id="mesoBorrar">Eliminar mesociclo</button>
+    </div>
   </div>
 </dialog>
 

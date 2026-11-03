@@ -213,3 +213,53 @@ dialog::backdrop { background: rgba(0,0,0,0.45); }
   .add-ej { margin: 10px; padding: 12px; font-size: 16px; }
   dialog { width: 100vw; max-width: 100vw; max-height: 92vh; margin: auto 0 0; border-radius: 18px 18px 0 0; padding-bottom: env(safe-area-inset-bottom, 0px); }
 }
+
+/* Sesiones, series planificadas y menús */
+.menu-btn { flex: none; border: 1px solid var(--line); background: var(--card); color: var(--muted); width: 28px; height: 28px; border-radius: 6px; padding: 0; font-size: 16px; font-weight: 700; line-height: 1; }
+.grupo-cab { display: flex; align-items: center; gap: 8px; padding: 4px 2px 0; }
+.grupo-cab .g-nombre { font-family: var(--display); font-weight: 700; font-size: 16px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--accent); flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.grupo-cab .g-prog { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.series .sv { border: 0; background: none; padding: 0; text-align: left; font: inherit; color: inherit; }
+.series li.plan .sv { color: var(--muted); }
+.series li.editando { background: var(--accent-soft); border-radius: 6px; }
+.marcar { flex: none; width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--accent); background: none; padding: 0; margin-left: 2px; }
+.marcar:hover { background: var(--accent-soft); }
+.meso-banda { margin: 0; padding: 8px 12px; border-radius: 10px; background: var(--accent-soft); color: var(--accent); font-weight: 600; font-size: 14px; text-align: center; }
+.d-tit { flex: 1; color: var(--fg); font-size: 18px; letter-spacing: 0.05em; }
+.menu-det { margin: 0; padding: 10px 16px 0; color: var(--muted); font-size: 14px; line-height: 1.4; }
+.menu-det:empty { display: none; }
+.menu-op { display: flex; flex-direction: column; padding: 6px 8px 14px; }
+.peligro-op { color: var(--error); }
+.d-form { display: flex; flex-direction: column; gap: 10px; padding: 16px; }
+.d-form h3 { color: var(--fg); font-size: 18px; }
+.d-form .menu-det { padding: 0; }
+.d-botones { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; align-items: center; }
+.campo { display: flex; flex-direction: column; gap: 5px; font-size: 13px; font-weight: 600; color: var(--muted); flex: 1 1 160px; }
+.campo input, .campo textarea { color: var(--fg); font-weight: 400; }
+.aviso { margin: 0; color: var(--error); font-size: 14px; min-height: 1em; }
+.meso-dia { display: grid; grid-template-columns: 6.5em 1fr auto; gap: 8px; align-items: center; padding: 6px 0; border-top: 1px solid var(--line); }
+.md-n { font-weight: 600; }
+.md-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.md-vacio { color: var(--muted); font-size: 14px; }
+.md-lista { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 0 8px 6.5em; }
+.chip { border: 1px solid var(--accent); background: var(--accent-soft); color: var(--accent); border-radius: 999px; padding: 4px 10px; font-size: 13px; font-weight: 600; }
+.chip-op { background: var(--card); }
+.plan-sec { display: flex; flex-direction: column; gap: 10px; }
+.sec-cab { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.lista-tarjetas { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
+.usuario { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; margin-bottom: 8px; flex-wrap: wrap; }
+.u-info { display: flex; flex-direction: column; min-width: 0; }
+.u-email { font-weight: 600; overflow-wrap: anywhere; }
+.u-fecha { font-size: 13px; color: var(--muted); }
+.u-estado { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 14px; }
+.con-aviso { color: var(--gold) !important; }
+#pendiente { max-width: 380px; margin: 12vh auto 0; display: flex; flex-direction: column; gap: 14px; line-height: 1.45; }
+#pendiente p { margin: 0; color: var(--muted); }
+#pendiente b { color: var(--fg); overflow-wrap: anywhere; }
+@media (max-width: 760px) {
+  .menu-btn { width: 40px; height: 40px; font-size: 20px; border-radius: 9px; }
+  .marcar { width: 30px; height: 30px; }
+  .grupo-cab .g-nombre { font-size: 18px; }
+  .meso-dia { grid-template-columns: 5.5em 1fr auto; }
+  .md-lista { padding-left: 0; }
+}
