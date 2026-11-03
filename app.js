@@ -722,8 +722,9 @@ async function abrirCompartido(texto) {
 // ---------- Ejercicios de cada día ----------
 let repintarLuego = false;
 const escribiendoSerie = () => document.activeElement && document.activeElement.closest && document.activeElement.closest(".bloques");
+let arrastreActivo = false;   // mientras se arrastra con ≡, la sincronización no repinta el día
 function pintarBloques(forzar) {
-  if (!forzar && escribiendoSerie()) { repintarLuego = true; return; }
+  if (arrastreActivo || (!forzar && escribiendoSerie())) { repintarLuego = true; return; }
   repintarLuego = false;
   dias.forEach(pintarDia);
   pintarProgresoSemana();
@@ -977,7 +978,8 @@ function bloque(dia, id, series, grupo) {
         marcarHecha(s, { ...s, hecha: true, peso: pesoMostrado(s) });
       });
       marca.replaceWith(c);
-    } else marca.replaceWith(botonHecha(s, s.calentamiento ? "C" : String(numero), "serie " + numero));
+    } else marca.replaceWith(botonHecha(s, s.calentamiento ? "C" : "✓", s.calentamiento ? "serie de calentamiento" : "serie " + numero));
+    if (recienValidadas.has(s.id)) li.classList.add("recien");
     li.querySelector(".sv-p").textContent = (s.calentamiento ? "Calent. · " : "") + serieTexto(s);
     if (descTexto(s)) { const d = document.createElement("span"); d.className = "desc"; d.textContent = descTexto(s); li.querySelector(".sv").appendChild(d); }
     if (!dist && usaBarra(id) && textoDiscos(pesoMostrado(s))) { const d = document.createElement("span"); d.className = "discos"; d.textContent = textoDiscos(pesoMostrado(s)); li.querySelector(".sv").appendChild(d); }
@@ -989,7 +991,7 @@ function bloque(dia, id, series, grupo) {
       rellenarCon(s, true);
       if (chkBilbo) chkBilbo.checked = !!s.ciclo_id;
       if (s.ciclo_id === "auto") { fb.value = ""; fb.placeholder = "reps máx"; }
-      boton.textContent = "✓ Guardar " + numero;
+      boton.textContent = "✓ Validar serie " + numero;
       b.querySelector(".desmarcar").hidden = planificada;
       b.querySelector(".desmarcar").onclick = () => desmarcar(s);
       ol.querySelectorAll("li").forEach(x => x.classList.remove("editando"));
@@ -1051,7 +1053,9 @@ function bloque(dia, id, series, grupo) {
     // En días futuros se programa (queda planificada); hoy o antes se apunta como hecha
     fila.hecha = dia.id <= iso(new Date());
     const veces = editando ? 1 : parseInt(b.querySelector(".veces").value, 10) || 1;
-    for (let k = 0; k < veces; k++) cambiar("series", k ? { ...fila, id: nuevoId(), orden: fila.orden + k } : fila, true);
+    const nuevasIds = [];
+    for (let k = 0; k < veces; k++) { const f = k ? { ...fila, id: nuevoId(), orden: fila.orden + k } : fila; nuevasIds.push(f.id); cambiar("series", f, true); }
+    if (fila.hecha) validada(...nuevasIds);
     colocarPrimeraSerie(dia.id, id, grupo, !series.length && !editando);
     persistir();
     quitarEspera(dia.id, id);
@@ -1077,7 +1081,7 @@ function tarjetaBloque(dia, bloqueId, series) {
     '<form class="nueva-serie br-form" hidden><span class="br-que"></span>' +
       '<div class="ns-fila"><input class="in-a" autocomplete="off" enterkeyhint="next"><span class="por"></span><input class="in-b" autocomplete="off" enterkeyhint="next"></div>' +
       '<div class="ns-fila"><input class="in-c" inputmode="decimal" placeholder="⏱ recuperación 2,00 o 300 m" aria-label="Recuperación (tiempo o metros)" autocomplete="off" enterkeyhint="done">' +
-      '<button class="anadir">✓ Guardar</button></div><button type="button" class="enlace desmarcar" hidden>↺ Marcar como pendiente</button></form>';
+      '<button class="anadir">✓ Validar</button></div><button type="button" class="enlace desmarcar" hidden>↺ Marcar como pendiente</button></form>';
   c.querySelector(".br-tit").textContent = "Bloque ×" + rondas.length + " · " + primera.map(s => nombreEj(s.ejercicio_id)).join(" + ");
   c.querySelector(".g-prog").textContent = series.filter(hecha).length + "/" + series.length;
   const menu = c.querySelector(".menu-btn");
@@ -1142,6 +1146,7 @@ function tarjetaBloque(dia, bloqueId, series) {
         m.addEventListener("click", () => marcarHecha(s, { ...s, hecha: true, peso: pesoMostrado(s) }));
         li.querySelector(".n").replaceWith(m);
       } else li.querySelector(".n").replaceWith(botonHecha(s, "✓", "ronda " + r + ", " + nombreEj(s.ejercicio_id)));
+      if (recienValidadas.has(s.id)) li.classList.add("recien");
       deslizable(li, !hecha(s) ? () => marcarHecha(s, { ...s, hecha: true, peso: pesoMostrado(s) }) : () => desmarcar(s), null);
       // El nombre del tramo solo si aporta algo: «Series 1000 m · 1000 m» se queda en «1000 m»
       const nomTramo = variosTramos && !distDeNombre(nombreEj(s.ejercicio_id)) ? nombreEj(s.ejercicio_id) + " · " : "";
@@ -1174,6 +1179,7 @@ function tarjetaBloque(dia, bloqueId, series) {
       if (!(fila.peso >= 0)) { fa.focus(); return; }
       if (!(fila.reps > 0)) { fb.focus(); return; }
     }
+    if (fila.hecha) validada(fila.id);
     cambiar("series", fila);
     terminar(fila);
     if (fila.hecha) avisarSiPR(fila);
@@ -3173,6 +3179,8 @@ function asaArrastre(el, hermanos, alSoltar, nombre) {
   asa.textContent = "≡";
   asa.setAttribute("aria-label", "Mover " + nombre + " (arrástralo o usa las flechas arriba y abajo)");
   asa.addEventListener("click", e => e.stopPropagation());
+  // En iOS, que el toque en el asa no acabe enfocando lo que haya debajo al soltar (abriría el teclado)
+  asa.addEventListener("touchstart", e => e.preventDefault(), { passive: false });
   asa.addEventListener("keydown", e => {
     if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
     e.preventDefault();
@@ -3182,32 +3190,67 @@ function asaArrastre(el, hermanos, alSoltar, nombre) {
     [n[i], n[j]] = [n[j], n[i]];
     alSoltar(n);
   });
+  // Arrastre: el elemento sigue al dedo con transform (en cada fotograma), los demás se apartan con una
+  // transición corta y el orden se guarda una sola vez al soltar; cerca de los bordes la vista se desplaza sola
   asa.addEventListener("pointerdown", e => {
     if (e.button > 0) return;
     e.preventDefault();
     e.stopPropagation();
-    const inicial = hermanos();
-    if (inicial.length < 2) return;
+    const lista = hermanos(), idx = lista.indexOf(el);
+    if (lista.length < 2 || idx < 0) return;
     try { asa.setPointerCapture(e.pointerId); } catch {}
-    let y0 = e.clientY;
+    arrastreActivo = true;
+    const y0 = scrollY, cajas = lista.map(x => { const r = x.getBoundingClientRect(); return { top: r.top + y0, alto: r.height }; });
+    const hueco = idx + 1 < cajas.length ? cajas[idx + 1].top - cajas[idx].top - cajas[idx].alto : idx > 0 ? cajas[idx].top - cajas[idx - 1].top - cajas[idx - 1].alto : 0;
+    const paso = cajas[idx].alto + Math.max(0, hueco), inicioY = e.clientY + y0;
+    let dedoY = e.clientY, destino = idx, pendiente = false, vivo = true;
     el.classList.add("arrastrando");
-    const mover = ev => {
-      const lista = hermanos(), i = lista.indexOf(el), antes = lista[i - 1], despues = lista[i + 1];
-      const arriba = el.offsetTop;
-      if (despues && ev.clientY > despues.getBoundingClientRect().top + despues.offsetHeight / 2) despues.after(el);
-      else if (antes && ev.clientY < antes.getBoundingClientRect().top + antes.offsetHeight / 2) antes.before(el);
-      y0 += el.offsetTop - arriba;
-      el.style.transform = "translateY(" + (ev.clientY - y0) + "px)";
+    lista.forEach(x => { if (x !== el) x.classList.add("apartandose"); });
+    const bordes = () => {
+      let arriba = 0, abajo = innerHeight;
+      document.querySelectorAll(".cabecera, .tabbar").forEach(b => {
+        const pos = getComputedStyle(b).position;
+        if (pos !== "sticky" && pos !== "fixed") return;
+        const r = b.getBoundingClientRect();
+        if (r.height && r.top < innerHeight / 2) arriba = Math.max(arriba, r.bottom); else if (r.height) abajo = Math.min(abajo, r.top);
+      });
+      return { arriba, abajo };
     };
+    const pintar = () => {
+      pendiente = false;
+      if (!vivo) return;
+      // Desplazamiento automático cerca de la cabecera o de la barra de pestañas
+      const { arriba, abajo } = bordes();
+      if (dedoY < arriba + 48) scrollBy(0, -Math.min(14, arriba + 48 - dedoY));
+      else if (dedoY > abajo - 48) scrollBy(0, Math.min(14, dedoY - (abajo - 48)));
+      const dy = dedoY + scrollY - inicioY, centro = cajas[idx].top + cajas[idx].alto / 2 + dy;
+      destino = idx;
+      lista.forEach((x, k) => {
+        if (k === idx) return;
+        const medio = cajas[k].top + cajas[k].alto / 2;
+        let mueve = 0;
+        if (k < idx && centro < medio) { mueve = paso; destino--; }
+        else if (k > idx && centro > medio) { mueve = -paso; destino++; }
+        x.style.transform = mueve ? "translate3d(0," + mueve + "px,0)" : "";
+      });
+      el.style.transform = "translate3d(0," + dy + "px,0)";
+      if (dedoY < arriba + 48 || dedoY > abajo - 48) pedir();
+    };
+    const pedir = () => { if (!pendiente) { pendiente = true; requestAnimationFrame(pintar); } };
+    const mover = ev => { dedoY = ev.clientY; pedir(); };
     const fin = ev => {
+      vivo = false;
+      arrastreActivo = false;
       asa.removeEventListener("pointermove", mover);
       asa.removeEventListener("pointerup", fin);
       asa.removeEventListener("pointercancel", fin);
+      lista.forEach(x => { x.style.transform = ""; x.classList.remove("apartandose"); });
       el.classList.remove("arrastrando");
-      el.style.transform = "";
-      const final = hermanos();
-      if (ev.type === "pointercancel" || final.every((x, k) => x === inicial[k])) { pintarBloques(true); return; }
-      alSoltar(final);
+      if (ev.type === "pointercancel" || destino === idx) { if (repintarLuego) pintarBloques(true); return; }
+      const nuevo = lista.slice();
+      nuevo.splice(idx, 1);
+      nuevo.splice(destino, 0, el);
+      alSoltar(nuevo);
     };
     asa.addEventListener("pointermove", mover);
     asa.addEventListener("pointerup", fin);
@@ -3241,7 +3284,7 @@ $("tabSemana").addEventListener("click", () => { if (semanaVisible && diaAbierto
 let gestoDia = null;
 $("semana").addEventListener("touchstart", e => {
   const t = e.touches[0];
-  gestoDia = diaAbierto && e.touches.length === 1 && t.clientX > 30 && !e.target.closest(".series li, input, textarea, select, .editor") ? { x: t.clientX, y: t.clientY } : null;
+  gestoDia = diaAbierto && e.touches.length === 1 && t.clientX > 30 && !e.target.closest(".series li, input, textarea, select, .editor, .asa") ? { x: t.clientX, y: t.clientY } : null;
 }, { passive: true });
 $("semana").addEventListener("touchend", e => {
   if (!gestoDia) return;
@@ -3356,7 +3399,15 @@ function avisarSiPR(fila, deshacer) {
   else if (deshacer) avisoDeshacer("Serie hecha · " + nombreEj(fila.ejercicio_id), deshacer);
   return pr;
 }
+// Series recién validadas: su fila destaca un momento al pintarse
+const recienValidadas = new Set();
+function validada(...ids) {
+  ids.forEach(id => recienValidadas.add(id));
+  if (navigator.vibrate) navigator.vibrate(15);
+  setTimeout(() => ids.forEach(id => recienValidadas.delete(id)), 1500);
+}
 function marcarHecha(antes, fila) {
+  validada(fila.id);
   cambiar("series", fila);
   pintarBloques(true);
   avisarSiPR(fila, [["series", antes]]);
@@ -3521,6 +3572,7 @@ $("enHecha").addEventListener("click", () => {
     if (!(fila.distancia > 0) && !(fila.tiempo > 0)) { aviso("Pon los metros o el tiempo."); return; }
   }
   const yaHecha = hecha(s);
+  validada(fila.id);
   cambiar("series", fila);
   pintarBloques(true);
   avisarSiPR(fila, [["series", s]]);
@@ -3617,7 +3669,7 @@ $("enSalir").addEventListener("click", salirEntreno);
 $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); abrirRpe(d); });
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
-const VERSION_APP = "v32";
+const VERSION_APP = "v33";
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";
@@ -4097,6 +4149,22 @@ $("buscarPlantilla").addEventListener("input", () => {
   if (sec.classList.contains("cerrada")) { seccionesPlan.plantillas = true; escribir("plan-abiertas-v1", seccionesPlan); ponerSeccion(sec, true); }
   pintarPlan();
 });
+
+// ---------- Zoom: si ya está ampliado con los dedos, un doble toque vuelve al tamaño normal (truco de iOS Safari) ----------
+let ultimoToque = null;
+document.addEventListener("touchend", e => {
+  const vv = window.visualViewport;
+  if (!vv || vv.scale <= 1.02 || e.touches.length || e.changedTouches.length !== 1) { ultimoToque = null; return; }
+  const t = e.changedTouches[0], ahora = Date.now();
+  if (ultimoToque && ahora - ultimoToque.t < 320 && Math.hypot(t.clientX - ultimoToque.x, t.clientY - ultimoToque.y) < 40) {
+    ultimoToque = null;
+    const meta = document.querySelector('meta[name="viewport"]'), antes = meta.getAttribute("content");
+    meta.setAttribute("content", antes + ",maximum-scale=1");
+    setTimeout(() => meta.setAttribute("content", antes), 350);
+    return;
+  }
+  ultimoToque = { t: ahora, x: t.clientX, y: t.clientY };
+}, { passive: true });
 
 // ---------- Instrucciones de uso ----------
 function abrirAyuda() {
