@@ -3677,7 +3677,7 @@ $("enSalir").addEventListener("click", salirEntreno);
 $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); abrirRpe(d); });
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
-const VERSION_APP = "v34";
+const VERSION_APP = "v35";
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";
@@ -4158,21 +4158,13 @@ $("buscarPlantilla").addEventListener("input", () => {
   pintarPlan();
 });
 
-// ---------- Zoom: si ya está ampliado con los dedos, un doble toque vuelve al tamaño normal (truco de iOS Safari) ----------
-let ultimoToque = null;
-document.addEventListener("touchend", e => {
-  const vv = window.visualViewport;
-  if (!vv || vv.scale <= 1.02 || e.touches.length || e.changedTouches.length !== 1) { ultimoToque = null; return; }
-  const t = e.changedTouches[0], ahora = Date.now();
-  if (ultimoToque && ahora - ultimoToque.t < 320 && Math.hypot(t.clientX - ultimoToque.x, t.clientY - ultimoToque.y) < 40) {
-    ultimoToque = null;
-    const meta = document.querySelector('meta[name="viewport"]'), antes = meta.getAttribute("content");
-    meta.setAttribute("content", antes + ",maximum-scale=1");
-    setTimeout(() => meta.setAttribute("content", antes), 350);
-    return;
-  }
-  ultimoToque = { t: ahora, x: t.clientX, y: t.clientY };
-}, { passive: true });
+// ---------- Zoom: sin doble toque a tamaño normal; si se amplía con los dedos, el doble toque nativo de iOS vuelve atrás ----------
+// (con zoom se quita «touch-action: manipulation», así el doble toque reduce el zoom en vez de pulsar lo de debajo)
+if (window.visualViewport) {
+  const marcarZoom = () => document.documentElement.classList.toggle("ampliado", visualViewport.scale > 1.02);
+  visualViewport.addEventListener("resize", marcarZoom);
+  marcarZoom();
+}
 
 // ---------- Instrucciones de uso ----------
 function abrirAyuda() {

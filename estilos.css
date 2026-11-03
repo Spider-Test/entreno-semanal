@@ -858,6 +858,9 @@ body.seleccionando { padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 150
 
 /* Sin zoom por doble toque (el pellizco sigue funcionando) */
 html, body, button, a, input, select, textarea, label, summary, .tarjeta { touch-action: manipulation; }
+/* Con zoom, el doble toque nativo vuelve al tamaño normal (y no pulsa lo de debajo) */
+html.ampliado, html.ampliado body, html.ampliado button, html.ampliado a, html.ampliado input, html.ampliado select, html.ampliado textarea,
+html.ampliado label, html.ampliado summary, html.ampliado .tarjeta, html.ampliado .series li.desliza { touch-action: auto; }
 
 /* Ejercicio con series: limpio como un bloque; «+ Serie» abre el formulario */
 .bloque-cab .g-prog { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; flex: none; }
