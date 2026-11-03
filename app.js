@@ -405,17 +405,20 @@ const dias = DIAS.map((_, i) => {
   const col = document.createElement("section");
   col.className = "dia";
   // Cabecera ligera: el nombre abre el día solo; la negrita aparece solo mientras se escribe
-  col.innerHTML = '<div class="dia-cab"><button type="button" class="dia-abrir"><span class="dia-nombre"></span><span class="dia-fecha"></span></button>' +
+  // El título despliega o pliega el día; ⤢ lo abre solo, a pantalla completa
+  col.innerHTML = '<div class="dia-cab"><button type="button" class="dia-abrir" aria-expanded="true"><span class="flecha-dia" aria-hidden="true">▸</span><span class="dia-nombre"></span><span class="dia-fecha"></span></button>' +
                   '<span class="anillo" hidden></span>' +
                   '<button type="button" class="negrita" aria-pressed="false" title="Negrita (⌘B)">N</button>' +
+                  '<button type="button" class="dia-max" title="Abrir el día a pantalla completa">⤢</button>' +
                   '<button type="button" class="menu-btn" aria-label="Opciones del día">⋯</button></div>' +
                   '<button type="button" class="dia-resumen"></button>' +
+                  '<div class="dia-cuerpo"><div class="dia-cuerpo-in">' +
                   '<div class="editor vacio" role="textbox" aria-multiline="true" contenteditable="true"></div>' +
                   '<div class="bloques"></div><div class="add-fila"><button type="button" class="add-ej">+ Ejercicio</button><button type="button" class="add-ej add-bloque">+ Bloque</button></div>' +
                   '<button type="button" class="primario empezar" hidden>▶ Empezar entreno</button>' +
-                  '<button type="button" class="rpe-dia" hidden></button>';
+                  '<button type="button" class="rpe-dia" hidden></button></div></div>';
   col.querySelector(".dia-nombre").textContent = NOMBRES[i];
-  col.querySelector(".dia-abrir").setAttribute("aria-label", "Abrir solo el " + NOMBRES[i]);
+  col.querySelector(".dia-max").setAttribute("aria-label", "Abrir el " + NOMBRES[i] + " a pantalla completa");
   const ed = col.querySelector(".editor");
   const btn = col.querySelector(".negrita");
   ed.id = "e-" + DIAS[i];
@@ -426,8 +429,9 @@ const dias = DIAS.map((_, i) => {
   const dia = { i, col, ed, btn, fechaEl: col.querySelector(".dia-fecha"), bloquesEl: col.querySelector(".bloques"), rpeEl: col.querySelector(".rpe-dia"),
                 anillo: col.querySelector(".anillo"), resumenEl: col.querySelector(".dia-resumen"), empezarEl: col.querySelector(".empezar"), id: "" };
   dia.rpeEl.addEventListener("click", () => abrirRpe(dia));
-  col.querySelector(".dia-abrir").addEventListener("click", () => abrirDia(dia.id));
-  dia.resumenEl.addEventListener("click", () => abrirDia(dia.id));
+  col.querySelector(".dia-abrir").addEventListener("click", () => plegarDia(dia));
+  dia.resumenEl.addEventListener("click", () => plegarDia(dia));
+  col.querySelector(".dia-max").addEventListener("click", () => abrirDia(dia.id));
   dia.empezarEl.addEventListener("click", () => empezarEntreno(dia));
   ed.addEventListener("focus", () => col.classList.add("escribiendo"));
   ed.addEventListener("blur", () => col.classList.remove("escribiendo"));
@@ -469,8 +473,7 @@ function pintarSemana() {
   rel.classList.toggle("actual", n === 0);
   $("hoyBtn").hidden = n === 0;
   pintarBanda();
-  // En el móvil, hoy abierto y el resto plegado en una línea; con un día abierto, solo ese día
-  const estrecho = matchMedia("(max-width: 760px)").matches;
+  // Cada día se despliega o se pliega (por defecto, solo hoy desplegado); con un día abierto, solo ese día
   $("vistaSemana").classList.toggle("solo-dia", !!diaAbierto);
   $("diaNav").hidden = !diaAbierto;
   $("navSemana").hidden = !!diaAbierto;
@@ -481,7 +484,7 @@ function pintarSemana() {
     d.fechaEl.textContent = fmt(f);
     d.col.classList.toggle("hoy", d.id === hoyIso);
     d.col.hidden = !!diaAbierto && d.id !== diaAbierto;
-    d.col.classList.toggle("plegado", !diaAbierto && estrecho && d.id !== hoyIso);
+    ponerPlegado(d, !diaAbierto && !desplegado(d.id));
     if (document.activeElement !== d.ed) d.ed.innerHTML = "";
   });
   rellenar();
@@ -2802,7 +2805,22 @@ $("semana").addEventListener("touchend", e => {
   gestoDia = null;
   if (Math.abs(dx) > 70 && Math.abs(dx) > 2 * Math.abs(dy)) abrirDia(iso(sumarDias(deIso(diaAbierto), dx < 0 ? 1 : -1)));
 }, { passive: true });
-matchMedia("(max-width: 760px)").addEventListener("change", () => { if (!$("vistaSemana").hidden) pintarSemana(); });
+// Días desplegados o plegados a mano; se recuerdan unas semanas
+let desplegados = leer("dias-desplegados-v1") || {};
+const desplegado = id => desplegados[id] ?? id === iso(new Date());
+function ponerPlegado(d, plegado) {
+  d.col.classList.toggle("plegado", plegado);
+  d.col.querySelector(".dia-abrir").setAttribute("aria-expanded", String(!plegado));
+  d.col.querySelector(".dia-cuerpo").inert = plegado;
+}
+function plegarDia(d) {
+  if (diaAbierto) return;
+  desplegados[d.id] = !desplegado(d.id);
+  const limite = iso(sumarDias(new Date(), -60));
+  Object.keys(desplegados).forEach(k => { if (k < limite) delete desplegados[k]; });
+  escribir("dias-desplegados-v1", desplegados);
+  ponerPlegado(d, !desplegados[d.id]);
+}
 
 // Cabecera de cada día: anillo de series hechas, resumen de una línea (día plegado) y botón de entreno
 function anilloSvg(f) {

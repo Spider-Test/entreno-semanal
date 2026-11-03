@@ -441,10 +441,21 @@ body { padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 104px); }
 .a-hecho { stroke: var(--accent); stroke-linecap: round; }
 .anillo.completo { color: var(--accent); }
 .editor { min-height: 56px; }
-.dia-resumen { display: none; width: 100%; text-align: left; border: 0; background: none; color: var(--muted); font-size: 15px; padding: 2px 14px 12px; min-height: 40px; overflow-wrap: anywhere; }
+.dia-resumen { display: none; width: 100%; text-align: left; border: 0; background: none; color: var(--muted); font-size: 15px; padding: 0 14px 12px 36px; min-height: 36px; overflow-wrap: anywhere; }
 .dia.plegado .dia-resumen { display: block; }
-.dia.plegado .editor, .dia.plegado .bloques, .dia.plegado .add-fila, .dia.plegado .empezar, .dia.plegado .rpe-dia, .dia.plegado .negrita { display: none !important; }
+.dia.plegado .negrita { display: none !important; }
 .dia.plegado .dia-cab { border-bottom: 0; }
+/* Desplegable con animación suave (sin animación si se pide menos movimiento) */
+.dia-cuerpo { display: grid; grid-template-rows: 1fr; transition: grid-template-rows 0.25s ease; }
+.dia-cuerpo-in { min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
+.dia.plegado .dia-cuerpo { grid-template-rows: 0fr; }
+.flecha-dia { display: inline-block; width: 14px; color: var(--muted); font-size: 13px; transition: transform 0.2s; align-self: center; }
+.dia:not(.plegado) .flecha-dia { transform: rotate(90deg); }
+.dia-max { flex: none; border: 0; background: none; color: var(--muted); width: 36px; height: 36px; border-radius: 8px; font-size: 17px; padding: 0; }
+.dia-max:hover { background: var(--bg); color: var(--accent); }
+.solo-dia .dia-max, .solo-dia .flecha-dia { display: none; }
+@media (prefers-reduced-motion: reduce) { .dia-cuerpo, .flecha-dia { transition: none; } }
+@media (max-width: 760px) { .dia-max { width: 44px; height: 44px; font-size: 19px; } }
 .empezar { display: block; width: calc(100% - 16px); margin: 4px 8px 8px; font-size: 17px; }
 .bloque.t-fuerza { border-left: 3px solid var(--fuerza); }
 .bloque.t-carrera { border-left: 3px solid var(--carrera); }
@@ -545,4 +556,55 @@ dialog.pantalla[open] { display: flex; flex-direction: column; }
   .tarjeta { min-height: 44px; }
   .semana { gap: 10px; }
   .dia-nav-t { font-size: 18px; }
+}
+
+/* ===== Escritorio: contenido centrado, menos cajas y botones secundarios al pasar el ratón ===== */
+@media (min-width: 761px) {
+  body { padding-bottom: 40px; padding-left: max(32px, env(safe-area-inset-left, 0px)); padding-right: max(32px, env(safe-area-inset-right, 0px)); }
+  #app { max-width: 1200px; margin: 0 auto; gap: 16px; }
+  #vistaEjercicios, #vistaPlan, #vistaMarcas { width: 100%; max-width: 760px; margin: 0 auto; }
+  /* Semana como lista vertical limpia; con sitio de sobra (más abajo), 7 columnas iguales */
+  .semana, #navSemana, .sem-barra, .resumen-sem, .meso-banda, .dia-nav { width: 100%; max-width: 760px; margin-left: auto; margin-right: auto; }
+  .semana { grid-template-columns: 1fr; gap: 12px; }
+  /* Pestañas arriba, centradas */
+  .tabbar { position: sticky; top: 8px; bottom: auto; left: auto; right: auto; align-self: center; gap: 4px; padding: 5px; border: 0; border-radius: 14px; box-shadow: var(--sombra); }
+  .tabbar button { flex: none; max-width: none; flex-direction: row; gap: 8px; min-height: 40px; padding: 0 16px; font-size: 15px; }
+  .tabbar svg { width: 20px; height: 20px; }
+  .tabbar button[aria-selected="true"] { background: var(--accent-soft); }
+  .toast, dialog .toast { bottom: 24px; }
+  /* Menos cajas dentro de cajas: los ejercicios, como una línea de color a la izquierda */
+  .bloque { border: 0; border-left: 3px solid var(--line); border-radius: 0 8px 8px 0; padding: 4px 4px 6px 12px; }
+  .bloque-rep { border-left-style: dashed; border-left-color: var(--accent); }
+  .bloques:not(:empty) { border-top: 0; }
+  .dia-cab { border-bottom: 0; }
+}
+@media (min-width: 1240px) {
+  .semana, #navSemana, .sem-barra, .resumen-sem, .meso-banda { max-width: none; }
+  #vistaSemana:not(.solo-dia) .semana { grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 10px; }
+  /* Columnas estrechas: el formulario de cada ejercicio aparece al pasar el ratón o al escribir */
+  #vistaSemana:not(.solo-dia) .dia-nombre { font-size: 17px; }
+  /* Cabecera en dos líneas: el día arriba; el progreso y los botones debajo */
+  #vistaSemana:not(.solo-dia) .dia-cab { flex-wrap: wrap; row-gap: 0; }
+  #vistaSemana:not(.solo-dia) .dia-abrir { flex: 1 1 100%; flex-wrap: wrap; column-gap: 6px; row-gap: 0; padding: 4px 6px; }
+  #vistaSemana:not(.solo-dia) .dia-abrir .dia-nombre { overflow: visible; }
+  #vistaSemana:not(.solo-dia) .anillo { margin-left: 6px; margin-right: auto; }
+  #vistaSemana:not(.solo-dia) .anillo[hidden] + .negrita, #vistaSemana:not(.solo-dia) .anillo[hidden] ~ .dia-max { margin-left: auto; }
+  #vistaSemana:not(.solo-dia) .dia-max, #vistaSemana:not(.solo-dia) .dia-cab .menu-btn { width: 30px; height: 30px; }
+  #vistaSemana:not(.solo-dia) .dia-resumen { padding: 0 10px 10px; font-size: 13px; }
+  #vistaSemana:not(.solo-dia) .series li { font-size: 14px; }
+  #vistaSemana:not(.solo-dia) .paso button { display: none; }
+  #vistaSemana:not(.solo-dia) .paso input { border-radius: 8px; }
+  #vistaSemana:not(.solo-dia) .ns-fila { flex-wrap: wrap; }
+  #vistaSemana:not(.solo-dia) .bloque:not(:hover):not(:focus-within):has(.series li) .nueva-serie { display: none; }
+  #vistaSemana:not(.solo-dia) .add-fila { flex-direction: column; gap: 6px; }
+  #vistaSemana:not(.solo-dia) .add-ej { padding: 6px; font-size: 13px; }
+  #vistaSemana:not(.solo-dia) .empezar { font-size: 14px; padding: 9px; }
+  #vistaSemana:not(.solo-dia) .rpe-dia { font-size: 12px; }
+}
+@media (hover: hover) and (pointer: fine) {
+  .menu-btn, .series .borrar, .bloque .quitar, .add-ej { transition: opacity 0.15s; }
+  .menu-btn, .series .borrar, .bloque .quitar { opacity: 0; }
+  .dia:hover .dia-cab .menu-btn, .grupo-cab:hover .menu-btn, .bloque-rep:hover .menu-btn, .bloque:hover .quitar, .series li:hover .borrar,
+  .menu-btn:focus-visible, .series .borrar:focus-visible, .bloque .quitar:focus-visible { opacity: 1; }
+  .dia:not(:hover):not(:focus-within) .add-ej { opacity: 0.55; }
 }
