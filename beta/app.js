@@ -816,11 +816,12 @@ function pintarDia(dia) {
     movibles().forEach(el => {
       const clave = el.dataset.clave, nombre = clave.startsWith("b:") ? "Bloque" : nombreEj(clave), espera = !!el.dataset.espera;
       if (movibles().length > 1) el.querySelector(".bloque-cab").appendChild(asaArrastre(el, movibles, soltar, nombre));
-      if (clave.startsWith("b:") || (movibles().length < 2 && (espera || !otrasSesiones.length))) return;
+      if (clave.startsWith("b:")) return;
       const m = document.createElement("button");
       m.type = "button"; m.className = "menu-btn"; m.textContent = "⋯";
       m.setAttribute("aria-label", "Opciones de " + nombre);
       m.addEventListener("click", () => abrirMenu(nombre, "", [
+        !espera && el.abrirEdicion && { texto: "Editar (valores, ×N o ejercicio)", accion: () => el.abrirEdicion() },
         movibles().length > 1 && { texto: "Subir", accion: () => mover(el, -1) },
         movibles().length > 1 && { texto: "Bajar", accion: () => mover(el, 1) },
         !espera && otrasSesiones.length && { texto: "Mover a otra sesión…", accion: () => abrirMenu("¿A qué sesión?", "", otrasSesiones.map(x => ({
@@ -830,8 +831,14 @@ function pintarDia(dia) {
       const asa = el.querySelector(".bloque-cab .asa");
       if (asa) asa.before(m); else el.querySelector(".bloque-cab").appendChild(m);
     });
+    const pie = pieTotal(delDia.filter(s => (s.grupo || "") === g.nombre));
+    if (pie) caja.appendChild(pie);
     cont.appendChild(caja);
   });
+  // Si la carrera (o la natación) está repartida en varias sesiones, además el total del día de ese deporte
+  const repetidos = ["carrera", "natacion"].filter(t => grupos.filter(g => delDia.some(s => (s.grupo || "") === g.nombre && tipoDe(s.ejercicio_id) === t)).length > 1);
+  const pieDia = repetidos.length && pieTotal(delDia.filter(s => repetidos.includes(tipoDe(s.ejercicio_id))), true);
+  if (pieDia) cont.appendChild(pieDia);
   pintarRpe(dia);
   pintarCabDia(dia);
 }
@@ -864,8 +871,9 @@ function bloque(dia, id, series, grupo) {
           '<span class="por">×</span>' + paso('<input class="in-b" inputmode="numeric" pattern="[0-9]*" placeholder="reps" aria-label="Repeticiones" autocomplete="off" enterkeyhint="next">')) +
       '</div>' + (dist ? '<div class="ns-extra"><span class="calc"></span></div>' : '<div class="ns-extra"><span class="calc"></span><label class="bilbo-op" hidden><input type="checkbox" class="es-bilbo"> <span></span></label></div>') +
       '<div class="ns-fila"><input class="in-c" inputmode="decimal" placeholder="⏱ descanso 1,30 o 300 m" aria-label="Descanso o recuperación después de la serie (tiempo o metros)" autocomplete="off" enterkeyhint="done">' +
-      '<select class="veces" aria-label="Cuántas series iguales añadir">' + [1, 2, 3, 4, 5, 6, 8, 10].map(n => '<option value="' + n + '">×' + n + '</option>').join("") + '</select>' +
-      '<button class="anadir">+ Serie</button></div>' +
+      '<label class="veces-l"><span aria-hidden="true">×</span><input class="veces" inputmode="numeric" pattern="[0-9]*" value="1" aria-label="Cuántas series iguales" autocomplete="off" enterkeyhint="done"></label>' +
+      '<button class="anadir ok">OK</button></div>' +
+      '<label class="cambiar-ej" hidden>Ejercicio <select class="otro-ej" aria-label="Cambiar el ejercicio (se mantienen las series)"></select></label>' +
       '<button type="button" class="enlace desmarcar" hidden>↺ Marcar como pendiente</button>' +
     '</form>';
   const nom = b.querySelector(".ej-nombre");
@@ -874,8 +882,9 @@ function bloque(dia, id, series, grupo) {
   if (ej.video_url) { const v = document.createElement("span"); v.className = "ico"; v.textContent = "▶ vídeo"; nom.appendChild(v); }
   const dolor = molestiasDe(id);
   if (dolor.length) { const m = document.createElement("span"); m.className = "molestia-tag"; m.textContent = "⚠ " + dolor.map(x => x.zona).join(", "); m.title = dolor.map(x => x.zona + (x.descripcion ? ": " + x.descripcion : "")).join(" · "); nom.appendChild(m); }
-  nom.setAttribute("aria-label", "Ver " + (ej.nombre || "ejercicio") + ": vídeo, récords e historial");
-  nom.addEventListener("click", () => abrirDetalle(id));
+  nom.setAttribute("aria-label", series.length ? "Editar " + (ej.nombre || "ejercicio") + ": valores, número de series o ejercicio" : "Ver " + (ej.nombre || "ejercicio") + ": vídeo, récords e historial");
+  // Con series: tocar el nombre abre (o cierra sin guardar) la edición del ejercicio; sin series, su ficha
+  nom.addEventListener("click", () => !series.length ? abrirDetalle(id) : formEl.hidden ? abrirGrupo() : pintarBloques(true));
   const quitar = b.querySelector(".quitar");
   if (series.length) quitar.remove();
   else quitar.addEventListener("click", () => { quitarEspera(dia.id, id); pintarDia(dia); });
@@ -887,9 +896,38 @@ function bloque(dia, id, series, grupo) {
     prog.className = "g-prog";
     prog.textContent = series.filter(hecha).length + "/" + series.length;
     nom.after(prog);
+    const efect = series.filter(x => !x.calentamiento), textos = new Set(efect.map(x => serieTexto({ ...x, hecha: false, tiempo: dist ? 0 : x.tiempo })));
+    if (efect.length && textos.size === 1) {
+      const r = document.createElement("span");
+      r.className = "ej-resumen";
+      r.textContent = [...textos][0] + " · ×" + efect.length;
+      prog.before(r);
+    }
     formEl.hidden = true;
   }
+  // El formulario tiene tres usos: «grupo» (×N series iguales y OK, también para editarlas todas), «una» (+ Serie suelta) y «editar» (una serie)
+  let modoForm = "grupo";
+  const vecesEl = b.querySelector(".veces"), cambiarEl = b.querySelector(".cambiar-ej"), otroEj = b.querySelector(".otro-ej");
+  const ponerModoForm = m => {
+    modoForm = m;
+    b.querySelector(".veces-l").hidden = m !== "grupo";
+    cambiarEl.hidden = !(m === "grupo" && series.length);
+    if (m !== "editar") boton.textContent = m === "grupo" ? "OK" : "+ Añadir serie";
+    boton.setAttribute("aria-label", m === "grupo" ? (series.length ? "OK: guardar los cambios en las series" : "OK: crear las series") : m === "una" ? "Añadir una serie suelta" : "Guardar la serie");
+    if (m !== "editar") { editando = null; b.querySelector(".desmarcar").hidden = true; ol.querySelectorAll("li").forEach(x => x.classList.remove("editando")); }
+  };
   const abrirForm = () => { formEl.hidden = false; const m = b.querySelector(".mas-serie"); if (m) m.hidden = true; };
+  function abrirGrupo() {
+    abrirForm();
+    ponerModoForm("grupo");
+    const efect = series.filter(x => !x.calentamiento), ref = efect.find(x => !hecha(x)) || efect[efect.length - 1] || series[0];
+    if (ref) rellenarCon(ref, true);
+    vecesEl.value = efect.length || 1;
+    otroEj.textContent = "";
+    vivos("ejercicios").filter(e => tipoDe(e.id) === tipo).sort((x, y) => x.nombre.localeCompare(y.nombre, "es")).forEach(e => otroEj.add(new Option(e.nombre, e.id, e.id === id, e.id === id)));
+    fa.focus();
+  }
+  b.abrirEdicion = abrirGrupo;
 
   const fa = b.querySelector(".in-a"), fb = b.querySelector(".in-b"), fc = b.querySelector(".in-c"), boton = b.querySelector(".anadir");
   const modo = b.querySelector(".modo"), calc = b.querySelector(".calc"), opBilbo = b.querySelector(".bilbo-op"), chkBilbo = b.querySelector(".es-bilbo");
@@ -911,7 +949,7 @@ function bloque(dia, id, series, grupo) {
     fb.setAttribute("aria-label", t ? "Distancia en metros (opcional)" : "Tiempo (minutos y segundos)");
   };
   if (modoDist) modoDist.addEventListener("click", () => { const x = fa.value; ponerPorTiempo(!porTiempo); fa.value = fb.value; fb.value = x; fa.focus(); pintarObjetivo(); });
-  if (dist) { [fa, fb, fc].forEach(x => x.addEventListener("input", pintarObjetivo)); b.querySelector(".veces").addEventListener("change", pintarObjetivo); }
+  if (dist) { [fa, fb, fc].forEach(x => x.addEventListener("input", pintarObjetivo)); b.querySelector(".veces").addEventListener("input", pintarObjetivo); }
   // − y +: kg (o %) y reps en fuerza; metros y segundos en carrera y natación
   b.querySelectorAll(".paso").forEach(p => {
     const inp = p.querySelector("input");
@@ -1018,6 +1056,7 @@ function bloque(dia, id, series, grupo) {
     li.querySelector(".sv").addEventListener("click", () => {
       if (li.dataset.deslizado) return;
       abrirForm();
+      ponerModoForm("editar");
       editando = s;
       rellenarCon(s, true);
       if (chkBilbo) chkBilbo.checked = !!s.ciclo_id;
@@ -1045,7 +1084,7 @@ function bloque(dia, id, series, grupo) {
     mas.className = "enlace mas-serie";
     mas.textContent = "+ Serie";
     mas.setAttribute("aria-label", "Añadir otra serie de " + (ej.nombre || "este ejercicio"));
-    mas.addEventListener("click", () => { abrirForm(); fa.focus(); });
+    mas.addEventListener("click", () => { abrirForm(); ponerModoForm("una"); fa.focus(); });
     ol.after(mas);
   }
   // Calentamiento sugerido antes de la primera serie efectiva (hoy y sin haber empezado)
@@ -1069,38 +1108,89 @@ function bloque(dia, id, series, grupo) {
     inp.addEventListener("focus", () => inp.select());
     if (k < 2) inp.addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); todos[k + 1].focus(); } });
   });
-  b.querySelector("form").addEventListener("submit", e => {
-    e.preventDefault();
+  // Lee los campos; null (y el foco en el campo que falla) si algo no vale
+  const leerValores = () => {
     const rec = leerRecuperacion(fc.value);
-    if (!rec) { fc.focus(); return; }
-    const fila = editando ? { ...editando } : { id: nuevoId(), fecha: dia.id, ejercicio_id: id, orden: Date.now(), grupo, meso_id: "", bloque_id: "", ronda: 0, borrado: false };
-    Object.assign(fila, { peso: 0, reps: 0, distancia: 0, tiempo: 0, descanso: rec.descanso, rec_dist: rec.rec_dist, hecha: true });
+    if (!rec) { fc.focus(); return null; }
+    const v = { peso: 0, reps: 0, pct: 0, ciclo_id: "", distancia: 0, tiempo: 0, descanso: rec.descanso, rec_dist: rec.rec_dist };
     if (dist) {
       const metros = porTiempo ? fb : fa, crono = porTiempo ? fa : fb;
-      fila.distancia = parseFloat(metros.value.replace(",", ".")) || 0;
-      fila.tiempo = leerTiempo(crono.value);
-      if (isNaN(fila.tiempo)) { crono.focus(); return; }
-      if (!(fila.distancia > 0) && !(fila.tiempo > 0)) { fa.focus(); return; }
+      v.distancia = parseFloat(metros.value.replace(",", ".")) || 0;
+      v.tiempo = leerTiempo(crono.value);
+      if (isNaN(v.tiempo)) { crono.focus(); return null; }
+      if (!(v.distancia > 0) && !(v.tiempo > 0)) { fa.focus(); return null; }
     } else {
-      const v = parseFloat((fa.value.trim() || "0").replace(",", "."));
-      fila.pct = enPct ? v : 0;
-      fila.peso = enPct ? kgDePct(id, v) : v;
-      fila.reps = parseInt(fb.value, 10);
-      fila.ciclo_id = chkBilbo && chkBilbo.checked && ciclo ? ciclo.id : "";
-      if (!(v >= 0) || (enPct && !fila.peso)) { fa.focus(); return; }
-      if (!(fila.reps > 0)) { fb.focus(); return; }
+      const x = parseFloat((fa.value.trim() || "0").replace(",", "."));
+      v.pct = enPct ? x : 0;
+      v.peso = enPct ? kgDePct(id, x) : x;
+      v.reps = parseInt(fb.value, 10);
+      v.ciclo_id = chkBilbo && chkBilbo.checked && ciclo ? ciclo.id : "";
+      if (!(x >= 0) || (enPct && !v.peso)) { fa.focus(); return null; }
+      if (!(v.reps > 0)) { fb.focus(); return null; }
     }
-    // En días futuros se programa (queda planificada); hoy o antes se apunta como hecha
-    fila.hecha = dia.id <= iso(new Date());
-    const veces = editando ? 1 : parseInt(b.querySelector(".veces").value, 10) || 1;
-    for (let k = 0; k < veces; k++) cambiar("series", k ? { ...fila, id: nuevoId(), orden: fila.orden + k } : fila, true);
-    colocarPrimeraSerie(dia.id, id, grupo, !series.length && !editando);
-    persistir();
-    quitarEspera(dia.id, id);
-    terminar(fila);
-    if (fila.hecha) avisarSiPR(fila);
-    const otra = dia.bloquesEl.querySelector('[data-ej="' + id + '"][data-grupo="' + CSS.escape(grupo) + '"] .anadir');
-    if (otra) otra.focus();
+    return v;
+  };
+  // Días pasados: se apunta como hecho; hoy y días futuros: quedan pendientes para marcarlas una a una
+  const nuevaHecha = dia.id < iso(new Date());
+  b.querySelector("form").addEventListener("submit", e => {
+    e.preventDefault();
+    const v = leerValores();
+    if (!v) return;
+    if (modoForm === "editar" && editando) {
+      // Una serie concreta: se completa (o corrige) con lo escrito; hoy o antes queda hecha
+      const fila = { ...editando, ...v, hecha: dia.id <= iso(new Date()) };
+      cambiar("series", fila);
+      terminar(fila);
+      if (fila.hecha) avisarSiPR(fila);
+      return;
+    }
+    const nueva = k => ({ id: nuevoId(), fecha: dia.id, ejercicio_id: id, orden: Date.now() + k, grupo, meso_id: "", bloque_id: "", ronda: 0, borrado: false, calentamiento: false, ...v, hecha: nuevaHecha });
+    if (modoForm === "una" || !series.length) {
+      const n = modoForm === "una" ? 1 : Math.min(50, Math.max(1, parseInt(vecesEl.value, 10) || 1));
+      if (!series.length) {
+        // Delante del ejercicio que tenga detrás (el «orden» de la primera serie lo coloca colocarPrimeraSerie)
+        for (let k = 0; k < n; k++) cambiar("series", nueva(k), true);
+      } else {
+        const ultimo = Math.max(...series.map(x => n0(x.orden)));
+        cambiar("series", { ...nueva(0), orden: ultimo + 0.5 }, true);
+      }
+      colocarPrimeraSerie(dia.id, id, grupo, !series.length);
+      persistir();
+      quitarEspera(dia.id, id);
+      terminar();
+      return;
+    }
+    // Editar el ejercicio entero: valores de las pendientes, número de series y, si se pide, otro ejercicio
+    const efect = series.filter(x => !x.calentamiento), pend = efect.filter(x => !hecha(x)), hechas = efect.filter(hecha);
+    const objetivo = Math.min(50, Math.max(1, parseInt(vecesEl.value, 10) || 1)), destino = otroEj.value || id;
+    const aplicar = borrarHechas => {
+      const deshacer = series.map(x => ["series", { ...x }]);
+      const nuevas = [];
+      pend.forEach(x => cambiar("series", { ...x, ...v, hecha: false }, true));
+      if (objetivo > efect.length) {
+        const ultimo = Math.max(...series.map(x => n0(x.orden)));
+        for (let k = 0; k < objetivo - efect.length; k++) { const f = { ...nueva(k), orden: ultimo + (k + 1) / 100, hecha: false }; nuevas.push(f); cambiar("series", f, true); }
+      } else if (objetivo < efect.length) {
+        let sobran = efect.length - objetivo;
+        const quitar = pend.slice().reverse().concat(borrarHechas ? hechas.slice().reverse() : []);
+        quitar.forEach(x => { if (sobran > 0) { cambiar("series", { ...db.series[x.id], borrado: true }, true); sobran--; } });
+      }
+      // Otro ejercicio (p. ej. sentadilla → prensa): todas las series de esta tarjeta, hechas incluidas, pasan a él
+      if (destino !== id) {
+        series.concat(nuevas).forEach(x => { const f = db.series[x.id]; if (f && !f.borrado) cambiar("series", { ...f, ejercicio_id: destino }, true); });
+        quitarEspera(dia.id, destino);
+      }
+      persistir();
+      terminar();
+      avisoDeshacer(destino !== id ? "Cambiado a " + nombreEj(destino) : "Series actualizadas · " + nombreEj(id),
+        deshacer.concat(nuevas.map(f => ["series", { ...f, borrado: true }])));
+    };
+    const faltan = efect.length - objetivo - pend.length;
+    if (faltan > 0) abrirMenu("¿Quitar también series hechas?", "Para dejar ×" + objetivo + " hay que borrar " + faltan + (faltan === 1 ? " serie hecha" : " series hechas") + ".", [
+      { texto: "Borrar " + faltan + (faltan === 1 ? " hecha" : " hechas"), peligro: true, confirmar: "Pulsa otra vez para borrarlas", accion: () => aplicar(true) },
+      { texto: "Dejar las hechas (solo quitar pendientes)", accion: () => aplicar(false) }
+    ]);
+    else aplicar(false);
   });
   return b;
 }
@@ -1803,6 +1893,50 @@ const velDeVo2 = o => (-0.182258 + Math.sqrt(0.182258 * 0.182258 + 4 * 0.000104 
 const ritmoZona = (vdot, fr) => 1000 / velDeVo2(vdot * fr) * 60;                           // segundos por km
 const ZONAS = [["Suave (rodaje)", 0.70], ["Maratón", 0.80], ["Umbral", 0.88], ["Series 1000 m (intervalos)", 0.975], ["Series 200–400 m (ritmo)", 1.05]];
 const esRecuperacion = id => /trote|recuper|suave|rodaje|calent|calma/.test(norm(nombreEj(id)));
+// Sumatorio de distancia de carrera y natación: lo hecho (series, recuperaciones en metros, calentamiento y vuelta a la calma) y lo planificado
+const esCalentamiento = s => !!s.calentamiento || /calent|calma/.test(norm(nombreEj(s.ejercicio_id)));
+function totalesDistancia(series) {
+  const r = {};
+  series.forEach(s => {
+    const t = tipoDe(s.ejercicio_id);
+    if (t !== "carrera" && t !== "natacion") return;
+    const x = r[t] = r[t] || { hecho: 0, plan: 0, tiempo: 0, efectivo: 0, rec: 0, calent: 0, pendientes: 0 };
+    const d = n0(s.distancia), rec = n0(s.rec_dist);
+    x.plan += d + rec;
+    if (!hecha(s)) { x.pendientes++; return; }
+    x.hecho += d + rec; x.tiempo += n0(s.tiempo); x.rec += rec;
+    if (esCalentamiento(s)) x.calent += d; else x.efectivo += d;
+  });
+  return r;
+}
+const miles = n => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+const fmtTotal = (t, m) => t === "carrera" ? (m / 1000).toFixed(2).replace(".", ",") + " km" : miles(m) + " m";
+// «Total carrera: 7,30 km · 32:10 · series 4,20 km · rec. 1,20 km» (con lo pendiente aparte); null si no hay carrera ni natación
+function lineasTotal(series) {
+  const tot = totalesDistancia(series);
+  return Object.keys(tot).filter(t => tot[t].plan > 0 || tot[t].tiempo > 0).map(t => {
+    const x = tot[t], f = m => fmtTotal(t, m), nombre = t === "carrera" ? "carrera" : "natación";
+    const partes = [x.efectivo && (x.rec || x.calent) ? "series " + f(x.efectivo) : "", x.rec ? "rec. " + f(x.rec) : "", x.calent ? "calent. y calma " + f(x.calent) : ""].filter(Boolean);
+    const principal = !x.hecho && x.pendientes ? "Planificado " + nombre + ": " + f(x.plan)
+      : "Total " + nombre + ": " + (x.pendientes && x.plan > x.hecho ? "hecho " + f(x.hecho) + " de " + f(x.plan) + " planificados" : f(x.hecho));
+    return { tipo: t, texto: principal, detalle: [x.tiempo ? fmtTiempo(x.tiempo) : ""].concat(x.hecho ? partes : []).filter(Boolean).join(" · "), corto: f(x.hecho || x.plan) };
+  });
+}
+function pieTotal(series, deDia) {
+  const ls = lineasTotal(series);
+  if (!ls.length) return null;
+  const pie = document.createElement("div");
+  pie.className = "total-dist" + (deDia ? " del-dia" : "");
+  ls.forEach(l => {
+    const p = document.createElement("p");
+    p.className = "t-" + l.tipo;
+    p.innerHTML = "<b></b><span></span>";
+    p.firstChild.textContent = (deDia ? l.texto.replace(/^Total /, "Total del día · ") : l.texto);
+    p.lastChild.textContent = l.detalle ? " · " + l.detalle : "";
+    pie.appendChild(p);
+  });
+  return pie;
+}
 const esTrote = id => /trote|recuper/.test(norm(nombreEj(id)));   // los trotes entre series cuentan como recuperación
 function tiempoPrevisto(vdot, m) {
   let lo = m / 600 * 60, hi = m / 50 * 60;
@@ -2420,7 +2554,8 @@ function datosSemana(lunes) {
   // Los km y metros sí incluyen calentamiento y vuelta a la calma: también se corren
   seriesVivas().filter(s => s.fecha >= ini && s.fecha < fin && hecha(s)).forEach(s => {
     const t = tipoDe(s.ejercicio_id);
-    if (t === "carrera") r.km += n0(s.distancia) / 1000; else if (t === "natacion") r.nado += n0(s.distancia);
+    const m = n0(s.distancia) + n0(s.rec_dist);   // igual que el total de cada día: con las recuperaciones en metros
+    if (t === "carrera") r.km += m / 1000; else if (t === "natacion") r.nado += m;
   });
   [...new Set(hechas.map(s => s.ejercicio_id))].forEach(id => { const prs = prsEj(id); hechas.forEach(s => { if (prs.has(s.id)) r.prs++; }); });
   const rpes = Object.values(db.entrenos).filter(e => e.fecha >= ini && e.fecha < fin && n0(e.rpe) > 0).map(e => n0(e.rpe));
@@ -3372,8 +3507,9 @@ function pintarCabDia(dia) {
   const sesiones = [...new Set(del.map(s => s.grupo).filter(Boolean))];
   const nombre = titulo || sesiones.join(" + ");
   dia.resumenEl.classList.toggle("es-titulo", !!nombre);
-  dia.resumenEl.textContent = nombre ? nombre.slice(0, 140)
-    : [del.length ? h + "/" + del.length + " series" : "", n0(e.rpe) ? "esfuerzo " + e.rpe + "/10" : ""].filter(Boolean).join(" · ") || "Nada apuntado";
+  const km = lineasTotal(del).map(l => l.corto).join(" · ");
+  dia.resumenEl.textContent = nombre ? (km ? km + " · " : "") + nombre.slice(0, 140)
+    : [km, del.length ? h + "/" + del.length + " series" : "", n0(e.rpe) ? "esfuerzo " + e.rpe + "/10" : ""].filter(Boolean).join(" · ") || "Nada apuntado";
   dia.resumenEl.title = nombre;
   dia.empezarEl.hidden = !del.length || h === del.length || !(dia.id === iso(new Date()) || dia.id === diaAbierto);
   dia.empezarEl.textContent = h ? "▶ Seguir entreno (" + h + "/" + del.length + ")" : "▶ Empezar entreno";
@@ -3578,7 +3714,10 @@ function pintarEntreno() {
 function siguientePendiente() {
   const n = ent.cola.length;
   const sig = Array.from({ length: n }, (_, k) => (ent.i + 1 + k) % n).find(k => !hecha(db.series[ent.cola[k]]));
-  if (sig === undefined) $("enFin").hidden = false; else ent.i = sig;
+  if (sig === undefined) {
+    $("enFin").hidden = false;
+    $("enTotal").textContent = lineasTotal(ent.cola.map(id => db.series[id]).filter(Boolean)).map(l => l.texto + (l.detalle ? " · " + l.detalle : "")).join("\n");
+  } else ent.i = sig;
   pintarEntreno();
 }
 $("enHecha").addEventListener("click", () => {
@@ -3698,7 +3837,7 @@ $("enSalir").addEventListener("click", salirEntreno);
 $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); abrirRpe(d); });
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
-const VERSION_APP = "v36" + (BETA ? " beta" : "");
+const VERSION_APP = "v37" + (BETA ? " beta" : "");
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";
