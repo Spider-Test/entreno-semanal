@@ -283,8 +283,8 @@ dialog::backdrop { background: rgba(0,0,0,0.45); }
 }
 
 /* % del RM, Bilbo y temporizador */
-.modo { flex: none; min-width: 40px; height: 32px; border: 1px solid var(--line); background: var(--card); color: var(--muted); border-radius: 8px; font-weight: 700; padding: 0 8px; }
-.modo.activo { background: var(--accent); border-color: var(--accent); color: var(--card); }
+.modo, .modo-dist { flex: none; min-width: 40px; height: 32px; border: 1px solid var(--line); background: var(--card); color: var(--muted); border-radius: 8px; font-weight: 700; padding: 0 8px; }
+.modo.activo, .modo-dist.activo { background: var(--accent); border-color: var(--accent); color: var(--card); }
 .ns-extra { display: flex; flex-direction: column; gap: 4px; }
 .ns-extra:has(.calc:empty):has(.bilbo-op[hidden]) { display: none; }
 .calc { font-size: 13px; color: var(--accent); font-weight: 600; font-variant-numeric: tabular-nums; }
@@ -311,7 +311,7 @@ dialog::backdrop { background: rgba(0,0,0,0.45); }
 .rm-fila .menu-det { padding: 0; flex: 1 1 200px; }
 .crear-dist { color: var(--accent); font-weight: 700; }
 @media (max-width: 760px) {
-  .modo { height: 42px; min-width: 46px; font-size: 16px; }
+  .modo, .modo-dist { height: 42px; min-width: 46px; font-size: 16px; }
 }
 
 /* Varias series de golpe, sugerencias y compartir */

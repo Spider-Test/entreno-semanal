@@ -65,6 +65,7 @@ const fmtTiempo = seg => {
   return (h ? h + ":" + String(m).padStart(2, "0") : m) + ":" + String(x).padStart(2, "0");
 };
 const fmtDist = m => n0(m) >= 3000 ? num(Math.round(n0(m) / 10) / 100) + " km" : num(n0(m)) + " m";
+const fmtDuracion = seg => n0(seg) % 60 === 0 && n0(seg) < 3600 ? n0(seg) / 60 + " min" : fmtTiempo(seg);
 // "3:40", "3,40", "3'40" o "1:02:30"; un número solo son minutos
 function leerTiempo(txt) {
   const t = (txt || "").trim();
@@ -151,7 +152,11 @@ const pesoMostrado = s => !hecha(s) && s.ciclo_id === "auto" ? pesoBilbo(s.ejerc
   : !hecha(s) && n0(s.pct) > 0 ? kgDePct(s.ejercicio_id, s.pct) || n0(s.peso) : n0(s.peso);
 function serieTexto(s) {
   const tipo = tipoDe(s.ejercicio_id);
-  if (esDistancia(tipo)) return fmtDist(s.distancia) + (n0(s.tiempo) > 0 ? " · " + fmtTiempo(s.tiempo) + " · " + ritmo(s, tipo) : "");
+  if (esDistancia(tipo)) {
+    // Por tiempo (sin metros): solo la duración, p. ej. «40 min»
+    if (!(n0(s.distancia) > 0)) return n0(s.tiempo) > 0 ? fmtDuracion(s.tiempo) : "—";
+    return fmtDist(s.distancia) + (n0(s.tiempo) > 0 ? " · " + fmtTiempo(s.tiempo) + " · " + ritmo(s, tipo) : "");
+  }
   const kg = pesoMostrado(s), reps = n0(s.reps) > 0 ? n0(s.reps) : "máx";
   return (s.ciclo_id ? "Bilbo · " : "") + (n0(s.pct) > 0 ? num(s.pct) + " % · " : "") + (kg > 0 ? num(kg) + " kg × " + reps : reps + " reps");
 }
@@ -202,7 +207,8 @@ function estadisticas(id) {
     const porDist = {};
     marcadas.forEach(s => { const d = n0(s.distancia); if (!porDist[d] || n0(s.tiempo) < n0(porDist[d].tiempo)) porDist[d] = s; });
     st.marcas = Object.keys(porDist).map(Number).sort((a, b) => a - b).map(d => porDist[d]);
-    st.resumen = (st.mejorRitmo ? "Mejor ritmo: " + ritmo(st.mejorRitmo, tipo) + " (" + fmtDist(st.mejorRitmo.distancia) + ") · " : "") + fmtDist(st.total) + " en total";
+    st.tiempoTotal = lista.reduce((a, s) => a + n0(s.tiempo), 0);
+    st.resumen = (st.mejorRitmo ? "Mejor ritmo: " + ritmo(st.mejorRitmo, tipo) + " (" + fmtDist(st.mejorRitmo.distancia) + ") · " : "") + (st.total > 0 ? fmtDist(st.total) : fmtTiempo(st.tiempoTotal)) + " en total";
     return st;
   }
   const pesadas = lista.filter(s => n0(s.peso) > 0);
@@ -717,7 +723,7 @@ function bloque(dia, id, series, grupo) {
     '<ol class="series"></ol>' +
     '<form class="nueva-serie">' +
       '<div class="ns-fila">' + (dist
-        ? '<input class="in-a" inputmode="numeric" pattern="[0-9]*" placeholder="metros" aria-label="Distancia en metros" autocomplete="off" enterkeyhint="next">' +
+        ? '<button type="button" class="modo-dist" aria-label="Cambiar entre metros y tiempo">m</button><input class="in-a" inputmode="numeric" pattern="[0-9]*" placeholder="metros" aria-label="Distancia en metros" autocomplete="off" enterkeyhint="next">' +
           '<input class="in-b" inputmode="decimal" placeholder="tiempo 3,40" aria-label="Tiempo (minutos y segundos)" autocomplete="off" enterkeyhint="next">'
         : '<button type="button" class="modo" aria-label="Cambiar entre kg y % del 1RM">kg</button><input class="in-a" inputmode="decimal" placeholder="kg" aria-label="Peso en kg" autocomplete="off" enterkeyhint="next">' +
           '<span class="por">×</span><input class="in-b" inputmode="numeric" pattern="[0-9]*" placeholder="reps" aria-label="Repeticiones" autocomplete="off" enterkeyhint="next">') +
@@ -739,6 +745,23 @@ function bloque(dia, id, series, grupo) {
   const fa = b.querySelector(".in-a"), fb = b.querySelector(".in-b"), fc = b.querySelector(".in-c"), boton = b.querySelector(".anadir");
   const modo = b.querySelector(".modo"), calc = b.querySelector(".calc"), opBilbo = b.querySelector(".bilbo-op"), chkBilbo = b.querySelector(".es-bilbo");
   let enPct = false;
+  // Carrera y natación: por metros (con tiempo opcional) o por tiempo (con metros opcionales)
+  const modoDist = b.querySelector(".modo-dist");
+  let porTiempo = false;
+  const ponerPorTiempo = t => {
+    porTiempo = t;
+    if (!modoDist) return;
+    modoDist.textContent = t ? "min" : "m";
+    modoDist.classList.toggle("activo", t);
+    fa.placeholder = t ? "tiempo 40" : "metros";
+    fa.inputMode = t ? "decimal" : "numeric";
+    if (t) fa.removeAttribute("pattern"); else fa.setAttribute("pattern", "[0-9]*");
+    fa.setAttribute("aria-label", t ? "Tiempo (minutos y segundos)" : "Distancia en metros");
+    fb.placeholder = t ? "metros (opcional)" : "tiempo 3,40";
+    fb.inputMode = t ? "numeric" : "decimal";
+    fb.setAttribute("aria-label", t ? "Distancia en metros (opcional)" : "Tiempo (minutos y segundos)");
+  };
+  if (modoDist) modoDist.addEventListener("click", () => { const x = fa.value; ponerPorTiempo(!porTiempo); fa.value = fb.value; fb.value = x; fa.focus(); });
   const pintarCalc = () => {
     if (!calc) return;
     if (!enPct) { calc.textContent = ""; return; }
@@ -756,7 +779,12 @@ function bloque(dia, id, series, grupo) {
   };
   // La recuperación solo se copia de una serie de este mismo día: cada entrenamiento la ajusta
   const rellenarCon = (s, conRec) => {
-    if (dist) { fa.value = n0(s.distancia) || ""; fb.value = n0(s.tiempo) > 0 ? fmtTiempo(s.tiempo) : ""; }
+    if (dist) {
+      const t = !(n0(s.distancia) > 0) && n0(s.tiempo) > 0, m = n0(s.distancia) || "", ti = n0(s.tiempo) > 0 ? fmtTiempo(s.tiempo) : "";
+      ponerPorTiempo(t);
+      fa.value = t ? ti : m;
+      fb.value = t ? m : ti;
+    }
     else if (n0(s.pct) > 0 && !s.ciclo_id) { ponerModo(true); fa.value = num(s.pct); fb.value = n0(s.reps) || ""; }
     else { ponerModo(false); const kg = pesoMostrado(s); fa.value = kg > 0 ? num(kg) : ""; fb.value = n0(s.reps) || ""; }
     fc.value = conRec ? recTexto(s) : "";
@@ -846,10 +874,11 @@ function bloque(dia, id, series, grupo) {
     const fila = editando ? { ...editando } : { id: nuevoId(), fecha: dia.id, ejercicio_id: id, orden: Date.now(), grupo, meso_id: "", bloque_id: "", ronda: 0, borrado: false };
     Object.assign(fila, { peso: 0, reps: 0, distancia: 0, tiempo: 0, descanso: rec.descanso, rec_dist: rec.rec_dist, hecha: true });
     if (dist) {
-      fila.distancia = parseFloat(fa.value.replace(",", "."));
-      fila.tiempo = leerTiempo(fb.value);
-      if (!(fila.distancia > 0)) { fa.focus(); return; }
-      if (isNaN(fila.tiempo)) { fb.focus(); return; }
+      const metros = porTiempo ? fb : fa, crono = porTiempo ? fa : fb;
+      fila.distancia = parseFloat(metros.value.replace(",", ".")) || 0;
+      fila.tiempo = leerTiempo(crono.value);
+      if (isNaN(fila.tiempo)) { crono.focus(); return; }
+      if (!(fila.distancia > 0) && !(fila.tiempo > 0)) { fa.focus(); return; }
     } else {
       const v = parseFloat((fa.value.trim() || "0").replace(",", "."));
       fila.pct = enPct ? v : 0;
@@ -963,10 +992,10 @@ function tarjetaBloque(dia, bloqueId, series) {
     if (!rec) { fc.focus(); return; }
     const fila = { ...editando, descanso: rec.descanso, rec_dist: rec.rec_dist, hecha: dia.id <= iso(new Date()) };
     if (esDistancia(tipoDe(fila.ejercicio_id))) {
-      fila.distancia = parseFloat(fa.value.replace(",", "."));
+      fila.distancia = parseFloat(fa.value.replace(",", ".")) || 0;
       fila.tiempo = leerTiempo(fb.value);
-      if (!(fila.distancia > 0)) { fa.focus(); return; }
       if (isNaN(fila.tiempo)) { fb.focus(); return; }
+      if (!(fila.distancia > 0) && !(fila.tiempo > 0)) { fa.focus(); return; }
     } else {
       fila.peso = parseFloat((fa.value.trim() || "0").replace(",", "."));
       fila.reps = parseInt(fb.value, 10);
@@ -1004,7 +1033,7 @@ function pintarTramos() {
     fila.querySelector(".tr-n").appendChild(etiquetaTipo(tipoDe(t.ejercicio_id)));
     const [a, b, cc] = [".in-a", ".in-b", ".in-c"].map(x => fila.querySelector(x));
     a.placeholder = dist ? "metros" : "kg"; a.inputMode = dist ? "numeric" : "decimal"; a.setAttribute("aria-label", dist ? "Distancia en metros" : "Peso en kg");
-    b.placeholder = dist ? "tiempo (opcional)" : "reps"; b.inputMode = dist ? "decimal" : "numeric"; b.setAttribute("aria-label", dist ? "Tiempo objetivo (opcional)" : "Repeticiones");
+    b.placeholder = dist ? "tiempo" : "reps"; b.inputMode = dist ? "decimal" : "numeric"; b.setAttribute("aria-label", dist ? "Tiempo (puedes dejar los metros vacíos)" : "Repeticiones");
     fila.querySelector(".por").textContent = dist ? "" : "×";
     a.value = t.a; b.value = t.b; cc.value = t.c;
     a.addEventListener("input", () => { t.a = a.value; });
@@ -1035,10 +1064,10 @@ $("blqCrear").addEventListener("click", () => {
     if (!rec) { aviso.textContent = "Revisa la recuperación del tramo " + (k + 1) + " (por ejemplo 2,00 o 300 m)."; return; }
     const v = { peso: 0, reps: 0, distancia: 0, tiempo: 0, descanso: rec.descanso, rec_dist: rec.rec_dist };
     if (esDistancia(tipoDe(t.ejercicio_id))) {
-      v.distancia = parseFloat(String(t.a).replace(",", "."));
+      v.distancia = parseFloat(String(t.a).replace(",", ".")) || 0;
       v.tiempo = leerTiempo(t.b);
-      if (!(v.distancia > 0)) { aviso.textContent = "Pon los metros del tramo " + (k + 1) + "."; return; }
       if (isNaN(v.tiempo)) { aviso.textContent = "Revisa el tiempo del tramo " + (k + 1) + " (por ejemplo 3,40)."; return; }
+      if (!(v.distancia > 0) && !(v.tiempo > 0)) { aviso.textContent = "Pon los metros o el tiempo del tramo " + (k + 1) + "."; return; }
     } else {
       v.peso = parseFloat((String(t.a).trim() || "0").replace(",", "."));
       v.reps = parseInt(t.b, 10);
@@ -1301,6 +1330,7 @@ function refrescarDetalle() {
   } else if (esDistancia(tipo)) {
     if (st.mejorRitmo) rec.appendChild(recuadro("Mejor ritmo", ritmo(st.mejorRitmo, tipo), fmtDist(st.mejorRitmo.distancia) + " en " + fmtTiempo(st.mejorRitmo.tiempo) + " · " + fechaCorta(st.mejorRitmo.fecha), true));
     rec.appendChild(recuadro("Distancia total", fmtDist(st.total), st.sesiones.length + " sesiones · " + st.lista.length + " series"));
+    if (st.tiempoTotal > 0) rec.appendChild(recuadro("Tiempo total", fmtTiempo(st.tiempoTotal), ""));
     (st.marcas || []).forEach(s => {
       const li = document.createElement("li");
       li.innerHTML = '<span class="m-d"></span><span class="m-t"></span><span class="m-f"></span>';
