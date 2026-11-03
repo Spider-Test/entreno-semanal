@@ -2066,9 +2066,9 @@ $("detalle").addEventListener("close", () => {
 
 // ---------- Rendimiento: marcas, forma (VDOT de Daniels), predicciones y ritmos objetivo ----------
 // Son estimaciones orientativas calculadas con las series hechas.
-const DIST_MARCAS = [200, 400, 800, 1000, 1500, 3000, 5000, 10000, 21097, 42195];
+const DIST_MARCAS = [200, 400, 800, 1000, 1500, 2000, 3000, 5000, 10000, 21097, 42195];
 const DIST_NADO = [50, 100, 200, 400, 800, 1500];
-const nombreDist = d => ({ 21097: "Media maratón", 42195: "Maratón" })[d] || fmtDist(d);
+const nombreDist = d => ({ 1000: "1 km", 2000: "2 km", 21097: "Media maratón", 42195: "Maratón" })[d] || fmtDist(d);
 const vo2 = v => -4.6 + 0.182258 * v + 0.000104 * v * v;                                   // v en m/min
 // t en min; por debajo de 5 min la fórmula de Daniels deja de ser fiable, así que se toma 5 como mínimo
 const fraccion = t => { t = Math.max(t, 5); return 0.8 + 0.1894393 * Math.exp(-0.012778 * t) + 0.2989558 * Math.exp(-0.1932605 * t); };
@@ -2436,8 +2436,13 @@ function pintarMarcas() {
     const marcas = marcasDe("carrera");
     const ref = marcas.filter(m => m.d >= 1000).sort((x, y) => vdotDe(y.d, y.t) - vdotDe(x.d, x.t))[0];
     const s2 = seccionMarcas("Marcas previstas");
-    s2.appendChild(tablaSimple(["Distancia", "Según VDOT", ref ? "Riegel (desde " + nombreDist(ref.d) + ")" : "Riegel"],
-      [5000, 10000, 21097, 42195].map(d => ({ celdas: [nombreDist(d), fmtTiempo(tiempoPrevisto(f.vdot, d)), ref ? fmtTiempo(ref.t * Math.pow(d / ref.d, 1.06)) : "—"] }))));
+    // Predicción según tu forma (VDOT) y por Riegel desde tu mejor marca, con su ritmo; al lado, tu marca real si la tienes
+    s2.appendChild(tablaSimple(["Distancia", "Según VDOT", "Ritmo", ref ? "Riegel (desde " + nombreDist(ref.d) + ")" : "Riegel", "Real"],
+      [1000, 2000, 5000, 10000, 21097, 42195].map(d => {
+        const t = tiempoPrevisto(f.vdot, d), real = marcas.find(m => m.d === d);
+        return { celdas: [nombreDist(d), fmtTiempo(t), fmtTiempo(t / d * 1000) + "/km", ref ? fmtTiempo(ref.t * Math.pow(d / ref.d, 1.06)) : "—", real ? fmtTiempo(real.t) + (real.exacta ? "" : " *") : "—"] };
+      })));
+    s2.appendChild(nota("«Real»: tu mejor marca en esa distancia (* sacada de una serie algo más larga, a su ritmo medio). En 1 y 2 km la predicción es más aproximada: la fórmula de Daniels es menos fiable en esfuerzos de menos de 5 minutos."));
     const s3 = seccionMarcas("Ritmos de entrenamiento");
     s3.appendChild(tablaSimple(["Zona", "Por km", "Por 400 m"], ZONAS.map(([n, fr]) => { const r = ritmoZona(f.vdot, fr) * (1 + carga.ajuste); return { celdas: [n, fmtTiempo(r), fmtTiempo(r * 0.4)] }; })));
     s3.appendChild(nota("Cada serie de carrera planificada muestra su objetivo calculado con todo el entrenamiento de ese día (series, bloques, volumen y recuperaciones) y se ajusta según cómo te van saliendo."));
@@ -3305,8 +3310,8 @@ function abrirRutina(r) {
 }
 
 // ---------- Crear con IA: prompt listo para copiar y lectura de la respuesta ----------
-const OBJETIVOS_IA = { fuerza: "ganar fuerza", hipertrofia: "ganar masa muscular (hipertrofia)", "5k": "preparar una carrera de 5 km", "10k": "preparar una carrera de 10 km", media: "preparar una media maratón (21,1 km)", maraton: "preparar un maratón (42,2 km)", combinado: "combinar fuerza y carrera" };
-const CARRERA_IA = { "5k": 5000, "10k": 10000, media: 21097, maraton: 42195 };
+const OBJETIVOS_IA = { fuerza: "ganar fuerza", hipertrofia: "ganar masa muscular (hipertrofia)", "1k": "mejorar mi marca en 1 km", "2k": "mejorar mi marca en 2 km", "5k": "preparar una carrera de 5 km", "10k": "preparar una carrera de 10 km", media: "preparar una media maratón (21,1 km)", maraton: "preparar un maratón (42,2 km)", combinado: "combinar fuerza y carrera" };
+const CARRERA_IA = { "1k": 1000, "2k": 2000, "5k": 5000, "10k": 10000, media: 21097, maraton: 42195 };
 const EJEMPLO_SESION_IA = `RUTINA: Pierna 60 min
 NOTA: Nivel intermedio, RPE 7-8. Si te sobran repeticiones, sube 2,5 kg la próxima vez.
 ## Pierna
@@ -3335,7 +3340,7 @@ function textoPrompt() {
   const corre = !!CARRERA_IA[obj] || obj === "combinado", carrera = CARRERA_IA[obj];
   // Marcas previstas (VDOT y Riegel desde tu mejor marca) para que la IA ajuste el plan a tu nivel real
   const marcas = marcasDe("carrera"), ref = marcas.filter(m => m.d >= 1000).sort((x, y) => vdotDe(y.d, y.t) - vdotDe(x.d, x.t))[0];
-  const previstas = f ? [5000, 10000, 21097, 42195].map(d => nombreDist(d) + " " + fmtTiempo(tiempoPrevisto(f.vdot, d)) + (ref ? " (Riegel " + fmtTiempo(ref.t * Math.pow(d / ref.d, 1.06)) + ")" : "")).join(", ") : "";
+  const previstas = f ? [1000, 2000, 5000, 10000, 21097, 42195].map(d => nombreDist(d) + " " + fmtTiempo(tiempoPrevisto(f.vdot, d)) + (ref ? " (Riegel " + fmtTiempo(ref.t * Math.pow(d / ref.d, 1.06)) + ")" : "")).join(", ") : "";
   const fechaCarrera = g("iaFechaCarrera"), semanasHasta = fechaCarrera ? Math.max(1, Math.round((deIso(fechaCarrera) - lunesDe(new Date())) / 6048e5)) : 0;
   const datos = [
     "Objetivo: " + OBJETIVOS_IA[obj] + (g("iaMeta") ? " (" + g("iaMeta") + ")" : ""),
@@ -4249,7 +4254,7 @@ $("enSalir").addEventListener("click", salirEntreno);
 $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); abrirRpe(d); });
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
-const VERSION_APP = "v48" + (BETA ? " beta" : "");
+const VERSION_APP = "v49" + (BETA ? " beta" : "");
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";
