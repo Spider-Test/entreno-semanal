@@ -746,7 +746,12 @@ function pintarDia(dia) {
   const grupo = nombre => grupos.find(g => g.nombre === nombre) || grupos[grupos.push({ nombre, ids: [] }) - 1];
   // Cada elemento de una sesión es un ejercicio suelto o un bloque ("b:" + id), en el orden en que aparecen
   delDia.forEach(s => { const g = grupo(s.grupo || ""), k = s.bloque_id ? "b:" + s.bloque_id : s.ejercicio_id; if (!g.ids.includes(k)) g.ids.push(k); });
-  (enEspera[dia.id] || []).forEach(id => { if (ejercicioVivo(id) && !grupos.some(g => g.ids.includes(id))) grupo("").ids.push(id); });
+  // Los ejercicios aún sin series van donde se dejaron (antes de otro elemento) o, si no, al final
+  (enEspera[dia.id] || []).forEach(id => {
+    if (!ejercicioVivo(id) || grupos.some(g => g.ids.includes(id))) return;
+    const g = grupo(""), antes = esperaAntes[dia.id + "|" + id], i = antes ? g.ids.indexOf(antes) : -1;
+    if (i >= 0) g.ids.splice(i, 0, id); else g.ids.push(id);
+  });
   // Cada sesión va en su propio contenedor para poder moverla entera
   const conAsa = grupos.filter(g => g.nombre).length > 1 && grupos.length > 1;
   grupos.forEach(g => {
@@ -768,22 +773,42 @@ function pintarDia(dia) {
     g.ids.forEach(id => caja.appendChild(id.startsWith("b:")
       ? tarjetaBloque(dia, id.slice(2), delDia.filter(s => s.bloque_id === id.slice(2)))
       : bloque(dia, id, delDia.filter(s => s.ejercicio_id === id && !s.bloque_id && (s.grupo || "") === g.nombre), g.nombre)));
-    // Ejercicios y bloques de la sesión: se mueven dentro de ella (los que ya tienen series)
+    // Ejercicios (también los que aún no tienen series) y bloques se mueven dentro de la sesión, en un único orden
     const movibles = () => [...caja.querySelectorAll(":scope > .bloque[data-clave]")];
-    if (movibles().length > 1) movibles().forEach(el => {
-      const clave = el.dataset.clave, nombre = clave.startsWith("b:") ? "Bloque" : nombreEj(clave);
-      el.querySelector(".bloque-cab").appendChild(asaArrastre(el, movibles, n => reordenar(n.map(x => seriesDeItem(dia.id, g.nombre, x.dataset.clave)), "Ejercicio movido"), nombre));
-      if (!clave.startsWith("b:")) {
-        const m = document.createElement("button");
-        m.type = "button"; m.className = "menu-btn"; m.textContent = "⋯";
-        m.setAttribute("aria-label", "Opciones de " + nombre);
-        m.addEventListener("click", () => abrirMenu(nombre, "", [
-          { texto: "Subir", accion: () => moverItem(dia.id, g.nombre, clave, -1) },
-          { texto: "Bajar", accion: () => moverItem(dia.id, g.nombre, clave, 1) },
-          { texto: "Ver ficha del ejercicio", accion: () => abrirDetalle(clave) }
-        ]));
-        el.querySelector(".asa").before(m);
-      }
+    const soltar = n => {
+      // Los que aún no tienen series recuerdan delante de qué quedan; los demás reparten su «orden»
+      n.forEach((x, k) => {
+        if (!x.dataset.espera) return;
+        const sig = n.slice(k + 1).find(y => !y.dataset.espera);
+        if (sig) esperaAntes[dia.id + "|" + x.dataset.clave] = sig.dataset.clave; else delete esperaAntes[dia.id + "|" + x.dataset.clave];
+      });
+      escribir("espera-antes-v1", esperaAntes);
+      reordenar(n.filter(x => !x.dataset.espera).map(x => seriesDeItem(dia.id, g.nombre, x.dataset.clave)), "Ejercicio movido");
+      pintarBloques(true);
+    };
+    const mover = (el, paso) => {
+      const l = movibles(), i = l.indexOf(el), j = i + paso;
+      if (i < 0 || j < 0 || j >= l.length) return;
+      [l[i], l[j]] = [l[j], l[i]];
+      soltar(l);
+    };
+    const otrasSesiones = [...new Set(grupos.map(x => x.nombre))].filter(x => x !== g.nombre);
+    movibles().forEach(el => {
+      const clave = el.dataset.clave, nombre = clave.startsWith("b:") ? "Bloque" : nombreEj(clave), espera = !!el.dataset.espera;
+      if (movibles().length > 1) el.querySelector(".bloque-cab").appendChild(asaArrastre(el, movibles, soltar, nombre));
+      if (clave.startsWith("b:") || (movibles().length < 2 && (espera || !otrasSesiones.length))) return;
+      const m = document.createElement("button");
+      m.type = "button"; m.className = "menu-btn"; m.textContent = "⋯";
+      m.setAttribute("aria-label", "Opciones de " + nombre);
+      m.addEventListener("click", () => abrirMenu(nombre, "", [
+        movibles().length > 1 && { texto: "Subir", accion: () => mover(el, -1) },
+        movibles().length > 1 && { texto: "Bajar", accion: () => mover(el, 1) },
+        !espera && otrasSesiones.length && { texto: "Mover a otra sesión…", accion: () => abrirMenu("¿A qué sesión?", "", otrasSesiones.map(x => ({
+          texto: x || "Sin sesión", accion: () => moverASesion(seriesDeItem(dia.id, g.nombre, clave), x) }))) },
+        { texto: "Ver ficha del ejercicio", accion: () => abrirDetalle(clave) }
+      ]));
+      const asa = el.querySelector(".bloque-cab .asa");
+      if (asa) asa.before(m); else el.querySelector(".bloque-cab").appendChild(m);
     });
     cont.appendChild(caja);
   });
@@ -806,7 +831,8 @@ function bloque(dia, id, series, grupo) {
   const b = document.createElement("div");
   b.className = "bloque t-" + tipo;
   b.dataset.ej = id;
-  if (series.length) b.dataset.clave = id;
+  b.dataset.clave = id;
+  if (!series.length) b.dataset.espera = "1";
   b.dataset.grupo = grupo;
   b.innerHTML = '<div class="bloque-cab"><button type="button" class="ej-nombre"></button><button type="button" class="quitar" aria-label="Quitar ejercicio">✕</button></div>' +
     '<ol class="series"></ol>' +
@@ -1026,6 +1052,7 @@ function bloque(dia, id, series, grupo) {
     fila.hecha = dia.id <= iso(new Date());
     const veces = editando ? 1 : parseInt(b.querySelector(".veces").value, 10) || 1;
     for (let k = 0; k < veces; k++) cambiar("series", k ? { ...fila, id: nuevoId(), orden: fila.orden + k } : fila, true);
+    colocarPrimeraSerie(dia.id, id, grupo, !series.length && !editando);
     persistir();
     quitarEspera(dia.id, id);
     terminar(fila);
@@ -1059,6 +1086,7 @@ function tarjetaBloque(dia, bloqueId, series) {
     const ultima = series.filter(s => n0(s.ronda) === rondas[rondas.length - 1]);
     abrirMenu("Bloque ×" + rondas.length, primera.map(s => nombreEj(s.ejercicio_id)).join(" + "), [
       { texto: "Subir", accion: () => moverItem(dia.id, series[0].grupo || "", "b:" + bloqueId, -1) },
+      ...[...new Set(seriesDelDia(dia.id).map(s => s.grupo || ""))].filter(x => x !== (series[0].grupo || "")).map(x => ({ texto: "Mover a «" + (x || "Sin sesión") + "»", accion: () => moverASesion(series, x) })),
       { texto: "Bajar", accion: () => moverItem(dia.id, series[0].grupo || "", "b:" + bloqueId, 1) },
       { texto: "Añadir una ronda", accion: () => {
         let orden = Date.now();
@@ -3079,7 +3107,32 @@ function reordenar(conjuntos, texto) {
   if (!antes.length) { pintarBloques(true); return; }
   persistir();
   pintarBloques(true);
-  avisoDeshacer(texto + " · Deshacer para volver como estaba", antes);
+  if (texto) avisoDeshacer(texto + " · Deshacer para volver como estaba", antes);
+}
+// Ejercicios añadidos y aún sin series: delante de qué elemento del día quedan (solo en este dispositivo)
+let esperaAntes = leer("espera-antes-v1") || {};
+// Al recibir su primera serie, el ejercicio se queda donde estaba en vez de irse al final
+function colocarPrimeraSerie(fecha, id, grupo, eraEspera) {
+  const k = fecha + "|" + id, antes = esperaAntes[k];
+  delete esperaAntes[k];
+  escribir("espera-antes-v1", esperaAntes);
+  if (!eraEspera || !antes) return;
+  const g = estructuraDia(fecha).find(x => x.nombre === (grupo || ""));
+  if (!g) return;
+  const items = g.items.slice(), i = items.findIndex(x => x.clave === id), j = items.findIndex(x => x.clave === antes);
+  if (i < 0 || j < 0) return;
+  const [it] = items.splice(i, 1);
+  items.splice(items.findIndex(x => x.clave === antes), 0, it);
+  reordenar(items.map(x => x.series), "");
+}
+// Pasar un ejercicio o bloque a otra sesión del mismo día (con Deshacer)
+function moverASesion(series, destino) {
+  if (!series.length) return;
+  const antes = series.map(s => ["series", { ...s }]);
+  series.forEach(s => cambiar("series", { ...s, grupo: destino }, true));
+  persistir();
+  pintarBloques(true);
+  avisoDeshacer("Movido a «" + (destino || "Sin sesión") + "»", antes);
 }
 // Sesiones del día con sus ejercicios y bloques, en el orden en que se ven
 function estructuraDia(fecha) {
@@ -3564,7 +3617,7 @@ $("enSalir").addEventListener("click", salirEntreno);
 $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); abrirRpe(d); });
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
-const VERSION_APP = "v31";
+const VERSION_APP = "v32";
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";
