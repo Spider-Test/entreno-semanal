@@ -217,10 +217,19 @@ function infoFcMax() {
     const conPico = mayor("fc_pico"), mejor = conPico || mayor("fc_max");
     ix.fcInfo = mejor ? { valor: conPico ? n0(mejor.fc_pico) : n0(mejor.fc_max), fuente: (conPico ? "pico mantenido" : "máxima registrada") + " · " + nombreEj(mejor.ejercicio_id) + " del " + fechaCorta(mejor.fecha) } : null;
   }
-  if (n0(a.fcMax) > 0) return { valor: n0(a.fcMax), fuente: "puesta a mano", superada: ix.fcInfo && ix.fcInfo.valor > n0(a.fcMax) ? ix.fcInfo : null };
+  // Cómo se calcula (Plan → Ajustes): automática (tus archivos; si no hay, la edad), por la edad o puesta a mano
+  const modo = a.fcModo || (n0(a.fcMax) > 0 ? "manual" : "auto"), porEdad = n0(a.edad) > 0 ? { valor: Math.round(208 - 0.7 * n0(a.edad)), fuente: "por tu edad (Tanaka: 208 − 0,7 × " + n0(a.edad) + ")" } : null;
+  const superada = (lim) => ix.fcInfo && ix.fcInfo.valor > lim ? ix.fcInfo : null;
+  if (modo === "manual" && n0(a.fcMax) > 0) return { valor: n0(a.fcMax), fuente: "puesta a mano", superada: superada(n0(a.fcMax)) };
+  if (modo === "edad" && porEdad) return { ...porEdad, superada: superada(porEdad.valor) };
   if (ix.fcInfo) return ix.fcInfo;
-  if (n0(a.edad) > 0) return { valor: Math.round(208 - 0.7 * n0(a.edad)), fuente: "provisional por tu edad (Tanaka: 208 − 0,7 × edad)" };
-  return null;
+  return porEdad ? { ...porEdad, fuente: porEdad.fuente + ", provisional hasta que importes un archivo con pulso" } : null;
+}
+// Lo que daría cada forma de calcularla, para compararlas en Ajustes
+function opcionesFcMax() {
+  const a = ajustes(), ix = indiceSeries();
+  infoFcMax();
+  return { auto: ix.fcInfo, edad: n0(a.edad) > 0 ? Math.round(208 - 0.7 * n0(a.edad)) : 0, manual: n0(a.fcMax) };
 }
 const fcMaxima = () => (infoFcMax() || {}).valor || 0;
 // Zonas Z1–Z5: % de la FC máxima o, con FC en reposo, de la reserva (Karvonen)
@@ -4690,10 +4699,22 @@ $("ajDesnivel").addEventListener("change", () => {
 // Ajuste: FC máxima (si no se pone, la mayor registrada en los archivos FIT del último año)
 $("ajFcMax").value = n0(ajustes().fcMax) || "";
 function pintarInfoFc() {
-  const i = infoFcMax();
-  $("ajFcMax").placeholder = i && i.fuente !== "puesta a mano" ? "auto: " + i.valor : "p. ej. 190";
-  $("ajFcInfo").textContent = i ? "Ahora: " + i.valor + " ppm · " + i.fuente + (i.superada ? " · has llegado a " + i.superada.valor + " ppm" : "") : "Sin datos de pulso todavía: importa un FIT o TCX, o pon tu edad.";
+  const i = infoFcMax(), o = opcionesFcMax(), a = ajustes();
+  $("ajFcModo").value = a.fcModo || (n0(a.fcMax) > 0 ? "manual" : "auto");
+  $("ajFcMaxL").hidden = $("ajFcModo").value !== "manual";
+  $("ajFcMax").placeholder = "p. ej. " + (o.auto ? o.auto.valor : o.edad || 190);
+  $("ajFcInfo").textContent = (i ? "Se usa: " + i.valor + " ppm (" + i.fuente + ")" + (i.superada ? " · ojo: has llegado a " + i.superada.valor + " ppm" : "") + ". " : "Sin datos de pulso todavía: importa un FIT o TCX, o pon tu edad. ") +
+    "Automática: " + (o.auto ? o.auto.valor + " ppm (" + o.auto.fuente + ")" : "sin archivos con pulso") + " · Por edad: " + (o.edad ? o.edad + " ppm" : "pon tu edad") + " · A mano: " + (o.manual ? o.manual + " ppm" : "—") + ".";
 }
+$("ajFcModo").addEventListener("change", () => {
+  const a = leer("ajustes-v1") || {};
+  a.fcModo = $("ajFcModo").value;
+  escribir("ajustes-v1", a);
+  versionDatos++; pintarInfoFc();
+  if (a.fcModo === "manual" && !n0(a.fcMax)) $("ajFcMax").focus();
+  if (a.fcModo === "edad" && !n0(a.edad)) $("ajEdad").focus();
+  setEstado("Ajuste guardado en este dispositivo");
+});
 [["ajEdad", "edad", 10, 99], ["ajFcReposo", "fcReposo", 30, 100]].forEach(([id, k, lo, hi]) => {
   $(id).value = n0(ajustes()[k]) || "";
   $(id).addEventListener("change", () => {
