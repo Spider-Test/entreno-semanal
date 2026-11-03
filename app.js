@@ -97,6 +97,9 @@ const norm = t => (t || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase
 const compacto = t => norm(t).replace(/\s+/g, "");   // para buscar «300m» y encontrar «Series 300 m»
 const nuevoId = () => crypto.randomUUID ? crypto.randomUUID() : "10000000-1000-4000-8000-100000000000".replace(/[018]/g, c => (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16));
 let desplazamiento = 0;   // semanas respecto a la actual
+// Día abierto a pantalla completa: se recuerda si se abrió hoy (al día siguiente la app vuelve a la semana)
+let diaAbierto = (g => g && g.abierto === iso(new Date()) ? g.id : null)(leer("dia-abierto-v1"));
+if (diaAbierto) desplazamiento = Math.round((lunesDe(deIso(diaAbierto)) - lunesDe(new Date())) / 6048e5);
 const lunesVista = () => sumarDias(lunesDe(new Date()), desplazamiento * 7);
 
 // ---------- Texto del día: solo saltos de línea y negrita ----------
@@ -127,6 +130,8 @@ const vivos = tabla => Object.values(db[tabla]).filter(x => !x.borrado);
 // Catálogo común: lo editan el administrador y quien él autorice; los ejercicios privados, su dueño
 const puedeEditarCatalogo = () => !!(perfil && perfil.aprobado && (perfil.es_admin || perfil.edita_catalogo));
 const editable = e => !!e && (!e.compartido || puedeEditarCatalogo());
+// Quitar algo del catálogo común (borrarlo o dejar de compartirlo) solo puede hacerlo el administrador
+const puedeQuitarDelCatalogo = e => !!e && (!e.compartido || !!(perfil && perfil.es_admin));
 const ejercicioVivo = id => { const e = db.ejercicios[id]; return e && !e.borrado ? e : null; };
 const tipoDe = id => { const e = db.ejercicios[id]; return e && TIPOS[e.tipo] ? e.tipo : "fuerza"; };
 const esDistancia = tipo => tipo === "carrera" || tipo === "natacion";
@@ -399,13 +404,18 @@ function pedirNombre(titulo, valor, ayuda) {
 const dias = DIAS.map((_, i) => {
   const col = document.createElement("section");
   col.className = "dia";
-  col.innerHTML = '<div class="dia-cab"><span class="dia-nombre"></span><span class="dia-fecha"></span>' +
-                  '<button type="button" class="menu-btn" aria-label="Opciones del día">⋯</button>' +
-                  '<button type="button" class="negrita" aria-pressed="false" title="Negrita (⌘B)">N</button></div>' +
+  // Cabecera ligera: el nombre abre el día solo; la negrita aparece solo mientras se escribe
+  col.innerHTML = '<div class="dia-cab"><button type="button" class="dia-abrir"><span class="dia-nombre"></span><span class="dia-fecha"></span></button>' +
+                  '<span class="anillo" hidden></span>' +
+                  '<button type="button" class="negrita" aria-pressed="false" title="Negrita (⌘B)">N</button>' +
+                  '<button type="button" class="menu-btn" aria-label="Opciones del día">⋯</button></div>' +
+                  '<button type="button" class="dia-resumen"></button>' +
                   '<div class="editor vacio" role="textbox" aria-multiline="true" contenteditable="true"></div>' +
                   '<div class="bloques"></div><div class="add-fila"><button type="button" class="add-ej">+ Ejercicio</button><button type="button" class="add-ej add-bloque">+ Bloque</button></div>' +
+                  '<button type="button" class="primario empezar" hidden>▶ Empezar entreno</button>' +
                   '<button type="button" class="rpe-dia" hidden></button>';
   col.querySelector(".dia-nombre").textContent = NOMBRES[i];
+  col.querySelector(".dia-abrir").setAttribute("aria-label", "Abrir solo el " + NOMBRES[i]);
   const ed = col.querySelector(".editor");
   const btn = col.querySelector(".negrita");
   ed.id = "e-" + DIAS[i];
@@ -413,8 +423,14 @@ const dias = DIAS.map((_, i) => {
   ed.setAttribute("aria-label", "Entrenamiento del " + NOMBRES[i]);
   btn.setAttribute("aria-label", "Negrita en " + NOMBRES[i]);
   $("semana").appendChild(col);
-  const dia = { i, col, ed, btn, fechaEl: col.querySelector(".dia-fecha"), bloquesEl: col.querySelector(".bloques"), rpeEl: col.querySelector(".rpe-dia"), id: "" };
+  const dia = { i, col, ed, btn, fechaEl: col.querySelector(".dia-fecha"), bloquesEl: col.querySelector(".bloques"), rpeEl: col.querySelector(".rpe-dia"),
+                anillo: col.querySelector(".anillo"), resumenEl: col.querySelector(".dia-resumen"), empezarEl: col.querySelector(".empezar"), id: "" };
   dia.rpeEl.addEventListener("click", () => abrirRpe(dia));
+  col.querySelector(".dia-abrir").addEventListener("click", () => abrirDia(dia.id));
+  dia.resumenEl.addEventListener("click", () => abrirDia(dia.id));
+  dia.empezarEl.addEventListener("click", () => empezarEntreno(dia));
+  ed.addEventListener("focus", () => col.classList.add("escribiendo"));
+  ed.addEventListener("blur", () => col.classList.remove("escribiendo"));
   col.querySelector(".add-ej").addEventListener("click", () => abrirSelector(dia));
   col.querySelector(".add-bloque").addEventListener("click", () => abrirBloque(dia));
   col.querySelector(".menu-btn").addEventListener("click", () => menuDia(dia));
@@ -453,11 +469,19 @@ function pintarSemana() {
   rel.classList.toggle("actual", n === 0);
   $("hoyBtn").hidden = n === 0;
   pintarBanda();
+  // En el móvil, hoy abierto y el resto plegado en una línea; con un día abierto, solo ese día
+  const estrecho = matchMedia("(max-width: 760px)").matches;
+  $("vistaSemana").classList.toggle("solo-dia", !!diaAbierto);
+  $("diaNav").hidden = !diaAbierto;
+  $("navSemana").hidden = !!diaAbierto;
+  if (diaAbierto) $("diaNavTit").textContent = NOMBRES[(deIso(diaAbierto).getDay() + 6) % 7] + " " + fmt(deIso(diaAbierto)) + (diaAbierto === hoyIso ? " · hoy" : "");
   dias.forEach(d => {
     const f = sumarDias(lunes, d.i);
     d.id = iso(f);
     d.fechaEl.textContent = fmt(f);
     d.col.classList.toggle("hoy", d.id === hoyIso);
+    d.col.hidden = !!diaAbierto && d.id !== diaAbierto;
+    d.col.classList.toggle("plegado", !diaAbierto && estrecho && d.id !== hoyIso);
     if (document.activeElement !== d.ed) d.ed.innerHTML = "";
   });
   rellenar();
@@ -677,6 +701,7 @@ function pintarBloques(forzar) {
   if (!forzar && escribiendoSerie()) { repintarLuego = true; return; }
   repintarLuego = false;
   dias.forEach(pintarDia);
+  pintarProgresoSemana();
 }
 $("semana").addEventListener("focusout", () => setTimeout(() => { if (repintarLuego && !escribiendoSerie()) pintarBloques(); }, 0));
 
@@ -714,6 +739,7 @@ function pintarDia(dia) {
       : bloque(dia, id, delDia.filter(s => s.ejercicio_id === id && !s.bloque_id && (s.grupo || "") === g.nombre), g.nombre)));
   });
   pintarRpe(dia);
+  pintarCabDia(dia);
 }
 
 function etiquetaTipo(tipo) {
@@ -729,17 +755,17 @@ function bloque(dia, id, series, grupo) {
   const prs = prsDe(historia, tipo);
   let editando = null;   // serie planificada que se está completando
   const b = document.createElement("div");
-  b.className = "bloque";
+  b.className = "bloque t-" + tipo;
   b.dataset.ej = id;
   b.dataset.grupo = grupo;
   b.innerHTML = '<div class="bloque-cab"><button type="button" class="ej-nombre"></button><button type="button" class="quitar" aria-label="Quitar ejercicio">✕</button></div>' +
     '<ol class="series"></ol>' +
     '<form class="nueva-serie">' +
       '<div class="ns-fila">' + (dist
-        ? '<button type="button" class="modo-dist" aria-label="Cambiar entre metros y tiempo">m</button><input class="in-a" inputmode="numeric" pattern="[0-9]*" placeholder="metros" aria-label="Distancia en metros" autocomplete="off" enterkeyhint="next">' +
-          '<input class="in-b" inputmode="decimal" placeholder="tiempo 3,40" aria-label="Tiempo (minutos y segundos)" autocomplete="off" enterkeyhint="next">'
-        : '<button type="button" class="modo" aria-label="Cambiar entre kg y % del 1RM">kg</button><input class="in-a" inputmode="decimal" placeholder="kg" aria-label="Peso en kg" autocomplete="off" enterkeyhint="next">' +
-          '<span class="por">×</span><input class="in-b" inputmode="numeric" pattern="[0-9]*" placeholder="reps" aria-label="Repeticiones" autocomplete="off" enterkeyhint="next">') +
+        ? '<button type="button" class="modo-dist" aria-label="Cambiar entre metros y tiempo">m</button>' + paso('<input class="in-a" inputmode="numeric" pattern="[0-9]*" placeholder="metros" aria-label="Distancia en metros" autocomplete="off" enterkeyhint="next">') +
+          paso('<input class="in-b" inputmode="decimal" placeholder="tiempo 3,40" aria-label="Tiempo (minutos y segundos)" autocomplete="off" enterkeyhint="next">')
+        : '<button type="button" class="modo" aria-label="Cambiar entre kg y % del 1RM">kg</button>' + paso('<input class="in-a" inputmode="decimal" placeholder="kg" aria-label="Peso en kg" autocomplete="off" enterkeyhint="next">') +
+          '<span class="por">×</span>' + paso('<input class="in-b" inputmode="numeric" pattern="[0-9]*" placeholder="reps" aria-label="Repeticiones" autocomplete="off" enterkeyhint="next">')) +
       '</div>' + (dist ? '<div class="ns-extra"><span class="calc"></span></div>' : '<div class="ns-extra"><span class="calc"></span><label class="bilbo-op" hidden><input type="checkbox" class="es-bilbo"> <span></span></label></div>') +
       '<div class="ns-fila"><input class="in-c" inputmode="decimal" placeholder="⏱ descanso 1,30 o 300 m" aria-label="Descanso o recuperación después de la serie (tiempo o metros)" autocomplete="off" enterkeyhint="done">' +
       '<select class="veces" aria-label="Cuántas series iguales añadir">' + [1, 2, 3, 4, 5, 6, 8, 10].map(n => '<option value="' + n + '">×' + n + '</option>').join("") + '</select>' +
@@ -776,6 +802,15 @@ function bloque(dia, id, series, grupo) {
   };
   if (modoDist) modoDist.addEventListener("click", () => { const x = fa.value; ponerPorTiempo(!porTiempo); fa.value = fb.value; fb.value = x; fa.focus(); pintarObjetivo(); });
   if (dist) { [fa, fb, fc].forEach(x => x.addEventListener("input", pintarObjetivo)); b.querySelector(".veces").addEventListener("change", pintarObjetivo); }
+  // − y +: kg (o %) y reps en fuerza; metros y segundos en carrera y natación
+  b.querySelectorAll(".paso").forEach(p => {
+    const inp = p.querySelector("input");
+    p.querySelectorAll("button").forEach(x => x.addEventListener("click", () => {
+      const clase = inp === fa ? (dist ? (porTiempo ? "t" : "m") : (enPct ? "pct" : "kg")) : (dist ? (porTiempo ? "m" : "t") : "reps");
+      ajustarCampo(inp, clase, x.classList.contains("mas") ? 1 : -1);
+      pintarCalc();
+    }));
+  });
   // Objetivo orientativo mientras planificas: cuenta cuántas series añades y su recuperación
   function pintarObjetivo() {
     if (!calc) return;
@@ -860,7 +895,7 @@ function bloque(dia, id, series, grupo) {
       c.setAttribute("aria-label", "Marcar como hecha la serie " + numero);
       c.addEventListener("click", () => {
         if (s.ciclo_id === "auto") { li.querySelector(".sv").click(); return; }   // en Bilbo hay que apuntar las repeticiones
-        const h = { ...s, hecha: true, peso: pesoMostrado(s) }; cambiar("series", h); terminar(h);
+        marcarHecha(s, { ...s, hecha: true, peso: pesoMostrado(s) });
       });
       marca.replaceWith(c);
     } else marca.textContent = numero;
@@ -869,6 +904,7 @@ function bloque(dia, id, series, grupo) {
     if (planificada && tipo === "carrera") { const o = objetivoSerie(s); if (o) { const ob = document.createElement("span"); ob.className = "objetivo"; ob.textContent = textoObjetivo(o); li.querySelector(".sv").appendChild(ob); } }
     li.querySelector(".sv").setAttribute("aria-label", (planificada ? "Completar" : "Editar") + " serie " + numero + ": " + serieTexto(s));
     li.querySelector(".sv").addEventListener("click", () => {
+      if (li.dataset.deslizado) return;
       editando = s;
       rellenarCon(s, true);
       if (chkBilbo) chkBilbo.checked = !!s.ciclo_id;
@@ -880,7 +916,9 @@ function bloque(dia, id, series, grupo) {
     });
     li.querySelector(".borrar").setAttribute("aria-label", "Borrar serie " + numero);
     if (prs.has(s.id)) { const p = document.createElement("span"); p.className = "pr"; p.textContent = "PR"; p.title = "Récord personal"; li.querySelector(".sv").after(p); }
-    li.querySelector(".borrar").addEventListener("click", () => { cambiar("series", { ...s, borrado: true }); pintarBloques(true); });
+    li.querySelector(".borrar").addEventListener("click", () => borrarSerie(s));
+    // Deslizar: a la derecha la marca hecha; a la izquierda la borra (con Deshacer)
+    deslizable(li, planificada && s.ciclo_id !== "auto" ? () => marcarHecha(s, { ...s, hecha: true, peso: pesoMostrado(s) }) : null, () => borrarSerie(s));
     ol.appendChild(li);
   });
 
@@ -922,6 +960,7 @@ function bloque(dia, id, series, grupo) {
     persistir();
     quitarEspera(dia.id, id);
     terminar(fila);
+    if (fila.hecha) avisarSiPR(fila);
     const otra = dia.bloquesEl.querySelector('[data-ej="' + id + '"][data-grupo="' + CSS.escape(grupo) + '"] .anadir');
     if (otra) otra.focus();
   });
@@ -998,14 +1037,15 @@ function tarjetaBloque(dia, bloqueId, series) {
         const m = document.createElement("button");
         m.type = "button"; m.className = "marcar";
         m.setAttribute("aria-label", "Marcar como hecho: ronda " + r + ", " + nombreEj(s.ejercicio_id));
-        m.addEventListener("click", () => { const h = { ...s, hecha: true, peso: pesoMostrado(s) }; cambiar("series", h); terminar(h); });
+        m.addEventListener("click", () => marcarHecha(s, { ...s, hecha: true, peso: pesoMostrado(s) }));
         li.querySelector(".n").replaceWith(m);
       }
+      deslizable(li, !hecha(s) ? () => marcarHecha(s, { ...s, hecha: true, peso: pesoMostrado(s) }) : null, null);
       li.querySelector(".sv-p").textContent = (variosTramos ? nombreEj(s.ejercicio_id) + " · " : "") + serieTexto(s);
       if (descTexto(s)) { const d = document.createElement("span"); d.className = "desc"; d.textContent = descTexto(s); li.querySelector(".sv").appendChild(d); }
       if (!hecha(s) && tipoDe(s.ejercicio_id) === "carrera") { const o = objetivoSerie(s); if (o) { const ob = document.createElement("span"); ob.className = "objetivo"; ob.textContent = textoObjetivo(o); li.querySelector(".sv").appendChild(ob); } }
       li.querySelector(".sv").setAttribute("aria-label", "Apuntar ronda " + r + ", " + nombreEj(s.ejercicio_id) + ": " + serieTexto(s));
-      li.querySelector(".sv").addEventListener("click", () => editar(s, li));
+      li.querySelector(".sv").addEventListener("click", () => { if (!li.dataset.deslizado) editar(s, li); });
       if (prs[s.ejercicio_id] && prs[s.ejercicio_id].has(s.id)) { const p = document.createElement("span"); p.className = "pr"; p.textContent = "PR"; li.appendChild(p); }
       ol.appendChild(li);
     });
@@ -1032,6 +1072,7 @@ function tarjetaBloque(dia, bloqueId, series) {
     }
     cambiar("series", fila);
     terminar(fila);
+    if (fila.hecha) avisarSiPR(fila);
   });
   return c;
 }
@@ -1530,17 +1571,21 @@ function abrirDetalle(id) {
   const puede = editable(e), propio = !e.user_id || e.user_id === sesion.user_id;
   ["detNombre", "detVideo", "detNotas"].forEach(x => { $(x).disabled = !puede; });
   $("detTipo").querySelectorAll("button").forEach(b => { b.disabled = !puede; });
-  $("detBorrar").hidden = !puede;
+  $("detBorrar").hidden = !puede || !puedeQuitarDelCatalogo(e);
   $("detAvisoComun").hidden = puede;
   $("detCompSec").hidden = !(puedeEditarCatalogo() && propio);
   $("detComp").checked = !!e.compartido;
+  $("detComp").disabled = !puedeQuitarDelCatalogo(e);
   pintarVideo(e);
   refrescarDetalle();
   if (!$("detalle").open) $("detalle").showModal();
   $("detalle").scrollTop = 0;
 }
 const editarEjercicio = cambios => { const e = ejercicioVivo(detalleId); if (editable(e)) cambiar("ejercicios", { ...e, ...cambios }); };
-$("detComp").addEventListener("change", () => { editarEjercicio({ compartido: $("detComp").checked }); pintarTodo(); });
+$("detComp").addEventListener("change", () => {
+  if (!$("detComp").checked && !puedeQuitarDelCatalogo(ejercicioVivo(detalleId))) { $("detComp").checked = true; return; }
+  editarEjercicio({ compartido: $("detComp").checked }); pintarTodo();
+});
 $("detTipo").addEventListener("click", ev => {
   const b = ev.target.closest("button[data-tipo]");
   if (!b) return;
@@ -1563,6 +1608,7 @@ $("detVideo").addEventListener("change", () => {
 $("detNotas").addEventListener("change", () => editarEjercicio({ notas: $("detNotas").value }));
 $("detBorrar").addEventListener("click", () => {
   const b = $("detBorrar");
+  if (!puedeQuitarDelCatalogo(ejercicioVivo(detalleId))) return;
   if (!b.classList.contains("confirmar")) { b.classList.add("confirmar"); b.textContent = "Pulsa otra vez para eliminarlo con todas sus series"; return; }
   editarEjercicio({ borrado: true });
   $("detalle").close();
@@ -1870,7 +1916,7 @@ async function cambiarPerfil(uid, cambios, aviso) {
 }
 function avisoUsuarios() {
   const n = usuarios.filter(u => !u.aprobado).length;
-  $("tabPlan").textContent = n ? "Plan · " + n : "Plan";
+  $("tabPlan").querySelector("span").textContent = n ? "Plan · " + n : "Plan";
   $("tabPlan").classList.toggle("con-aviso", n > 0);
 }
 
@@ -2687,6 +2733,376 @@ $("iaMeso").addEventListener("click", () => {
 $("iaAbrir").addEventListener("click", () => abrirIA("prompt"));
 $("iaPegarAbrir").addEventListener("click", () => { abrirIA("pegar"); $("iaRespuesta").focus(); });
 pintarRutinas();
+
+// ---------- Ajustes de este dispositivo: barra y salto de los botones − y + ----------
+const ajustes = () => ({ barra: 20, pasoKg: 2.5, ...(leer("ajustes-v1") || {}) });
+function pintarAjustes() {
+  const a = leer("ajustes-v1") || {};
+  $("ajBarra").value = a.barra ? num(a.barra) : "";
+  $("ajPaso").value = a.pasoKg ? num(a.pasoKg) : "";
+}
+[["ajBarra", "barra"], ["ajPaso", "pasoKg"]].forEach(([id, k]) => $(id).addEventListener("change", () => {
+  const a = leer("ajustes-v1") || {}, v = parseFloat($(id).value.replace(",", "."));
+  if (v > 0 && v < 100) a[k] = v; else delete a[k];
+  escribir("ajustes-v1", a);
+  pintarAjustes();
+  setEstado("Ajuste guardado en este dispositivo");
+}));
+pintarAjustes();
+// Discos por lado con los discos habituales (sin límite de pares)
+const DISCOS = [25, 20, 15, 10, 5, 2.5, 1.25];
+function textoDiscos(kg) {
+  const barra = ajustes().barra;
+  if (!(kg >= barra)) return "";
+  let lado = (kg - barra) / 2;
+  if (lado < 0.01) return "solo la barra";
+  const usados = [];
+  for (const d of DISCOS) while (lado >= d - 1e-9) { usados.push(d); lado -= d; }
+  return "por lado: " + usados.map(num).join(" + ") + (lado > 0.01 ? " (faltan " + num(Math.round(lado * 200) / 100) + " kg)" : "");
+}
+// Campo con − y + a los lados
+const paso = input => '<span class="paso"><button type="button" class="menos" aria-label="Menos" tabindex="-1">−</button>' + input + '<button type="button" class="mas" aria-label="Más" tabindex="-1">+</button></span>';
+function ajustarCampo(inp, clase, signo) {
+  const v = clase === "t" ? leerTiempo(inp.value) : parseFloat((inp.value || "0").replace(",", ".")) || 0;
+  const n = Math.max(0, (isNaN(v) ? 0 : v) + signo * { kg: ajustes().pasoKg, pct: 2.5, reps: 1, m: 100, t: 5 }[clase]);
+  inp.value = !n ? "" : clase === "t" ? fmtTiempo(n) : clase === "kg" || clase === "pct" ? num(n) : String(n);
+  inp.dispatchEvent(new Event("input"));
+}
+
+// ---------- Vista de un solo día ----------
+function abrirDia(id) {
+  if (!id) return;
+  diaAbierto = id;
+  escribir("dia-abierto-v1", { id, abierto: iso(new Date()) });
+  desplazamiento = Math.round((lunesDe(deIso(id)) - lunesDe(new Date())) / 6048e5);
+  if ($("vistaSemana").hidden) verPestana("semana"); else pintarSemana();
+  scrollTo(0, 0);
+}
+function cerrarDia() {
+  diaAbierto = null;
+  escribir("dia-abierto-v1", null);
+  pintarSemana();
+}
+$("volverSemana").addEventListener("click", cerrarDia);
+$("diaAnt").addEventListener("click", () => abrirDia(iso(sumarDias(deIso(diaAbierto), -1))));
+$("diaSig").addEventListener("click", () => abrirDia(iso(sumarDias(deIso(diaAbierto), 1))));
+// Tocar «Semana» estando ya en la semana con un día abierto vuelve a la semana entera
+let semanaVisible = false;
+$("tabSemana").addEventListener("pointerdown", () => { semanaVisible = !$("vistaSemana").hidden; });
+$("tabSemana").addEventListener("click", () => { if (semanaVisible && diaAbierto) cerrarDia(); });
+// Deslizar en horizontal sobre el día pasa al anterior o al siguiente (no desde el borde, que es el «atrás» de Safari)
+let gestoDia = null;
+$("semana").addEventListener("touchstart", e => {
+  const t = e.touches[0];
+  gestoDia = diaAbierto && e.touches.length === 1 && t.clientX > 30 && !e.target.closest(".series li, input, textarea, select, .editor") ? { x: t.clientX, y: t.clientY } : null;
+}, { passive: true });
+$("semana").addEventListener("touchend", e => {
+  if (!gestoDia) return;
+  const t = e.changedTouches[0], dx = t.clientX - gestoDia.x, dy = t.clientY - gestoDia.y;
+  gestoDia = null;
+  if (Math.abs(dx) > 70 && Math.abs(dx) > 2 * Math.abs(dy)) abrirDia(iso(sumarDias(deIso(diaAbierto), dx < 0 ? 1 : -1)));
+}, { passive: true });
+matchMedia("(max-width: 760px)").addEventListener("change", () => { if (!$("vistaSemana").hidden) pintarSemana(); });
+
+// Cabecera de cada día: anillo de series hechas, resumen de una línea (día plegado) y botón de entreno
+function anilloSvg(f) {
+  const c = 2 * Math.PI * 15;
+  return '<svg viewBox="0 0 36 36" aria-hidden="true"><circle class="a-fondo" cx="18" cy="18" r="15"/><circle class="a-hecho" cx="18" cy="18" r="15" stroke-dasharray="' +
+    (f * c).toFixed(1) + " " + c.toFixed(1) + '" transform="rotate(-90 18 18)"/></svg>';
+}
+function pintarCabDia(dia) {
+  const del = seriesDelDia(dia.id), h = del.filter(hecha).length, e = db.entrenos[dia.id] || {};
+  dia.anillo.hidden = !del.length;
+  if (del.length) {
+    dia.anillo.innerHTML = anilloSvg(h / del.length) + "<span></span>";
+    dia.anillo.lastChild.textContent = h + "/" + del.length;
+    dia.anillo.classList.toggle("completo", h === del.length);
+    dia.anillo.setAttribute("aria-label", h + " de " + del.length + " series hechas");
+  }
+  const sesiones = [...new Set(del.map(s => s.grupo || nombreEj(s.ejercicio_id)))];
+  const texto = aTexto(e.html || "").trim().split("\n")[0];
+  dia.resumenEl.textContent = [sesiones.slice(0, 2).join(" + ") + (sesiones.length > 2 ? "…" : ""), del.length ? h + "/" + del.length + " series" : "",
+    !del.length && texto ? texto.slice(0, 70) : "", n0(e.rpe) ? "esfuerzo " + e.rpe + "/10" : ""].filter(Boolean).join(" · ") || "Nada apuntado";
+  dia.empezarEl.hidden = !del.length || h === del.length || !(dia.id === iso(new Date()) || dia.id === diaAbierto);
+  dia.empezarEl.textContent = h ? "▶ Seguir entreno (" + h + "/" + del.length + ")" : "▶ Empezar entreno";
+}
+function pintarProgresoSemana() {
+  const ini = iso(lunesVista()), fin = iso(sumarDias(lunesVista(), 7));
+  const del = seriesVivas().filter(s => s.fecha >= ini && s.fecha < fin), h = del.filter(hecha).length;
+  $("semBarra").hidden = !del.length || !!diaAbierto;
+  $("semBarra").firstElementChild.style.width = del.length ? (h / del.length * 100).toFixed(1) + "%" : "0";
+  $("semBarra").title = h + " de " + del.length + " series hechas esta semana";
+}
+
+// ---------- Deshacer, deslizar y récords ----------
+let deshacerPend = null, timerAviso = null;
+const capaArriba = () => ($("dlgEntreno").open ? $("dlgEntreno") : document.body);
+function avisoDeshacer(texto, deshacer, pr) {
+  const t = $("toast");
+  if (t.parentNode !== capaArriba()) capaArriba().appendChild(t);
+  deshacerPend = deshacer || null;
+  $("toastTxt").textContent = texto;
+  $("toastBtn").hidden = !deshacerPend;
+  t.classList.toggle("pr", !!pr);
+  t.hidden = false;
+  clearTimeout(timerAviso);
+  timerAviso = setTimeout(() => { t.hidden = true; deshacerPend = null; }, pr ? 6000 : 5000);
+}
+$("toastBtn").addEventListener("click", () => {
+  if (!deshacerPend) return;
+  deshacerPend.forEach(([t, f]) => { const c = { ...f }; delete c.sucio; cambiar(t, c, true); });
+  deshacerPend = null;
+  persistir();
+  $("toast").hidden = true;
+  pintarTodo();
+  if (ent) pintarEntreno();
+});
+function celebrar() {
+  if (navigator.vibrate) navigator.vibrate(40);
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const f = $("fiesta");
+  if (f.parentNode !== capaArriba()) capaArriba().appendChild(f);
+  f.textContent = "";
+  const colores = ["var(--gold)", "var(--accent)", "var(--carrera)", "var(--fuerza)"];
+  for (let k = 0; k < 22; k++) {
+    const p = document.createElement("i");
+    p.style.left = (Math.random() * 100).toFixed(1) + "%";
+    p.style.animationDelay = (Math.random() * 0.3).toFixed(2) + "s";
+    p.style.background = colores[k % 4];
+    f.appendChild(p);
+  }
+  f.classList.remove("on"); void f.offsetWidth; f.classList.add("on");
+  setTimeout(() => { f.classList.remove("on"); f.textContent = ""; }, 1800);
+}
+// Avisa del récord (con celebración) o, si no lo es, de que la serie está hecha; las dos con Deshacer
+function avisarSiPR(fila, deshacer) {
+  const pr = hecha(fila) && prsDe(seriesDe(fila.ejercicio_id), tipoDe(fila.ejercicio_id)).has(fila.id);
+  if (pr) { celebrar(); avisoDeshacer("¡Nuevo récord! " + nombreEj(fila.ejercicio_id) + " · " + serieTexto(fila), deshacer, true); }
+  else if (deshacer) avisoDeshacer("Serie hecha · " + nombreEj(fila.ejercicio_id), deshacer);
+  return pr;
+}
+function marcarHecha(antes, fila) {
+  cambiar("series", fila);
+  pintarBloques(true);
+  avisarSiPR(fila, [["series", antes]]);
+}
+function borrarSerie(s) {
+  cambiar("series", { ...s, borrado: true });
+  pintarBloques(true);
+  avisoDeshacer("Serie borrada · " + nombreEj(s.ejercicio_id), [["series", s]]);
+}
+// Deslizar con el dedo (no con ratón); el desplazamiento vertical sigue siendo de la página
+function deslizable(li, derecha, izquierda) {
+  if (!derecha && !izquierda) return;
+  li.classList.add("desliza");
+  let x0 = null, y0 = 0, dx = 0, activo = false, pid = null;
+  li.addEventListener("pointerdown", e => { if (e.pointerType === "mouse") return; x0 = e.clientX; y0 = e.clientY; dx = 0; activo = false; pid = e.pointerId; });
+  li.addEventListener("pointermove", e => {
+    if (x0 === null || e.pointerId !== pid) return;
+    const mx = e.clientX - x0, my = e.clientY - y0;
+    if (!activo) {
+      if (Math.abs(my) > 10) { x0 = null; return; }
+      if (Math.abs(mx) < 12) return;
+      activo = true;
+      try { li.setPointerCapture(pid); } catch {}
+    }
+    dx = (mx > 0 && !derecha) || (mx < 0 && !izquierda) ? mx / 4 : mx;
+    li.style.transform = "translateX(" + dx + "px)";
+    li.dataset.dir = dx > 0 ? "der" : "izq";
+    li.classList.toggle("listo", Math.abs(dx) > 80);
+  });
+  const fin = () => {
+    if (x0 === null) return;
+    const d = dx, fue = activo;
+    x0 = null; activo = false;
+    li.style.transform = ""; li.classList.remove("listo"); delete li.dataset.dir;
+    if (!fue) return;
+    li.dataset.deslizado = "1";
+    setTimeout(() => { delete li.dataset.deslizado; }, 350);
+    if (d > 80 && derecha) derecha(); else if (d < -80 && izquierda) izquierda();
+  };
+  li.addEventListener("pointerup", fin);
+  li.addEventListener("pointercancel", fin);
+}
+
+// ---------- Modo entreno: una serie cada vez, en grande, con el descanso integrado ----------
+let ent = null, bloqueoPantalla = null;
+// Mismo orden que en pantalla: por sesión y, dentro, ejercicio a ejercicio o bloque ronda a ronda
+function colaEntreno(fecha) {
+  const delDia = seriesDelDia(fecha), grupos = [], cola = [];
+  delDia.forEach(s => { if (!grupos.includes(s.grupo || "")) grupos.push(s.grupo || ""); });
+  grupos.forEach(g => {
+    const deG = delDia.filter(s => (s.grupo || "") === g), claves = [];
+    deG.forEach(s => { const k = s.bloque_id ? "b:" + s.bloque_id : s.ejercicio_id; if (!claves.includes(k)) claves.push(k); });
+    claves.forEach(k => {
+      const blq = k.startsWith("b:");
+      deG.filter(s => blq ? s.bloque_id === k.slice(2) : s.ejercicio_id === k && !s.bloque_id)
+        .sort((a, b) => blq ? n0(a.ronda) - n0(b.ronda) || a.orden - b.orden : a.orden - b.orden).forEach(s => cola.push(s.id));
+    });
+  });
+  return cola;
+}
+const serieEnt = () => ent && db.series[ent.cola[ent.i]];
+function empezarEntreno(dia) {
+  const cola = colaEntreno(dia.id);
+  if (!cola.length) return;
+  const i = cola.findIndex(id => !hecha(db.series[id]));
+  ent = { dia, cola, i: Math.max(0, i), fin: 0, timer: null, audio: null, campos: [] };
+  $("enDescanso").hidden = true;
+  $("enFin").hidden = true;
+  $("dlgEntreno").showModal();
+  pintarEntreno();
+  if (navigator.wakeLock) navigator.wakeLock.request("screen").then(w => { bloqueoPantalla = w; }).catch(() => {});
+}
+function pintarEntreno() {
+  ent.cola = ent.cola.filter(id => db.series[id] && !db.series[id].borrado && ejercicioVivo(db.series[id].ejercicio_id));
+  if (!ent.cola.length) { salirEntreno(); return; }
+  ent.i = Math.min(ent.i, ent.cola.length - 1);
+  const s = serieEnt(), tipo = tipoDe(s.ejercicio_id), dist = esDistancia(tipo), lista = ent.cola.map(id => db.series[id]);
+  const hechas = lista.filter(hecha).length;
+  $("enProg").textContent = "Serie " + (ent.i + 1) + " de " + lista.length + " · " + hechas + (hechas === 1 ? " hecha" : " hechas");
+  $("enBarra").style.width = (hechas / lista.length * 100).toFixed(1) + "%";
+  $("enGrupo").textContent = s.grupo || NOMBRES[ent.dia.i] + " " + fmt(deIso(ent.dia.id));
+  $("enEj").textContent = nombreEj(s.ejercicio_id);
+  $("enEj").appendChild(etiquetaTipo(tipo));
+  if (s.bloque_id) {
+    const rondas = Math.max.apply(null, lista.filter(x => x.bloque_id === s.bloque_id).map(x => n0(x.ronda)));
+    $("enSerie").textContent = "Bloque · ronda " + n0(s.ronda) + " de " + rondas;
+  } else {
+    const mismas = lista.filter(x => x.ejercicio_id === s.ejercicio_id && !x.bloque_id && (x.grupo || "") === (s.grupo || ""));
+    $("enSerie").textContent = "Serie " + (mismas.indexOf(s) + 1) + " de " + mismas.length;
+  }
+  $("enValor").textContent = serieTexto(s);
+  $("enValor").classList.toggle("hecha", hecha(s));
+  const kg = dist ? 0 : pesoMostrado(s), o = tipo === "carrera" && !hecha(s) ? objetivoSerie(s) : null;
+  $("enExtra").textContent = [hecha(s) ? "✓ Hecha" : "", kg ? textoDiscos(kg) : "", o ? textoObjetivo(o) : "", descTexto(s)].filter(Boolean).join(" · ");
+  // Campos para apuntar lo que de verdad se hizo
+  ent.campos = dist ? (n0(s.distancia) > 0 ? ["m", "t"] : ["t", "m"]) : ["kg", "reps"];
+  const etiqueta = { kg: "Peso (kg)", reps: "Repeticiones", m: "Metros", t: "Tiempo" };
+  const valor = c => c === "kg" ? (kg ? num(kg) : "") : c === "reps" ? (s.ciclo_id === "auto" && !hecha(s) ? "" : n0(s.reps) || "")
+    : c === "m" ? n0(s.distancia) || "" : n0(s.tiempo) ? fmtTiempo(s.tiempo) : "";
+  [["enA", "enEtA"], ["enB", "enEtB"]].forEach(([inp, et], k) => {
+    const c = ent.campos[k];
+    $(et).textContent = etiqueta[c] + (dist && k === 1 ? " (opcional)" : "");
+    $(inp).value = valor(c);
+    $(inp).inputMode = c === "reps" || c === "m" ? "numeric" : "decimal";
+    $(inp).placeholder = c === "reps" && s.ciclo_id ? "máx" : c === "t" ? "3,40" : "";
+  });
+  $("enHecha").textContent = hecha(s) ? "Guardar cambios" : "✓ Hecha";
+  $("enAviso").textContent = "";
+  $("enAnt").disabled = ent.i === 0;
+  $("enSig").disabled = ent.i >= lista.length - 1;
+}
+function siguientePendiente() {
+  const n = ent.cola.length;
+  const sig = Array.from({ length: n }, (_, k) => (ent.i + 1 + k) % n).find(k => !hecha(db.series[ent.cola[k]]));
+  if (sig === undefined) $("enFin").hidden = false; else ent.i = sig;
+  pintarEntreno();
+}
+$("enHecha").addEventListener("click", () => {
+  const s = serieEnt();
+  if (!s) return;
+  // El sonido del final del descanso solo puede prepararse con un toque
+  if (!ent.audio && window.AudioContext) { try { ent.audio = new AudioContext(); } catch {} }
+  const a = $("enA"), b = $("enB"), aviso = t => { $("enAviso").textContent = t; };
+  const fila = { ...s, hecha: true };
+  if (ent.campos[0] === "kg") {
+    const kg = parseFloat((a.value.trim() || "0").replace(",", ".")), reps = parseInt(b.value, 10);
+    if (!(kg >= 0)) { aviso("Revisa el peso."); a.focus(); return; }
+    if (!(reps > 0)) { aviso("Pon las repeticiones que has hecho."); b.focus(); return; }
+    fila.peso = kg; fila.reps = reps;
+    if (s.ciclo_id === "auto") { const c = cicloActivo(s.ejercicio_id); fila.ciclo_id = c ? c.id : ""; }
+  } else {
+    const v = {}; v[ent.campos[0]] = a.value; v[ent.campos[1]] = b.value;
+    fila.distancia = parseFloat((v.m || "").replace(",", ".")) || 0;
+    fila.tiempo = leerTiempo(v.t);
+    if (isNaN(fila.tiempo)) { aviso("Revisa el tiempo (por ejemplo 3,40)."); return; }
+    if (!(fila.distancia > 0) && !(fila.tiempo > 0)) { aviso("Pon los metros o el tiempo."); return; }
+  }
+  const yaHecha = hecha(s);
+  cambiar("series", fila);
+  pintarBloques(true);
+  avisarSiPR(fila, [["series", s]]);
+  if (yaHecha) { pintarEntreno(); return; }
+  siguientePendiente();
+  if (!$("enFin").hidden) return;   // era la última: no hay descanso
+  if (n0(fila.descanso) > 0) empezarDescanso(n0(fila.descanso));
+  else if (n0(fila.rec_dist) > 0) mostrarRecuperacion(n0(fila.rec_dist));
+});
+document.querySelectorAll("#dlgEntreno .paso").forEach((p, k) => p.querySelectorAll("button").forEach(x => x.addEventListener("click", () => {
+  if (ent) ajustarCampo(p.querySelector("input"), ent.campos[k], x.classList.contains("mas") ? 1 : -1);
+})));
+function empezarDescanso(seg) {
+  ent.fin = Date.now() + seg * 1000;
+  $("enDescTit").textContent = "Descanso";
+  $("enDescanso").classList.remove("fin");
+  $("enDescanso").hidden = false;
+  $("enMenos").hidden = $("enMas").hidden = false;
+  clearInterval(ent.timer);
+  ent.timer = setInterval(ticDescanso, 250);
+  ticDescanso();
+}
+function ticDescanso() {
+  const r = Math.max(0, Math.ceil((ent.fin - Date.now()) / 1000));
+  $("enReloj").textContent = fmtTiempo(r);
+  if (r <= 0) finDescanso();
+}
+function pitido() {
+  const ac = ent && ent.audio;
+  if (!ac) return;
+  try {
+    ac.resume();
+    [0, 0.35].forEach(t => {
+      const o = ac.createOscillator(), g = ac.createGain();
+      o.frequency.value = 880; g.gain.value = 0.25;
+      o.connect(g); g.connect(ac.destination);
+      o.start(ac.currentTime + t); o.stop(ac.currentTime + t + 0.2);
+    });
+  } catch {}
+}
+function finDescanso() {
+  clearInterval(ent.timer);
+  ent.timer = null;
+  $("enDescanso").classList.add("fin");
+  $("enDescTit").textContent = "¡A por la siguiente!";
+  pitido();
+  if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+  setTimeout(() => { if (ent && !ent.timer) $("enDescanso").hidden = true; }, 4000);
+}
+function mostrarRecuperacion(m) {
+  clearInterval(ent.timer);
+  ent.timer = null;
+  $("enDescanso").classList.remove("fin");
+  $("enDescTit").textContent = "Recuperación";
+  $("enReloj").textContent = fmtDist(m);
+  $("enMenos").hidden = $("enMas").hidden = true;
+  $("enDescanso").hidden = false;
+}
+const moverDescanso = seg => {
+  if (!ent || !ent.fin) return;
+  ent.fin = Math.max(Date.now(), ent.fin) + seg * 1000;
+  $("enDescanso").classList.remove("fin");
+  $("enDescTit").textContent = "Descanso";
+  if (!ent.timer) ent.timer = setInterval(ticDescanso, 250);
+  ticDescanso();
+};
+$("enMenos").addEventListener("click", () => moverDescanso(-15));
+$("enMas").addEventListener("click", () => moverDescanso(15));
+$("enSaltarD").addEventListener("click", () => { clearInterval(ent.timer); ent.timer = null; ent.fin = 0; $("enDescanso").hidden = true; });
+$("enAnt").addEventListener("click", () => { if (ent.i > 0) { ent.i--; pintarEntreno(); } });
+$("enSig").addEventListener("click", () => { if (ent.i < ent.cola.length - 1) { ent.i++; pintarEntreno(); } });
+function salirEntreno() {
+  if ($("dlgEntreno").open) $("dlgEntreno").close();
+}
+$("dlgEntreno").addEventListener("close", () => {
+  if (ent) clearInterval(ent.timer);
+  ent = null;
+  if (bloqueoPantalla) { bloqueoPantalla.release().catch(() => {}); bloqueoPantalla = null; }
+  document.body.append($("toast"), $("fiesta"));
+  pintarTodo();
+});
+$("enSalir").addEventListener("click", salirEntreno);
+$("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); abrirRpe(d); });
 
 // ---------- Instrucciones de uso ----------
 function abrirAyuda() {

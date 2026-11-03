@@ -41,21 +41,29 @@
 
 <section id="app" hidden>
   <header class="cabecera">
-    <div class="titulo"><h1>Entreno Semanal</h1><button type="button" class="ayuda-btn" id="ayudaBtn" aria-label="Instrucciones de uso" title="Instrucciones de uso">?</button></div>
-    <div class="tabs" role="tablist" aria-label="Vista">
-      <button type="button" role="tab" id="tabSemana" aria-selected="true">Semana</button>
-      <button type="button" role="tab" id="tabEjercicios" aria-selected="false">Ejercicios</button>
-      <button type="button" role="tab" id="tabPlan" aria-selected="false">Plan</button>
-      <button type="button" role="tab" id="tabMarcas" aria-selected="false">Marcas</button>
-    </div>
+    <h1>Entreno Semanal</h1>
+    <button type="button" class="ayuda-btn" id="ayudaBtn" aria-label="Instrucciones de uso" title="Instrucciones de uso">?</button>
   </header>
+  <nav class="tabbar" role="tablist" aria-label="Secciones">
+    <button type="button" role="tab" id="tabSemana" aria-selected="true"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg><span>Semana</span></button>
+    <button type="button" role="tab" id="tabEjercicios" aria-selected="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 7v10M17.5 7v10M3.5 9.5v5M20.5 9.5v5M6.5 12h11"/></svg><span>Ejercicios</span></button>
+    <button type="button" role="tab" id="tabMarcas" aria-selected="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19.5h16M7 16.5v-5M12 16.5V6.5M17 16.5v-8"/></svg><span>Marcas</span></button>
+    <button type="button" role="tab" id="tabPlan" aria-selected="false"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="4" width="14" height="17" rx="2.5"/><path d="M9 4.5V3h6v1.5M8.5 10h7M8.5 14h7M8.5 18h4"/></svg><span>Plan</span></button>
+  </nav>
 
   <div id="vistaSemana">
-    <nav class="nav" aria-label="Cambiar de semana">
+    <nav class="nav" id="navSemana" aria-label="Cambiar de semana">
       <button type="button" class="nav-btn flecha" id="antBtn" aria-label="Semana anterior">‹</button>
       <div class="semana-info"><span id="rango"></span><span id="relativa"></span></div>
       <button type="button" class="nav-btn flecha" id="sigBtn" aria-label="Semana siguiente">›</button>
       <button type="button" class="nav-btn" id="hoyBtn" hidden>Hoy</button>
+    </nav>
+    <div class="sem-barra" id="semBarra" hidden><span></span></div>
+    <nav class="dia-nav" id="diaNav" aria-label="Día" hidden>
+      <button type="button" class="nav-btn volver" id="volverSemana">‹ Semana</button>
+      <span class="dia-nav-t" id="diaNavTit"></span>
+      <button type="button" class="nav-btn flecha" id="diaAnt" aria-label="Día anterior">‹</button>
+      <button type="button" class="nav-btn flecha" id="diaSig" aria-label="Día siguiente">›</button>
     </nav>
     <p class="meso-banda" id="mesoBanda" hidden></p>
     <details class="resumen-sem" id="resumenSem" hidden>
@@ -75,17 +83,17 @@
 
   <div id="vistaPlan" hidden>
     <section class="plan-sec">
-      <h3>Crear con IA</h3>
-      <p class="vacio-lista">Elige tu objetivo, copia el prompt, pégalo en ChatGPT, Claude u otra IA y pega aquí su respuesta: la app crea las plantillas (o el mesociclo) y los ejercicios que falten.</p>
-      <div class="botonera"><button type="button" class="anadir" id="iaAbrir">Crear con IA</button><button type="button" class="nav-btn" id="iaPegarAbrir">Pegar entrenamiento de IA</button></div>
-    </section>
-    <section class="plan-sec">
       <h3>Plantillas</h3>
       <div class="lista-tarjetas" id="listaPlantillas"></div>
     </section>
     <section class="plan-sec">
       <div class="sec-cab"><h3>Mesociclos</h3><button type="button" class="nav-btn" id="nuevoMeso">+ Nuevo</button></div>
       <div class="lista-tarjetas" id="listaMesos"></div>
+    </section>
+    <section class="plan-sec">
+      <h3>Crear con IA</h3>
+      <p class="vacio-lista">Elige tu objetivo, copia el prompt, pégalo en ChatGPT, Claude u otra IA y pega aquí su respuesta: la app crea las plantillas (o el mesociclo) y los ejercicios que falten.</p>
+      <div class="botonera"><button type="button" class="anadir" id="iaAbrir">Crear con IA</button><button type="button" class="nav-btn" id="iaPegarAbrir">Pegar entrenamiento de IA</button></div>
     </section>
     <section class="plan-sec">
       <h3>Rutinas tipo</h3>
@@ -104,6 +112,13 @@
         <button type="button" class="nav-btn" id="expCsv">Series (CSV)</button>
         <button type="button" class="nav-btn" id="expDias">Días y notas (CSV)</button>
         <label class="nav-btn">Restaurar copia…<input type="file" id="impJson" accept="application/json,.json" hidden></label>
+      </div>
+    </section>
+    <section class="plan-sec">
+      <h3>Ajustes de este dispositivo</h3>
+      <div class="fila">
+        <label class="campo">Peso de la barra (kg) <input id="ajBarra" inputmode="decimal" placeholder="20"></label>
+        <label class="campo">Botones − y + de peso (kg) <input id="ajPaso" inputmode="decimal" placeholder="2,5"></label>
       </div>
     </section>
     <section class="plan-sec" id="bloqueUsuarios" hidden>
@@ -353,13 +368,16 @@
   <div class="d-cuerpo ayuda">
     <p>Toca cada apartado para verlo. Puedes volver aquí cuando quieras con el botón <b>?</b> de arriba.</p>
     <details><summary>La semana y el texto del día</summary>
-      <p>Cada día tiene un espacio para escribir lo que quieras. Se guarda solo. El botón <b>N</b> pone el texto en negrita.</p>
-      <p>Cambia de semana con las flechas ‹ ›. <b>Hoy</b> te devuelve a la semana actual.</p>
+      <p>Abajo tienes las secciones: <b>Semana</b>, <b>Ejercicios</b>, <b>Marcas</b> y <b>Plan</b>.</p>
+      <p>En el móvil, el día de hoy aparece abierto y el resto plegados en una línea (sesiones y series hechas). Toca el nombre de un día para abrirlo solo, a pantalla completa; con ‹ › o deslizando a los lados pasas al día anterior o siguiente, y <b>‹ Semana</b> te devuelve.</p>
+      <p>Cada día tiene un espacio para escribir lo que quieras. Se guarda solo. Mientras escribes aparece el botón <b>N</b> de negrita.</p>
+      <p>Cambia de semana con las flechas ‹ ›. <b>Hoy</b> te devuelve a la semana actual. La barra bajo las fechas muestra cuántas series llevas hechas esa semana.</p>
     </details>
     <details><summary>Añadir ejercicios y series</summary>
       <p>Pulsa <b>+ Ejercicio</b> en un día, busca el ejercicio o escribe uno nuevo. Arriba puedes filtrar por Fuerza, Carrera o Natación.</p>
       <p><b>Fuerza:</b> kg × repeticiones. El botón <b>kg</b> cambia a <b>%</b> del 1RM (pon tu 1RM en la ficha del ejercicio).</p>
       <p><b>Carrera y natación:</b> metros y tiempo. El botón <b>m</b> cambia a <b>min</b> si prefieres apuntar solo el tiempo.</p>
+      <p>Los botones <b>−</b> y <b>+</b> suben o bajan el peso (2,5 kg, se cambia en Plan → Ajustes), las repeticiones, los metros (100 m) o el tiempo (5 s).</p>
       <p>El selector <b>×1, ×2…</b> añade varias series iguales de golpe. Toca el nombre del ejercicio para ver su vídeo, récords, gráfica e historial.</p>
     </details>
     <details><summary>Cómo escribir tiempos y descansos</summary>
@@ -370,6 +388,12 @@
     <details><summary>Series planificadas</summary>
       <p>Las series que añades en días futuros (o que vienen de plantillas y mesociclos) quedan <b>planificadas</b>, en gris y con un círculo.</p>
       <p>Toca el círculo para marcarla como hecha tal cual. Si hiciste otra cosa, toca la serie, corrige los datos y guárdala. También puedes corregir después una serie ya hecha tocándola.</p>
+      <p>En el móvil también puedes <b>deslizar</b> una serie: a la derecha la marca hecha y a la izquierda la borra. Durante 5 segundos aparece abajo <b>Deshacer</b>. Si consigues un récord, te lo celebra.</p>
+    </details>
+    <details><summary>Modo entreno</summary>
+      <p>En el día de hoy (o en un día abierto) pulsa <b>Empezar entreno</b>: verás en grande cada serie, con los discos que van por lado y el ritmo objetivo en carrera.</p>
+      <p>Ajusta lo que hiciste y pulsa <b>Hecha</b>: pasa a la siguiente (respetando los bloques ronda a ronda) y empieza la cuenta atrás del descanso, que puedes saltar o alargar. Al acabar suena y vibra si el móvil lo permite.</p>
+      <p>El temporizador solo existe dentro de este modo; fuera de él nunca salta nada.</p>
     </details>
     <details><summary>Bloques ×N</summary>
       <p><b>+ Bloque</b> crea uno o varios tramos que se repiten, por ejemplo 1000 m + recuperación 300 m ×4, o Press banca + Remo ×4. Se muestran ronda a ronda.</p>
@@ -416,6 +440,39 @@
     </details>
   </div>
 </dialog>
+
+<dialog id="dlgEntreno" class="pantalla" aria-label="Modo entreno">
+  <div class="en-cab">
+    <button type="button" class="nav-btn" id="enSalir">Salir</button>
+    <div class="en-prog"><span id="enProg"></span><span class="en-barra"><span id="enBarra"></span></span></div>
+  </div>
+  <div class="en-cuerpo">
+    <p class="en-grupo" id="enGrupo"></p>
+    <h2 class="en-ej" id="enEj"></h2>
+    <p class="en-serie" id="enSerie"></p>
+    <p class="en-valor" id="enValor"></p>
+    <p class="en-extra" id="enExtra"></p>
+    <div class="en-campos">
+      <label class="en-campo"><span id="enEtA"></span><span class="paso"><button type="button" class="menos" aria-label="Menos">−</button><input id="enA" autocomplete="off"><button type="button" class="mas" aria-label="Más">+</button></span></label>
+      <label class="en-campo"><span id="enEtB"></span><span class="paso"><button type="button" class="menos" aria-label="Menos">−</button><input id="enB" autocomplete="off"><button type="button" class="mas" aria-label="Más">+</button></span></label>
+    </div>
+    <p class="aviso" id="enAviso" role="status"></p>
+    <button type="button" class="primario en-hecha" id="enHecha">✓ Hecha</button>
+    <div class="en-descanso" id="enDescanso" hidden>
+      <span class="en-d-t" id="enDescTit">Descanso</span>
+      <span class="en-d-n" id="enReloj">0:00</span>
+      <div class="en-d-b"><button type="button" class="nav-btn" id="enMenos">−15 s</button><button type="button" class="nav-btn" id="enSaltarD">Saltar</button><button type="button" class="nav-btn" id="enMas">+15 s</button></div>
+    </div>
+    <div class="en-fin" id="enFin" hidden>
+      <p class="en-valor">¡Entreno completado!</p>
+      <button type="button" class="primario" id="enRpe">Apuntar esfuerzo y sensaciones</button>
+    </div>
+  </div>
+  <div class="en-pie"><button type="button" class="nav-btn" id="enAnt">‹ Anterior</button><button type="button" class="nav-btn" id="enSig">Siguiente ›</button></div>
+</dialog>
+
+<div class="toast" id="toast" role="status" hidden><span id="toastTxt"></span><button type="button" id="toastBtn">Deshacer</button></div>
+<div class="fiesta" id="fiesta" aria-hidden="true"></div>
 
 <script src="app.js"></script>
 </body>
