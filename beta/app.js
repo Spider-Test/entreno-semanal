@@ -928,7 +928,16 @@ function pintarDia(dia) {
         movibles().length > 1 && { texto: "Bajar", accion: () => mover(el, 1) },
         !espera && otrasSesiones.length && { texto: "Mover a otra sesión…", accion: () => abrirMenu("¿A qué sesión?", "", otrasSesiones.map(x => ({
           texto: x || "Sin sesión", accion: () => moverASesion(seriesDeItem(dia.id, g.nombre, clave), x) }))) },
-        { texto: "Ver ficha del ejercicio", accion: () => abrirDetalle(clave) }
+        { texto: "Ver ficha del ejercicio", accion: () => abrirDetalle(clave) },
+        { texto: "Eliminar ejercicio" + (espera ? "" : " y sus series"), peligro: true, confirmar: espera ? "Pulsa otra vez para quitarlo" : "Pulsa otra vez: se borran " + seriesDeItem(dia.id, g.nombre, clave).length + " series", accion: () => {
+          // Quita el ejercicio de esta sesión con todas sus series (hechas incluidas); se puede deshacer
+          const del = espera ? [] : seriesDeItem(dia.id, g.nombre, clave);
+          del.forEach(x => cambiar("series", { ...x, borrado: true }, true));
+          quitarEspera(dia.id, clave);
+          persistir();
+          pintarDia(dia);
+          avisoDeshacer(nombre + " eliminado" + (del.length ? " (" + del.length + " series)" : ""), del.length ? del.map(x => ["series", { ...x }]) : null);
+        } }
       ]));
       const asa = el.querySelector(".bloque-cab .asa");
       if (asa) asa.before(m); else el.querySelector(".bloque-cab").appendChild(m);
@@ -4230,7 +4239,7 @@ $("enSalir").addEventListener("click", salirEntreno);
 $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); abrirRpe(d); });
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
-const VERSION_APP = "v45" + (BETA ? " beta" : "");
+const VERSION_APP = "v46" + (BETA ? " beta" : "");
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";
