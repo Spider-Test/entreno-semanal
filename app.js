@@ -280,7 +280,7 @@ async function cargarPerfil() {
 }
 
 // Guarda una edición en el dispositivo y la deja pendiente de subir
-let timerSync;
+let timerSync, versionDatos = 0;
 function persistir() {
   guardarLocal();
   setEstado("Guardado en el dispositivo");
@@ -290,6 +290,7 @@ function persistir() {
 function cambiar(tabla, fila, enLote) {
   fila.actualizado = new Date().toISOString();
   fila.sucio = true;
+  versionDatos++;
   db[tabla][fila[TABLAS[tabla].clave]] = fila;
   if (!enLote) persistir();
 }
@@ -302,6 +303,7 @@ function mezclar(tabla, f) {
   fila.actualizado = new Date(tr).toISOString();
   fila.sucio = false;
   db[tabla][k] = fila;
+  versionDatos++;
   return true;
 }
 const hayPendientes = () => Object.keys(TABLAS).some(t => Object.values(db[t]).some(v => v.sucio));
@@ -727,7 +729,7 @@ function bloque(dia, id, series, grupo) {
           '<input class="in-b" inputmode="decimal" placeholder="tiempo 3,40" aria-label="Tiempo (minutos y segundos)" autocomplete="off" enterkeyhint="next">'
         : '<button type="button" class="modo" aria-label="Cambiar entre kg y % del 1RM">kg</button><input class="in-a" inputmode="decimal" placeholder="kg" aria-label="Peso en kg" autocomplete="off" enterkeyhint="next">' +
           '<span class="por">×</span><input class="in-b" inputmode="numeric" pattern="[0-9]*" placeholder="reps" aria-label="Repeticiones" autocomplete="off" enterkeyhint="next">') +
-      '</div>' + (dist ? '' : '<div class="ns-extra"><span class="calc"></span><label class="bilbo-op" hidden><input type="checkbox" class="es-bilbo"> <span></span></label></div>') +
+      '</div>' + (dist ? '<div class="ns-extra"><span class="calc"></span></div>' : '<div class="ns-extra"><span class="calc"></span><label class="bilbo-op" hidden><input type="checkbox" class="es-bilbo"> <span></span></label></div>') +
       '<div class="ns-fila"><input class="in-c" inputmode="decimal" placeholder="⏱ descanso 1,30 o 300 m" aria-label="Descanso o recuperación después de la serie (tiempo o metros)" autocomplete="off" enterkeyhint="done">' +
       '<select class="veces" aria-label="Cuántas series iguales añadir">' + [1, 2, 3, 4, 5, 6, 8, 10].map(n => '<option value="' + n + '">×' + n + '</option>').join("") + '</select>' +
       '<button class="anadir">+ Serie</button></div>' +
@@ -761,9 +763,22 @@ function bloque(dia, id, series, grupo) {
     fb.inputMode = t ? "numeric" : "decimal";
     fb.setAttribute("aria-label", t ? "Distancia en metros (opcional)" : "Tiempo (minutos y segundos)");
   };
-  if (modoDist) modoDist.addEventListener("click", () => { const x = fa.value; ponerPorTiempo(!porTiempo); fa.value = fb.value; fb.value = x; fa.focus(); });
+  if (modoDist) modoDist.addEventListener("click", () => { const x = fa.value; ponerPorTiempo(!porTiempo); fa.value = fb.value; fb.value = x; fa.focus(); pintarObjetivo(); });
+  if (dist) { [fa, fb, fc].forEach(x => x.addEventListener("input", pintarObjetivo)); b.querySelector(".veces").addEventListener("change", pintarObjetivo); }
+  // Objetivo orientativo mientras planificas: cuenta cuántas series añades y su recuperación
+  function pintarObjetivo() {
+    if (!calc) return;
+    if (tipo !== "carrera") { calc.textContent = ""; return; }
+    const m = parseFloat(((porTiempo ? fb : fa).value || "").replace(",", ".")) || 0;
+    const rec = leerRecuperacion(fc.value) || { descanso: 0, rec_dist: 0 };
+    const veces = parseInt(b.querySelector(".veces").value, 10) || 1;
+    const nuevas = Array.from({ length: veces }, () => ({ ejercicio_id: id, distancia: m, tiempo: 0, hecha: false, descanso: rec.descanso, rec_dist: rec.rec_dist }));
+    const o = objetivoSerie(nuevas[0], series.concat(nuevas));
+    calc.textContent = o ? "Orientativo: " + textoObjetivo(o) : "";
+  }
   const pintarCalc = () => {
     if (!calc) return;
+    if (dist) { pintarObjetivo(); return; }
     if (!enPct) { calc.textContent = ""; return; }
     const v = parseFloat((fa.value || "").replace(",", ".")), ref = rmReferencia(id);
     calc.textContent = !ref ? "Pon tu 1RM en la ficha del ejercicio" : v > 0 ? "= " + num(kgDePct(id, v)) + " kg (1RM " + num(ref) + ")" : "1RM de referencia: " + num(ref) + " kg";
@@ -840,6 +855,7 @@ function bloque(dia, id, series, grupo) {
     } else marca.textContent = numero;
     li.querySelector(".sv-p").textContent = serieTexto(s);
     if (descTexto(s)) { const d = document.createElement("span"); d.className = "desc"; d.textContent = descTexto(s); li.querySelector(".sv").appendChild(d); }
+    if (planificada && tipo === "carrera") { const o = objetivoSerie(s, series); if (o) { const ob = document.createElement("span"); ob.className = "objetivo"; ob.textContent = textoObjetivo(o); li.querySelector(".sv").appendChild(ob); } }
     li.querySelector(".sv").setAttribute("aria-label", (planificada ? "Completar" : "Editar") + " serie " + numero + ": " + serieTexto(s));
     li.querySelector(".sv").addEventListener("click", () => {
       editando = s;
@@ -976,6 +992,7 @@ function tarjetaBloque(dia, bloqueId, series) {
       }
       li.querySelector(".sv-p").textContent = (variosTramos ? nombreEj(s.ejercicio_id) + " · " : "") + serieTexto(s);
       if (descTexto(s)) { const d = document.createElement("span"); d.className = "desc"; d.textContent = descTexto(s); li.querySelector(".sv").appendChild(d); }
+      if (!hecha(s) && tipoDe(s.ejercicio_id) === "carrera") { const o = objetivoSerie(s, series.filter(x => x.ejercicio_id === s.ejercicio_id)); if (o) { const ob = document.createElement("span"); ob.className = "objetivo"; ob.textContent = textoObjetivo(o); li.querySelector(".sv").appendChild(ob); } }
       li.querySelector(".sv").setAttribute("aria-label", "Apuntar ronda " + r + ", " + nombreEj(s.ejercicio_id) + ": " + serieTexto(s));
       li.querySelector(".sv").addEventListener("click", () => editar(s, li));
       if (prs[s.ejercicio_id] && prs[s.ejercicio_id].has(s.id)) { const p = document.createElement("span"); p.className = "pr"; p.textContent = "PR"; li.appendChild(p); }
@@ -1533,6 +1550,200 @@ $("detalle").addEventListener("close", () => {
   pintarTodo();
 });
 
+// ---------- Rendimiento: marcas, forma (VDOT de Daniels), predicciones y ritmos objetivo ----------
+// Son estimaciones orientativas calculadas con las series hechas.
+const DIST_MARCAS = [200, 400, 800, 1000, 1500, 3000, 5000, 10000, 21097, 42195];
+const DIST_NATACION = [50, 100, 200, 400, 800, 1500];
+const nombreDist = d => ({ 21097: "Media maratón", 42195: "Maratón" })[d] || fmtDist(d);
+const vo2 = v => -4.6 + 0.182258 * v + 0.000104 * v * v;                                   // v en m/min
+const fraccion = t => 0.8 + 0.1894393 * Math.exp(-0.012778 * t) + 0.2989558 * Math.exp(-0.1932605 * t);   // t en min
+const vdotDe = (m, seg) => vo2(m / (seg / 60)) / fraccion(seg / 60);
+const velDeVo2 = o => (-0.182258 + Math.sqrt(0.182258 * 0.182258 + 4 * 0.000104 * (4.6 + o))) / (2 * 0.000104);
+const ritmoZona = (vdot, fr) => 1000 / velDeVo2(vdot * fr) * 60;                           // segundos por km
+const ZONAS = [["Suave (rodaje)", 0.70], ["Maratón", 0.80], ["Umbral", 0.88], ["Series 1000 m (intervalos)", 0.975], ["Series 200–400 m (ritmo)", 1.05]];
+const esRecuperacion = id => /trote|recuper|suave|rodaje|calent|calma/.test(norm(nombreEj(id)));
+function tiempoPrevisto(vdot, m) {
+  let lo = m / 600 * 60, hi = m / 50 * 60;
+  for (let i = 0; i < 60; i++) { const mid = (lo + hi) / 2; if (vdotDe(m, mid) > vdot) lo = mid; else hi = mid; }
+  return (lo + hi) / 2;
+}
+// La recuperación en metros se supone trotando a ~60 % de la velocidad de la serie
+const segRec = (s, v) => n0(s.descanso) > 0 ? n0(s.descanso) : n0(s.rec_dist) > 0 ? n0(s.rec_dist) / (v * 0.6) * 60 : 0;
+// Duración equivalente del trabajo: sin recuperar cuenta todo seguido; con mucha recuperación, casi como cada serie suelta
+function duracionEquivalente(n, segRep, recMedia) {
+  const rr = segRep ? recMedia / segRep : 0;
+  return segRep + (n * segRep - segRep) / (1 + 2 * rr);
+}
+// VDOT de una sesión entera: repeticiones, volumen, recuperaciones y si el ritmo se mantuvo o cayó
+function vdotSesion(series) {
+  const reps = series.filter(s => n0(s.distancia) > 0 && n0(s.tiempo) > 0).sort((a, b) => a.orden - b.orden);
+  if (!reps.length) return null;
+  const metros = reps.reduce((x, s) => x + n0(s.distancia), 0), seg = reps.reduce((x, s) => x + n0(s.tiempo), 0);
+  const v = metros / (seg / 60), segRep = seg / reps.length;
+  const recs = reps.slice(0, -1).map(s => segRec(s, v)), recMedia = recs.length ? recs.reduce((x, y) => x + y, 0) / recs.length : 0;
+  let vdot = vo2(v) / fraccion(duracionEquivalente(reps.length, segRep, recMedia) / 60), caida = 0;
+  if (reps.length >= 3) {
+    const k = Math.max(1, Math.floor(reps.length / 3)), r = s => n0(s.tiempo) / n0(s.distancia);
+    caida = reps.slice(-k).reduce((x, s) => x + r(s), 0) / reps.slice(0, k).reduce((x, s) => x + r(s), 0) - 1;
+    vdot *= 1 + Math.max(0, 0.03 - Math.max(0, caida));   // si no hubo caída, no fue al límite
+  }
+  return { vdot, reps: reps.length, metros, seg, recMedia, caida };
+}
+function calcularForma() {
+  const grupos = {}, hoy = new Date();
+  seriesVivas().filter(s => hecha(s) && tipoDe(s.ejercicio_id) === "carrera" && !esRecuperacion(s.ejercicio_id)).forEach(s => {
+    const k = s.fecha + "|" + s.ejercicio_id + "|" + (s.bloque_id || "");
+    (grupos[k] = grupos[k] || []).push(s);
+  });
+  let mejor = null;
+  Object.values(grupos).forEach(g => {
+    const r = vdotSesion(g);
+    if (!r || r.vdot < 20 || r.vdot > 90) return;
+    const peso = Math.pow(0.5, Math.max(0, (hoy - deIso(g[0].fecha)) / 864e5) / 42);   // lo reciente pesa más (vida media 6 semanas)
+    const puntos = r.vdot - 3 * (1 - peso);
+    if (!mejor || puntos > mejor.vdot) mejor = { ...r, vdot: puntos, fecha: g[0].fecha, ejercicio_id: g[0].ejercicio_id };
+  });
+  return mejor;
+}
+function calcularCarga() {
+  const lunes = lunesDe(new Date());
+  const km = desde => seriesVivas().filter(s => hecha(s) && tipoDe(s.ejercicio_id) === "carrera" && s.fecha >= iso(desde) && s.fecha < iso(sumarDias(desde, 7))).reduce((x, s) => x + n0(s.distancia), 0) / 1000;
+  const actual = km(lunes), media = [1, 2, 3, 4].map(i => km(sumarDias(lunes, -7 * i))).reduce((x, y) => x + y, 0) / 4;
+  return { actual, media, ajuste: media > 0 && actual / media > 1.3 ? 0.02 : 0 };
+}
+let memoRend = { v: -1 };
+function rendimiento() {
+  if (memoRend.v !== versionDatos) memoRend = { v: versionDatos, forma: calcularForma(), carga: calcularCarga() };
+  return memoRend;
+}
+// Objetivo de una serie de carrera dentro de su trabajo entero (nº de repeticiones, distancia y recuperación)
+function objetivoSerie(s, conjunto) {
+  if (tipoDe(s.ejercicio_id) !== "carrera") return null;
+  const { forma: f, carga } = rendimiento();
+  if (!f) return null;
+  const suave = { ritmo: ritmoZona(f.vdot, 0.70) * (1 + carga.ajuste), suave: true };
+  const reps = conjunto.filter(x => n0(x.distancia) > 0), n = Math.max(1, reps.length);
+  if (!(n0(s.distancia) > 0) || esRecuperacion(s.ejercicio_id) || (n === 1 && n0(s.distancia) >= 3000)) return suave;
+  const dRep = reps.reduce((x, y) => x + n0(y.distancia), 0) / n;
+  // Velocidad que, con estas repeticiones y recuperaciones, supone un ~97 % del esfuerzo máximo
+  let lo = 100, hi = 600;
+  for (let i = 0; i < 40; i++) {
+    const v = (lo + hi) / 2, recs = reps.slice(0, -1).map(x => segRec(x, v));
+    const est = vo2(v) / fraccion(duracionEquivalente(n, dRep / v * 60, recs.length ? recs.reduce((x, y) => x + y, 0) / recs.length : 0) / 60);
+    if (est > f.vdot * 0.97) hi = v; else lo = v;
+  }
+  let ritmo = 1000 / ((lo + hi) / 2) * 60 * (1 + carga.ajuste), ajustado = false;
+  // Durante la sesión: se corrige la mitad de lo que se están desviando las series ya hechas
+  const hechas = conjunto.filter(x => hecha(x) && n0(x.distancia) > 0 && n0(x.tiempo) > 0);
+  if (hechas.length && !hecha(s)) {
+    const real = hechas.reduce((x, y) => x + n0(y.tiempo) / n0(y.distancia) * 1000, 0) / hechas.length;
+    const corr = Math.max(-0.03, Math.min(0.05, 0.5 * (real / ritmo - 1)));
+    ritmo *= 1 + corr;
+    ajustado = Math.abs(corr) > 0.005;
+  }
+  return { ritmo, tiempo: ritmo * n0(s.distancia) / 1000, ajustado };
+}
+const textoObjetivo = o => !o ? "" : o.suave ? "objetivo suave ~" + fmtTiempo(o.ritmo) + "/km"
+  : "objetivo " + fmtTiempo(o.tiempo) + " (" + fmtTiempo(o.ritmo) + "/km)" + (o.ajustado ? " · ajustado a cómo vas" : "");
+// Mejores marcas por distancia: exactas o, dentro de una serie algo más larga, a su ritmo medio
+function marcasDe(tipo) {
+  const lista = seriesVivas().filter(s => hecha(s) && tipoDe(s.ejercicio_id) === tipo && n0(s.distancia) > 0 && n0(s.tiempo) > 0);
+  return (tipo === "natacion" ? DIST_NATACION : DIST_MARCAS).map(d => {
+    let mejor = null;
+    const evol = {};
+    lista.filter(s => n0(s.distancia) >= d && n0(s.distancia) <= d * 3).forEach(s => {
+      const exacta = n0(s.distancia) === d, t = exacta ? n0(s.tiempo) : n0(s.tiempo) * d / n0(s.distancia);
+      if (!mejor || t < mejor.t) mejor = { t, fecha: s.fecha, exacta };
+      if (!evol[s.fecha] || t < evol[s.fecha]) evol[s.fecha] = t;
+    });
+    return mejor ? { d, ...mejor, evol: Object.keys(evol).sort().map(f => ({ f, v: evol[f] })) } : null;
+  }).filter(Boolean);
+}
+function seccionMarcas(titulo) {
+  const s = document.createElement("section");
+  s.className = "plan-sec";
+  const h = document.createElement("h3");
+  h.textContent = titulo;
+  s.appendChild(h);
+  return s;
+}
+function nota(texto) {
+  const p = document.createElement("p");
+  p.className = "menu-det nota";
+  p.textContent = texto;
+  return p;
+}
+function tablaSimple(cabecera, filas) {
+  const caja = document.createElement("div");
+  caja.className = "tabla-scroll";
+  const t = document.createElement("table");
+  t.className = "tabla-bilbo tabla-marcas";
+  const cab = document.createElement("tr");
+  cabecera.forEach(c => { const th = document.createElement("th"); th.textContent = c; cab.appendChild(th); });
+  t.appendChild(document.createElement("thead")).appendChild(cab);
+  const tb = t.appendChild(document.createElement("tbody"));
+  filas.forEach(f => {
+    const tr = document.createElement("tr");
+    f.celdas.forEach(c => { const td = document.createElement("td"); td.textContent = c; tr.appendChild(td); });
+    if (f.alPulsar) { tr.className = "fila-pulsable" + (f.activa ? " activa" : ""); tr.tabIndex = 0; tr.addEventListener("click", f.alPulsar); }
+    tb.appendChild(tr);
+  });
+  caja.appendChild(t);
+  return caja;
+}
+let distGrafica = "";
+function pintarMarcas() {
+  const cont = $("marcasCont");
+  cont.textContent = "";
+  const { forma: f, carga } = rendimiento();
+  const s1 = seccionMarcas("Forma en carrera");
+  if (!f) s1.appendChild(nota("Apunta series o rodajes de carrera con metros y tiempo para estimar tu forma, tus marcas previstas y tus ritmos."));
+  else {
+    const caja = document.createElement("div");
+    caja.className = "records";
+    caja.appendChild(recuadro("VDOT estimado", num(Math.round(f.vdot * 10) / 10), "según tu sesión del " + fechaCorta(f.fecha), true));
+    caja.appendChild(recuadro("Carga de la semana", num(Math.round(carga.actual * 10) / 10) + " km", "media de 4 semanas: " + num(Math.round(carga.media * 10) / 10) + " km" + (carga.ajuste ? " · objetivos un 2 % más suaves" : "")));
+    s1.appendChild(caja);
+    s1.appendChild(nota("Calculado con " + f.reps + (f.reps === 1 ? " serie" : " series") + " de " + nombreEj(f.ejercicio_id) + ": " + fmtDist(f.metros) + " en " + fmtTiempo(f.seg) +
+      (f.recMedia ? ", recuperación media " + fmtTiempo(f.recMedia) : "") + (f.reps >= 3 ? (f.caida > 0.02 ? ", el ritmo cayó al final" : ", ritmo mantenido") : "") + ". Lo reciente pesa más."));
+    const marcas = marcasDe("carrera");
+    const ref = marcas.filter(m => m.d >= 1000).sort((x, y) => vdotDe(y.d, y.t) - vdotDe(x.d, x.t))[0];
+    const s2 = seccionMarcas("Marcas previstas");
+    s2.appendChild(tablaSimple(["Distancia", "Según VDOT", ref ? "Riegel (desde " + nombreDist(ref.d) + ")" : "Riegel"],
+      [5000, 10000, 21097, 42195].map(d => ({ celdas: [nombreDist(d), fmtTiempo(tiempoPrevisto(f.vdot, d)), ref ? fmtTiempo(ref.t * Math.pow(d / ref.d, 1.06)) : "—"] }))));
+    const s3 = seccionMarcas("Ritmos de entrenamiento");
+    s3.appendChild(tablaSimple(["Zona", "Por km", "Por 400 m"], ZONAS.map(([n, fr]) => { const r = ritmoZona(f.vdot, fr) * (1 + carga.ajuste); return { celdas: [n, fmtTiempo(r), fmtTiempo(r * 0.4)] }; })));
+    s3.appendChild(nota("Cada serie de carrera planificada muestra su objetivo calculado con el trabajo entero (repeticiones, distancia y recuperación) y se ajusta según cómo te van saliendo las de ese día."));
+    cont.append(s1, s2, s3);
+  }
+  if (!f) cont.appendChild(s1);
+  [["carrera", "Mejores marcas de carrera", 1000, "/km"], ["natacion", "Mejores marcas de natación", 100, "/100 m"]].forEach(([tipo, titulo, por, suf]) => {
+    const marcas = marcasDe(tipo);
+    if (!marcas.length) return;
+    const s = seccionMarcas(titulo);
+    const sel = marcas.find(m => tipo + m.d === distGrafica) || marcas[0];
+    s.appendChild(tablaSimple(["Distancia", "Tiempo", "Ritmo", "Fecha"], marcas.map(m => ({
+      celdas: [nombreDist(m.d) + (m.exacta ? "" : " *"), fmtTiempo(m.t), fmtTiempo(m.t / m.d * por) + suf, fechaCorta(m.fecha)],
+      activa: m === sel, alPulsar: () => { distGrafica = tipo + m.d; pintarMarcas(); }
+    }))));
+    if (marcas.some(m => !m.exacta)) s.appendChild(nota("* Sacada de una serie algo más larga, a su ritmo medio."));
+    const tit = document.createElement("p");
+    tit.className = "bc-t";
+    tit.textContent = "Evolución · " + nombreDist(sel.d);
+    const g = document.createElement("div");
+    g.innerHTML = grafica(sel.evol, v => fmtTiempo(v));
+    s.append(tit, g, nota("Toca otra distancia para ver su evolución. En esta gráfica, más abajo es más rápido."));
+    if (tipo === "natacion") {
+      const m200 = marcas.find(m => m.d === 200 && m.exacta), m400 = marcas.find(m => m.d === 400 && m.exacta);
+      if (m200 && m400 && m400.t > m200.t) {
+        const css = (m400.t - m200.t) / 2;   // segundos por 100 m a la velocidad crítica
+        s.appendChild(tablaSimple(["Zona de natación", "Por 100 m"], [["Rápido", css - 5], ["Umbral (velocidad crítica)", css], ["Aeróbico", css + 5], ["Suave", css + 10]].map(([n, v]) => ({ celdas: [n, fmtTiempo(v)] }))));
+      } else s.appendChild(nota("Con una marca de 200 m y otra de 400 m calculo tus ritmos de natación por velocidad crítica."));
+    }
+    cont.appendChild(s);
+  });
+}
+
 // ---------- Plan: plantillas, mesociclos y usuarios ----------
 function tarjeta(titulo, lineas, alPulsar) {
   const t = document.createElement("button");
@@ -1749,8 +1960,8 @@ $("antBtn").addEventListener("click", () => irA(desplazamiento - 1));
 $("sigBtn").addEventListener("click", () => irA(desplazamiento + 1));
 $("hoyBtn").addEventListener("click", () => irA(0));
 
-const VISTAS = { semana: "vistaSemana", ejercicios: "vistaEjercicios", plan: "vistaPlan" };
-const TABS = { semana: "tabSemana", ejercicios: "tabEjercicios", plan: "tabPlan" };
+const VISTAS = { semana: "vistaSemana", ejercicios: "vistaEjercicios", plan: "vistaPlan", marcas: "vistaMarcas" };
+const TABS = { semana: "tabSemana", ejercicios: "tabEjercicios", plan: "tabPlan", marcas: "tabMarcas" };
 function verPestana(cual) {
   if (!VISTAS[cual]) cual = "semana";
   Object.keys(VISTAS).forEach(k => {
@@ -1760,6 +1971,7 @@ function verPestana(cual) {
   escribir("pestana-v1", cual);
   if (cual === "ejercicios") pintarCatalogo();
   else if (cual === "plan") pintarPlan();
+  else if (cual === "marcas") pintarMarcas();
   else pintarSemana();
 }
 Object.keys(TABS).forEach(k => $(TABS[k]).addEventListener("click", () => verPestana(k)));
@@ -1770,6 +1982,7 @@ function pintarTodo() {
   pintarBanda();
   if (!$("vistaEjercicios").hidden) pintarCatalogo();
   if (!$("vistaPlan").hidden) pintarPlan();
+  if (!$("vistaMarcas").hidden) pintarMarcas();
   if ($("detalle").open) refrescarDetalle();
 }
 
