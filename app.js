@@ -29,15 +29,16 @@ const escribir = (k, v) => { try { v === null ? localStorage.removeItem(k) : loc
 // Cada tabla se sincroniza igual: gana la edición más reciente de cada fila.
 // El orden importa al subir: primero ejercicios y plantillas, después las series que los usan.
 const TABLAS = {
-  ejercicios: { clave: "id", conflicto: "id", campos: ["id", "user_id", "nombre", "tipo", "video_url", "notas", "rm", "compartido", "borrado", "actualizado"] },
+  ejercicios: { clave: "id", conflicto: "id", campos: ["id", "user_id", "nombre", "tipo", "video_url", "notas", "rm", "compartido", "zonas", "borrado", "actualizado"] },
   personales: { clave: "ejercicio_id", conflicto: "user_id,ejercicio_id", campos: ["ejercicio_id", "rm", "actualizado"] },
   ciclos: { clave: "id", conflicto: "id", campos: ["id", "ejercicio_id", "numero", "rm_inicio", "peso_inicial", "incremento", "reps_reset", "importadas", "cerrado", "borrado", "actualizado"] },
   plantillas: { clave: "id", conflicto: "id", campos: ["id", "nombre", "items", "borrado", "actualizado"] },
   mesociclos: { clave: "id", conflicto: "id", campos: ["id", "nombre", "inicio", "semanas", "dias", "progresion", "descarga", "notas", "borrado", "actualizado"] },
-  series: { clave: "id", conflicto: "id", campos: ["id", "fecha", "ejercicio_id", "orden", "peso", "reps", "distancia", "tiempo", "descanso", "hecha", "grupo", "meso_id", "bloque_id", "ronda", "rec_dist", "pct", "ciclo_id", "borrado", "actualizado"] },
-  entrenos: { clave: "fecha", conflicto: "user_id,fecha", campos: ["fecha", "html", "texto", "rpe", "sensacion", "actualizado"] }
+  series: { clave: "id", conflicto: "id", campos: ["id", "fecha", "ejercicio_id", "orden", "peso", "reps", "distancia", "tiempo", "descanso", "hecha", "grupo", "meso_id", "bloque_id", "ronda", "rec_dist", "pct", "ciclo_id", "calentamiento", "borrado", "actualizado"] },
+  entrenos: { clave: "fecha", conflicto: "user_id,fecha", campos: ["fecha", "html", "texto", "rpe", "sensacion", "actualizado"] },
+  molestias: { clave: "id", conflicto: "id", campos: ["id", "zona", "descripcion", "inicio", "estado", "borrado", "actualizado"] }
 };
-const DEFECTOS = { tipo: "fuerza", hecha: true, grupo: "", meso_id: "", bloque_id: "", ciclo_id: "", importadas: [], cerrado: false, compartido: false, items: [], dias: {}, descarga: {}, nombre: "", video_url: "", notas: "", html: "", texto: "", sensacion: "", borrado: false };
+const DEFECTOS = { tipo: "fuerza", hecha: true, grupo: "", meso_id: "", bloque_id: "", ciclo_id: "", importadas: [], cerrado: false, compartido: false, items: [], dias: {}, descarga: {}, zonas: [], calentamiento: false, inicio: null, zona: "", descripcion: "", estado: "activa", nombre: "", video_url: "", notas: "", html: "", texto: "", sensacion: "", borrado: false };
 let sesion = leer("sesion-v1");                 // {access_token, refresh_token, expires_at, user_id, email}
 let perfil = leer("perfil-v1");                 // {aprobado, es_admin, email}
 let usuarios = [];                              // solo para el administrador
@@ -174,7 +175,7 @@ const descTexto = s => n0(s.rec_dist) > 0 ? "rec. " + fmtDist(s.rec_dist) : n0(s
 const recTexto = s => n0(s.rec_dist) > 0 ? num(s.rec_dist) + " m" : n0(s.descanso) > 0 ? fmtTiempo(s.descanso) : "";
 const seriesVivas = () => Object.values(db.series).filter(s => !s.borrado && ejercicioVivo(s.ejercicio_id));
 const ordenSerie = (a, b) => a.fecha < b.fecha ? -1 : a.fecha > b.fecha ? 1 : a.orden - b.orden;
-const seriesDe = id => seriesVivas().filter(s => s.ejercicio_id === id && hecha(s)).sort(ordenSerie);   // solo lo hecho cuenta para récords
+const seriesDe = id => seriesVivas().filter(s => s.ejercicio_id === id && hecha(s) && !s.calentamiento).sort(ordenSerie);   // solo lo hecho (sin calentamiento) cuenta para récords
 // PR: más peso (o más reps sin peso) en fuerza; menos tiempo para la misma distancia en carrera y natación
 function prsDe(lista, tipo) {
   const prs = new Set();
@@ -530,7 +531,7 @@ document.addEventListener("selectionchange", () => {
 const seriesDelDia = fecha => seriesVivas().filter(s => s.fecha === fecha).sort((a, b) => a.orden - b.orden);
 // Convierte series en una lista de ejercicios con sus series (para copiar o guardar como plantilla)
 // Los bloques se guardan como tramos con una serie por ronda: { bloque: true, tramos: [{ ejercicio_id, series: [ronda 1, ronda 2…] }] }
-const valores = s => ({ peso: n0(s.peso), reps: s.ciclo_id ? 0 : n0(s.reps), distancia: n0(s.distancia), tiempo: n0(s.tiempo), descanso: n0(s.descanso), rec_dist: n0(s.rec_dist), pct: n0(s.pct), bilbo: !!s.ciclo_id });
+const valores = s => ({ peso: n0(s.peso), reps: s.ciclo_id ? 0 : n0(s.reps), distancia: n0(s.distancia), tiempo: n0(s.tiempo), descanso: n0(s.descanso), rec_dist: n0(s.rec_dist), pct: n0(s.pct), bilbo: !!s.ciclo_id, calentamiento: !!s.calentamiento });
 function itemsDe(series) {
   const items = [], bloques = {};
   series.forEach(s => {
@@ -557,7 +558,7 @@ function pegarItems(fecha, items, grupo, mesoId, masKg) {
   const nueva = (ejercicio_id, v, extra) => cambiar("series", Object.assign({
     id: nuevoId(), fecha, ejercicio_id, orden: orden++,
     peso: n0(v.peso) > 0 ? Math.max(0, n0(v.peso) + n0(masKg)) : 0, reps: n0(v.reps), distancia: n0(v.distancia), tiempo: n0(v.tiempo),
-    descanso: n0(v.descanso), rec_dist: n0(v.rec_dist), pct: n0(v.pct), ciclo_id: v.bilbo ? "auto" : "", hecha: false, meso_id: mesoId || "", bloque_id: "", ronda: 0, borrado: false
+    descanso: n0(v.descanso), rec_dist: n0(v.rec_dist), pct: n0(v.pct), ciclo_id: v.bilbo ? "auto" : "", calentamiento: !!v.calentamiento, hecha: false, meso_id: mesoId || "", bloque_id: "", ronda: 0, borrado: false
   }, extra), true);
   items.forEach(it => {
     const g = grupo !== undefined ? grupo : (it.grupo || "");
@@ -665,11 +666,11 @@ const desdeCompartido = items => items.map(it => it.bloque
 function copiarTexto(t) {
   (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(() => setEstado("Copiado: " + t), () => setEstado("Código: " + t));
 }
-async function compartir(nombre, items) {
+async function compartir(nombre, items, crudo) {
   const codigo = nuevoCodigo();
   try {
     const r = await api("/rest/v1/compartidos", { method: "POST", headers: { Prefer: "return=minimal" },
-      body: JSON.stringify({ codigo, user_id: sesion.user_id, autor: sesion.email || "", nombre, items: paraCompartir(items) }) });
+      body: JSON.stringify({ codigo, user_id: sesion.user_id, autor: sesion.email || "", nombre, items: crudo ? items : paraCompartir(items) }) });
     if (!r.ok) throw new Error();
   } catch { setEstado("No se ha podido compartir. Necesitas conexión.", true); return; }
   const enlace = URL_APP + "#c=" + codigo;
@@ -688,6 +689,14 @@ async function abrirCompartido(texto) {
     if (r.ok) c = await r.json();
   } catch { setEstado("Necesitas conexión para abrir algo compartido.", true); return; }
   if (!c) { setEstado("No hay nada compartido con el código " + m[1] + ".", true); return; }
+  // Un mesociclo entero: vista previa y guardarlo con sus plantillas
+  if (c.items[0] && c.items[0].mesociclo) {
+    const x = c.items[0], mm = x.mesociclo;
+    abrirMenu("Mesociclo «" + c.nombre + "»", "Compartido por " + (c.autor || "un amigo") + " · " + n0(mm.semanas) + " semanas" + (n0(mm.progresion) ? " · +" + num(mm.progresion) + " kg/semana" : "") +
+      ". Plantillas: " + x.plantillas.map(p => p.nombre + " (" + contarSeries(p.items) + " series)").join(", ") + ". Se guardan en tus plantillas y mesociclos; después eliges cuándo empieza.",
+      [{ texto: "Guardar en mis mesociclos", accion: () => guardarMesoCompartido(c) }]);
+    return;
+  }
   const lunes = lunesVista();
   const nombres = c.items.map(it => it.bloque ? "(" + it.tramos.map(t => t.ejercicio).join(" + ") + ")" : it.ejercicio).join(", ");
   abrirMenu("«" + c.nombre + "»", "Compartido por " + (c.autor || "un amigo") + ": " + nombres + " · " + contarSeries(c.items) + " series. ¿Dónde lo añado?",
@@ -779,6 +788,8 @@ function bloque(dia, id, series, grupo) {
   nom.textContent = ej.nombre || "Sin nombre";
   nom.appendChild(etiquetaTipo(tipo));
   if (ej.video_url) { const v = document.createElement("span"); v.className = "ico"; v.textContent = "▶ vídeo"; nom.appendChild(v); }
+  const dolor = molestiasDe(id);
+  if (dolor.length) { const m = document.createElement("span"); m.className = "molestia-tag"; m.textContent = "⚠ " + dolor.map(x => x.zona).join(", "); m.title = dolor.map(x => x.zona + (x.descripcion ? ": " + x.descripcion : "")).join(" · "); nom.appendChild(m); }
   nom.setAttribute("aria-label", "Ver " + (ej.nombre || "ejercicio") + ": vídeo, récords e historial");
   nom.addEventListener("click", () => abrirDetalle(id));
   const quitar = b.querySelector(".quitar");
@@ -829,7 +840,7 @@ function bloque(dia, id, series, grupo) {
   const pintarCalc = () => {
     if (!calc) return;
     if (dist) { pintarObjetivo(); return; }
-    if (!enPct) { calc.textContent = ""; return; }
+    if (!enPct) { const d = usaBarra(id) ? textoDiscos(parseFloat((fa.value || "").replace(",", "."))) : ""; calc.textContent = d ? d[0].toUpperCase() + d.slice(1) : ""; return; }
     const v = parseFloat((fa.value || "").replace(",", ".")), ref = rmReferencia(id);
     calc.textContent = !ref ? "Pon tu 1RM en la ficha del ejercicio" : v > 0 ? "= " + num(kgDePct(id, v)) + " kg (1RM " + num(ref) + ")" : "1RM de referencia: " + num(ref) + " kg";
   };
@@ -886,10 +897,10 @@ function bloque(dia, id, series, grupo) {
   const ol = b.querySelector(".series");
   let numero = 0;
   series.forEach(s => {
-    numero++;
+    if (!s.calentamiento) numero++;
     const li = document.createElement("li");
     const planificada = !hecha(s);
-    li.className = planificada ? "plan" : "";
+    li.className = (planificada ? "plan" : "") + (s.calentamiento ? " calent" : "");
     li.innerHTML = '<span class="n"></span><button type="button" class="sv"><span class="sv-p"></span></button><button type="button" class="borrar">✕</button>';
     const marca = li.querySelector(".n");
     if (planificada) {
@@ -902,9 +913,10 @@ function bloque(dia, id, series, grupo) {
         marcarHecha(s, { ...s, hecha: true, peso: pesoMostrado(s) });
       });
       marca.replaceWith(c);
-    } else marca.textContent = numero;
-    li.querySelector(".sv-p").textContent = serieTexto(s);
+    } else marca.textContent = s.calentamiento ? "C" : numero;
+    li.querySelector(".sv-p").textContent = (s.calentamiento ? "Calent. · " : "") + serieTexto(s);
     if (descTexto(s)) { const d = document.createElement("span"); d.className = "desc"; d.textContent = descTexto(s); li.querySelector(".sv").appendChild(d); }
+    if (!dist && usaBarra(id) && textoDiscos(pesoMostrado(s))) { const d = document.createElement("span"); d.className = "discos"; d.textContent = textoDiscos(pesoMostrado(s)); li.querySelector(".sv").appendChild(d); }
     if (planificada && tipo === "carrera") { const o = objetivoSerie(s); if (o) { const ob = document.createElement("span"); ob.className = "objetivo"; ob.textContent = textoObjetivo(o); li.querySelector(".sv").appendChild(ob); } }
     li.querySelector(".sv").setAttribute("aria-label", (planificada ? "Completar" : "Editar") + " serie " + numero + ": " + serieTexto(s));
     li.querySelector(".sv").addEventListener("click", () => {
@@ -926,6 +938,17 @@ function bloque(dia, id, series, grupo) {
     ol.appendChild(li);
   });
 
+  // Calentamiento sugerido antes de la primera serie efectiva (hoy y sin haber empezado)
+  const pasosCalent = sugerenciaCalent(dia.id, id, series);
+  if (pasosCalent) {
+    const cal = document.createElement("div");
+    cal.className = "calent-sug";
+    cal.innerHTML = '<span class="cs-t"></span><span class="cs-b"><button type="button" class="nav-btn cs-no">No</button><button type="button" class="anadir cs-si">Añadir</button></span>';
+    cal.querySelector(".cs-t").textContent = "¿Calentamiento? " + pasosCalent.map(p => (p.barra ? "barra" : num(p.peso) + " kg") + " × " + p.reps).join(" · ");
+    cal.querySelector(".cs-si").addEventListener("click", () => aceptarCalent(dia.id, id, grupo, series, pasosCalent));
+    cal.querySelector(".cs-no").addEventListener("click", () => { rechazarCalent(dia.id, id); pintarDia(dia); });
+    ol.after(cal);
+  }
   // Rellena con la primera serie pendiente, o con la última hecha de este ejercicio
   const pendiente = series.find(s => !hecha(s)), ultDelDia = series[series.length - 1];
   const ult = pendiente || ultDelDia || historia[historia.length - 1];
@@ -1582,6 +1605,7 @@ function abrirDetalle(id) {
   $("detComp").disabled = !puedeQuitarDelCatalogo(e);
   pintarVideo(e);
   refrescarDetalle();
+  pintarZonasDetalle(e);
   if (!$("detalle").open) $("detalle").showModal();
   $("detalle").scrollTop = 0;
 }
@@ -1868,6 +1892,7 @@ function pintarPlan() {
   });
 
   pintarSugerencias();
+  pintarMolestias();
   $("bloqueUsuarios").hidden = !(perfil && perfil.es_admin);
   if (perfil && perfil.es_admin) {
     const lu = $("listaUsuarios");
@@ -1943,6 +1968,7 @@ function abrirMeso(id) {
   $("mesoNotas").value = mesoEdit.notas || "";
   $("mesoBorrar").hidden = !!mesoEdit.nuevo;
   $("mesoQuitar").hidden = !!mesoEdit.nuevo;
+  $("mesoCompartir").hidden = !!mesoEdit.nuevo;
   $("mesoBorrar").classList.remove("confirmar"); $("mesoBorrar").textContent = "Eliminar mesociclo";
   $("mesoAviso").textContent = "";
   pintarDiasMeso();
@@ -2227,7 +2253,7 @@ $("rpeQuitar").addEventListener("click", () => guardarRpe(0, ""));
 // ---------- Resumen de la semana, comparado con la anterior ----------
 function datosSemana(lunes) {
   const ini = iso(lunes), fin = iso(sumarDias(lunes, 7));
-  const todas = seriesVivas().filter(s => s.fecha >= ini && s.fecha < fin), hechas = todas.filter(hecha);
+  const todas = seriesVivas().filter(s => s.fecha >= ini && s.fecha < fin && !s.calentamiento), hechas = todas.filter(hecha);
   const r = { series: hechas.length, total: todas.length, km: 0, nado: 0, kg: 0, prs: 0, dias: new Set(hechas.map(s => s.fecha)).size };
   hechas.forEach(s => {
     const t = tipoDe(s.ejercicio_id);
@@ -2312,7 +2338,7 @@ function exportarSeries() {
   const filas = [["Fecha", "Día", "Sesión", "Ejercicio", "Tipo", "Estado", "Peso (kg)", "% 1RM", "Reps", "Distancia (m)", "Tiempo", "Ritmo", "Descanso", "Recuperación (m)", "Bloque", "Esfuerzo del día (RPE)", "Sensaciones del día"]];
   seriesVivas().sort(ordenSerie).forEach(s => {
     const tipo = tipoDe(s.ejercicio_id), e = db.entrenos[s.fecha] || {};
-    filas.push([s.fecha, diaSemana(s.fecha), s.grupo || "", nombreEj(s.ejercicio_id), TIPOS[tipo].nombre, hecha(s) ? "Hecha" : "Planificada",
+    filas.push([s.fecha, diaSemana(s.fecha), s.grupo || "", nombreEj(s.ejercicio_id), TIPOS[tipo].nombre, (s.calentamiento ? "Calentamiento · " : "") + (hecha(s) ? "Hecha" : "Planificada"),
       decimal(pesoMostrado(s)), decimal(n0(s.pct)), n0(s.reps) || "", decimal(n0(s.distancia)), n0(s.tiempo) ? fmtTiempo(s.tiempo) : "",
       esDistancia(tipo) && conMarca(s) ? ritmo(s, tipo) : "", n0(s.descanso) ? fmtTiempo(s.descanso) : "", decimal(n0(s.rec_dist)),
       s.bloque_id ? "Ronda " + n0(s.ronda) : "", n0(e.rpe) || "", e.sensacion || ""]);
@@ -2664,6 +2690,7 @@ function textoPrompt() {
     "Material: " + (g("iaMaterial") || "gimnasio completo"),
     g("iaLimites") && "Limitaciones: " + g("iaLimites"),
     obj !== "5k" && obj !== "10k" && rms.length && "Mis 1RM aproximados: " + rms.join(", "),
+    molestiasActivas().length && "Molestias o lesiones que tengo ahora (adapta el plan para no agravarlas): " + molestiasActivas().map(m => m.zona + (m.descripcion ? " (" + m.descripcion + ")" : "")).join("; "),
     corre && f && "Mis ritmos de carrera actuales por km: " + ZONAS.map(([n, fr]) => n.split(" (")[0] + " " + fmtTiempo(ritmoZona(f.vdot, fr))).join(", ") + " (VDOT " + num(Math.round(f.vdot)) + "). Usa estos ritmos."
   ].filter(Boolean);
   return ["Actúa como entrenador. Diséñame un plan de entrenamiento con estos datos:", ...datos.map(d => "- " + d), "",
@@ -2773,6 +2800,177 @@ function ajustarCampo(inp, clase, signo) {
   inp.value = !n ? "" : clase === "t" ? fmtTiempo(n) : clase === "kg" || clase === "pct" ? num(n) : String(n);
   inp.dispatchEvent(new Event("input"));
 }
+
+// ---------- Discos y calentamiento sugerido ----------
+// Con barra: por el nombre (sentadilla, press banca, peso muerto…) o lo que se marque en la ficha de este dispositivo
+const usaBarraNombre = id => /sentadilla|banca|peso muerto|press militar|remo con barra|hip thrust|con barra|cargada|arrancada|clean|snatch|good morning|buenos dias/.test(norm(nombreEj(id)))
+  && !/mancuerna|polea|maquina|kettle|smith|multipower|goblet/.test(norm(nombreEj(id)));
+const usaBarra = id => { const o = (ajustes().barras || {})[id]; return tipoDe(id) === "fuerza" && (o !== undefined ? o : usaBarraNombre(id)); };
+// Hoy, antes de la primera serie efectiva con peso: barra × 10 (si va con barra), 50 % × 5, 70 % × 3 y 85 % × 1
+function sugerenciaCalent(fecha, id, series) {
+  if (tipoDe(id) !== "fuerza" || fecha !== iso(new Date())) return null;
+  const efectivas = series.filter(s => !s.calentamiento).sort((a, b) => a.orden - b.orden);
+  if (!efectivas.length || series.some(s => s.calentamiento) || efectivas.some(hecha)) return null;
+  if ((leer("calent-rechazado-v1") || {})[fecha + "|" + id]) return null;
+  const kg = pesoMostrado(efectivas[0]), barra = usaBarra(id) ? ajustes().barra : 0;
+  if (!(kg >= 40)) return null;
+  const pasos = barra ? [{ peso: barra, reps: 10, barra: true }] : [];
+  [[0.5, 5], [0.7, 3], [0.85, 1]].forEach(([f, reps]) => {
+    const p = redondear(kg * f), previo = pasos.length ? pasos[pasos.length - 1].peso : 0;
+    if (p > previo && p < kg) pasos.push({ peso: p, reps });
+  });
+  return pasos.length >= 2 ? pasos : null;
+}
+function aceptarCalent(fecha, id, grupo, series, pasos) {
+  const primera = Math.min.apply(null, series.map(s => n0(s.orden)));
+  const nuevas = pasos.map((p, k) => ({ id: nuevoId(), fecha, ejercicio_id: id, orden: primera - pasos.length + k, peso: p.peso, reps: p.reps, distancia: 0, tiempo: 0,
+    descanso: 60, rec_dist: 0, pct: 0, ciclo_id: "", calentamiento: true, hecha: false, grupo: grupo || "", meso_id: "", bloque_id: "", ronda: 0, borrado: false }));
+  nuevas.forEach(f => cambiar("series", f, true));
+  persistir();
+  pintarBloques(true);
+  avisoDeshacer("Calentamiento añadido · " + nombreEj(id), nuevas.map(f => ["series", { ...f, borrado: true }]));
+  return nuevas;
+}
+function rechazarCalent(fecha, id) {
+  const r = leer("calent-rechazado-v1") || {}, limite = iso(sumarDias(new Date(), -7));
+  Object.keys(r).forEach(k => { if (k.slice(0, 10) < limite) delete r[k]; });
+  r[fecha + "|" + id] = true;
+  escribir("calent-rechazado-v1", r);
+}
+
+// ---------- Molestias y lesiones, y zonas que trabaja cada ejercicio ----------
+const ZONAS_CUERPO = ["Cuello", "Hombro", "Codo", "Muñeca", "Pecho", "Espalda alta", "Lumbar", "Cadera", "Glúteo", "Isquios", "Rodilla", "Gemelo", "Tobillo", "Pie"];
+function zonasPorNombre(id) {
+  const n = norm(nombreEj(id)), tipo = tipoDe(id), z = new Set();
+  const si = (re, ...zs) => { if (re.test(n)) zs.forEach(x => z.add(x)); };
+  if (tipo === "carrera") ["Rodilla", "Tobillo", "Pie", "Gemelo", "Cadera", "Isquios"].forEach(x => z.add(x));
+  if (tipo === "natacion") { ["Hombro", "Cuello", "Lumbar"].forEach(x => z.add(x)); si(/braza/, "Rodilla"); }
+  si(/sentadilla|prensa|zancada|bulgara|extension de cuadriceps|step|salto/, "Rodilla", "Cadera");
+  si(/sentadilla|peso muerto|buenos dias|good morning|remo con barra|plancha|abdominal/, "Lumbar");
+  si(/peso muerto|rumano|curl femoral|hip thrust|puente/, "Isquios", "Cadera", "Glúteo");
+  si(/press|banca|fondos|aperturas|flexiones/, "Hombro", "Codo", "Muñeca");
+  si(/banca|aperturas|fondos|flexiones/, "Pecho");
+  si(/militar|elevaciones laterales|pajaro|face pull/, "Hombro");
+  si(/dominada|jalon|remo/, "Espalda alta", "Codo", "Hombro");
+  si(/curl|triceps/, "Codo", "Muñeca");
+  si(/gemelo|pantorrilla/, "Gemelo", "Tobillo");
+  si(/hip thrust|patada de gluteo/, "Glúteo");
+  return ZONAS_CUERPO.filter(x => z.has(x));
+}
+const zonasDe = id => { const e = db.ejercicios[id]; return e && Array.isArray(e.zonas) && e.zonas.length ? e.zonas : zonasPorNombre(id); };
+const molestiasActivas = () => vivos("molestias").filter(m => m.estado === "activa").sort((a, b) => (b.inicio || "").localeCompare(a.inicio || ""));
+const molestiasDe = id => { const z = zonasDe(id); return molestiasActivas().filter(m => z.includes(m.zona)); };
+function pintarMolestias() {
+  const cont = $("listaMolestias");
+  cont.textContent = "";
+  const lista = vivos("molestias").sort((a, b) => (a.estado === b.estado ? 0 : a.estado === "activa" ? -1 : 1) || (b.inicio || "").localeCompare(a.inicio || ""));
+  if (!lista.length) { cont.appendChild(nota("Apunta aquí una molestia o lesión (zona, qué notas y desde cuándo). Los ejercicios que trabajan esa zona te avisarán con ⚠ y la IA la tendrá en cuenta.")); return; }
+  const recientes = ejerciciosOrdenados().slice(0, 40);
+  lista.forEach(m => {
+    const afecta = m.estado === "activa" ? recientes.filter(e => zonasDe(e.id).includes(m.zona)).slice(0, 4).map(e => e.nombre) : [];
+    const t = tarjeta((m.estado === "activa" ? "⚠ " : "✓ ") + m.zona, [m.descripcion || "Sin descripción",
+      (m.inicio ? "desde el " + fechaCorta(m.inicio) + " · " : "") + (m.estado === "activa" ? "activa" : "resuelta") + (afecta.length ? " · afecta a " + afecta.join(", ") : "")], () => abrirMolestia(m.id));
+    t.classList.toggle("molestia-resuelta", m.estado !== "activa");
+    cont.appendChild(t);
+  });
+}
+let molEdit = null;
+ZONAS_CUERPO.forEach(z => { const o = document.createElement("option"); o.value = o.textContent = z; $("molZona").appendChild(o); });
+function abrirMolestia(id) {
+  const m = id ? db.molestias[id] : null;
+  molEdit = m ? { ...m } : { id: nuevoId(), zona: "Rodilla", descripcion: "", inicio: iso(new Date()), estado: "activa", borrado: false, nueva: true };
+  $("molZona").value = molEdit.zona;
+  $("molDesc").value = molEdit.descripcion || "";
+  $("molInicio").value = molEdit.inicio || "";
+  $("molEstado").querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.estado === molEdit.estado)));
+  $("molBorrar").hidden = !!molEdit.nueva;
+  $("molBorrar").classList.remove("confirmar"); $("molBorrar").textContent = "Eliminar";
+  $("dlgMolestia").showModal();
+}
+$("molEstado").addEventListener("click", ev => {
+  const b = ev.target.closest("[data-estado]");
+  if (!b) return;
+  molEdit.estado = b.dataset.estado;
+  $("molEstado").querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+});
+$("molGuardar").addEventListener("click", () => {
+  const m = { ...molEdit, zona: $("molZona").value, descripcion: $("molDesc").value.trim().slice(0, 500), inicio: $("molInicio").value || null };
+  delete m.nueva;
+  cambiar("molestias", m);
+  $("dlgMolestia").close();
+  pintarPlan();
+  pintarBloques(true);
+});
+$("molBorrar").addEventListener("click", () => {
+  const b = $("molBorrar");
+  if (!b.classList.contains("confirmar")) { b.classList.add("confirmar"); b.textContent = "Pulsa otra vez para eliminarla"; return; }
+  cambiar("molestias", { ...db.molestias[molEdit.id], borrado: true });
+  $("dlgMolestia").close();
+  pintarPlan();
+  pintarBloques(true);
+});
+$("nuevaMolestia").addEventListener("click", () => abrirMolestia(null));
+// En la ficha: zonas que trabaja el ejercicio (sugeridas por el nombre hasta que se ajusten) y si va con barra
+function pintarZonasDetalle(e) {
+  const cont = $("detZonas"), propias = Array.isArray(e.zonas) && e.zonas.length, actuales = zonasDe(e.id), puede = editable(e);
+  cont.textContent = "";
+  ZONAS_CUERPO.forEach(z => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "chip chip-op zona";
+    b.textContent = z;
+    b.setAttribute("aria-pressed", String(actuales.includes(z)));
+    b.disabled = !puede;
+    b.addEventListener("click", () => {
+      const nuevas = actuales.includes(z) ? actuales.filter(x => x !== z) : ZONAS_CUERPO.filter(x => x === z || actuales.includes(x));
+      editarEjercicio({ zonas: nuevas });
+      pintarZonasDetalle(db.ejercicios[e.id]);
+    });
+    cont.appendChild(b);
+  });
+  $("detZonasNota").textContent = (propias ? "" : "Sugeridas según el nombre. ") + (puede ? "Toca para ajustarlas." : "Las ajusta quien edita el catálogo común.");
+  $("detBarra").checked = usaBarra(e.id);
+}
+$("detBarra").addEventListener("change", () => {
+  const a = leer("ajustes-v1") || {};
+  a.barras = a.barras || {};
+  a.barras[detalleId] = $("detBarra").checked;
+  escribir("ajustes-v1", a);
+  pintarBloques(true);
+});
+
+// ---------- Compartir un mesociclo entero (con sus plantillas) ----------
+const nombreLibre = n => { const usados = new Set(vivos("plantillas").map(p => norm(p.nombre))); let x = n, k = 2; while (usados.has(norm(x))) x = n + " (" + k++ + ")"; return x; };
+function compartirMeso(m) {
+  const listas = [m.dias || {}].concat(Object.keys(m.dias || {}).filter(k => /^s\d+$/.test(k)).map(k => m.dias[k]));
+  const pids = [...new Set(listas.flatMap(d => Object.keys(d).filter(k => /^\d$/.test(k)).flatMap(k => d[k] || [])))].filter(p => db.plantillas[p] && !db.plantillas[p].borrado);
+  const idx = {};
+  pids.forEach((p, i) => { idx[p] = i; });
+  const mapa = d => { const r = {}; Object.keys(d).filter(k => /^\d$/.test(k)).forEach(k => { r[k] = (d[k] || []).filter(p => p in idx).map(p => idx[p]); }); return r; };
+  const dias = mapa(m.dias || {});
+  Object.keys(m.dias || {}).filter(k => /^s\d+$/.test(k)).forEach(k => { dias[k] = mapa(m.dias[k]); });
+  compartir(m.nombre, [{ mesociclo: { semanas: n0(m.semanas), progresion: n0(m.progresion), descarga: m.descarga || {}, notas: m.notas || "", dias },
+    plantillas: pids.map(p => ({ nombre: db.plantillas[p].nombre, items: paraCompartir(db.plantillas[p].items || []) })) }], true);
+}
+function guardarMesoCompartido(c) {
+  const x = c.items[0], mm = x.mesociclo;
+  const ids = x.plantillas.map(p => { const id = nuevoId(); cambiar("plantillas", { id, nombre: nombreLibre(p.nombre), items: desdeCompartido(p.items), borrado: false }, true); return id; });
+  const mapa = d => { const r = {}; Object.keys(d || {}).filter(k => /^\d$/.test(k)).forEach(k => { r[k] = (d[k] || []).map(i => ids[i]).filter(Boolean); }); return r; };
+  const dias = mapa(mm.dias);
+  Object.keys(mm.dias || {}).filter(k => /^s\d+$/.test(k)).forEach(k => { dias[k] = mapa(mm.dias[k]); });
+  const id = nuevoId();
+  cambiar("mesociclos", { id, nombre: c.nombre, inicio: lunesSiguiente(), semanas: Math.min(26, n0(mm.semanas) || 4), dias, progresion: n0(mm.progresion), descarga: mm.descarga || {}, notas: mm.notas || "", borrado: false }, true);
+  persistir();
+  verPestana("plan");
+  setEstado("Mesociclo «" + c.nombre + "» guardado con " + ids.length + " plantillas. Elige la fecha y pulsa «Guardar y rellenar calendario».");
+  abrirMeso(id);
+}
+$("mesoCompartir").addEventListener("click", () => {
+  const m = leerMeso();
+  if (!m) return;
+  cambiar("mesociclos", m);
+  compartirMeso(m);
+});
 
 // ---------- Vista de un solo día ----------
 function abrirDia(id) {
@@ -2992,14 +3190,23 @@ function pintarEntreno() {
   if (s.bloque_id) {
     const rondas = Math.max.apply(null, lista.filter(x => x.bloque_id === s.bloque_id).map(x => n0(x.ronda)));
     $("enSerie").textContent = "Bloque · ronda " + n0(s.ronda) + " de " + rondas;
+  } else if (s.calentamiento) {
+    $("enSerie").textContent = "Calentamiento";
   } else {
-    const mismas = lista.filter(x => x.ejercicio_id === s.ejercicio_id && !x.bloque_id && (x.grupo || "") === (s.grupo || ""));
+    const mismas = lista.filter(x => x.ejercicio_id === s.ejercicio_id && !x.bloque_id && !x.calentamiento && (x.grupo || "") === (s.grupo || ""));
     $("enSerie").textContent = "Serie " + (mismas.indexOf(s) + 1) + " de " + mismas.length;
   }
   $("enValor").textContent = serieTexto(s);
   $("enValor").classList.toggle("hecha", hecha(s));
   const kg = dist ? 0 : pesoMostrado(s), o = tipo === "carrera" && !hecha(s) ? objetivoSerie(s) : null;
-  $("enExtra").textContent = [hecha(s) ? "✓ Hecha" : "", kg ? textoDiscos(kg) : "", o ? textoObjetivo(o) : "", descTexto(s)].filter(Boolean).join(" · ");
+  const dolor = molestiasDe(s.ejercicio_id);
+  $("enExtra").textContent = [hecha(s) ? "✓ Hecha" : "", kg && usaBarra(s.ejercicio_id) ? textoDiscos(kg) : "", o ? textoObjetivo(o) : "", descTexto(s),
+    dolor.length ? "⚠ cuidado con: " + dolor.map(m => m.zona).join(", ") : ""].filter(Boolean).join(" · ");
+  // Calentamiento sugerido al llegar a la primera serie de un ejercicio
+  const delEj = s.bloque_id ? [] : seriesDelDia(ent.dia.id).filter(x => x.ejercicio_id === s.ejercicio_id && !x.bloque_id && (x.grupo || "") === (s.grupo || ""));
+  ent.calent = s.bloque_id ? null : sugerenciaCalent(ent.dia.id, s.ejercicio_id, delEj);
+  $("enCalent").hidden = !ent.calent;
+  if (ent.calent) $("enCalentT").textContent = "¿Calentamiento? " + ent.calent.map(p => (p.barra ? "barra" : num(p.peso) + " kg") + " × " + p.reps).join(" · ");
   // Campos para apuntar lo que de verdad se hizo
   ent.campos = dist ? (n0(s.distancia) > 0 ? ["m", "t"] : ["t", "m"]) : ["kg", "reps"];
   const etiqueta = { kg: "Peso (kg)", reps: "Repeticiones", m: "Metros", t: "Tiempo" };
@@ -3114,6 +3321,16 @@ $("enMenos").addEventListener("click", () => moverDescanso(-15));
 $("enMas").addEventListener("click", () => moverDescanso(15));
 $("enSaltarD").addEventListener("click", () => { clearInterval(ent.timer); ent.timer = null; ent.fin = 0; $("enDescanso").hidden = true; });
 $("enAnt").addEventListener("click", () => { if (ent.i > 0) { ent.i--; pintarEntreno(); } });
+$("enCalentSi").addEventListener("click", () => {
+  const s = serieEnt();
+  if (!s || !ent.calent) return;
+  const delEj = seriesDelDia(ent.dia.id).filter(x => x.ejercicio_id === s.ejercicio_id && !x.bloque_id && (x.grupo || "") === (s.grupo || ""));
+  const nuevas = aceptarCalent(ent.dia.id, s.ejercicio_id, s.grupo, delEj, ent.calent);
+  ent.cola = colaEntreno(ent.dia.id);
+  ent.i = Math.max(0, ent.cola.indexOf(nuevas[0].id));
+  pintarEntreno();
+});
+$("enCalentNo").addEventListener("click", () => { const s = serieEnt(); if (s) rechazarCalent(ent.dia.id, s.ejercicio_id); pintarEntreno(); });
 $("enSig").addEventListener("click", () => { if (ent.i < ent.cola.length - 1) { ent.i++; pintarEntreno(); } });
 function salirEntreno() {
   if ($("dlgEntreno").open) $("dlgEntreno").close();
@@ -3129,7 +3346,7 @@ $("enSalir").addEventListener("click", salirEntreno);
 $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); abrirRpe(d); });
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
-const VERSION_APP = "v20";
+const VERSION_APP = "v21";
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";

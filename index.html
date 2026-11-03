@@ -91,6 +91,10 @@
       <div class="lista-tarjetas" id="listaMesos"></div>
     </section>
     <section class="plan-sec">
+      <div class="sec-cab"><h3>Molestias y lesiones</h3><button type="button" class="nav-btn" id="nuevaMolestia">+ Nueva</button></div>
+      <div class="lista-tarjetas" id="listaMolestias"></div>
+    </section>
+    <section class="plan-sec">
       <h3>Crear con IA</h3>
       <p class="vacio-lista">Elige tu objetivo, copia el prompt, pégalo en ChatGPT, Claude u otra IA y pega aquí su respuesta: la app crea las plantillas (o el mesociclo) y los ejercicios que falten.</p>
       <div class="botonera"><button type="button" class="anadir" id="iaAbrir">Crear con IA</button><button type="button" class="nav-btn" id="iaPegarAbrir">Pegar entrenamiento de IA</button></div>
@@ -174,9 +178,15 @@
         <button type="button" data-tipo="natacion" aria-pressed="false">Natación</button>
       </div>
     </section>
+    <section id="detZonasSec">
+      <h3>Zonas que trabaja</h3>
+      <div class="md-chips" id="detZonas"></div>
+      <p class="menu-det nota" id="detZonasNota"></p>
+    </section>
     <section id="detRmSec">
       <h3>1RM de referencia</h3>
       <div class="fila rm-fila"><input id="detRm" inputmode="decimal" placeholder="kg" aria-label="1RM de referencia en kg"><span id="detRmEst" class="menu-det"></span></div>
+      <label class="permiso"><input type="checkbox" id="detBarra"> Se hace con barra: mostrar los discos por lado</label>
     </section>
     <section id="detBilboSec">
       <h3>Bilbo</h3>
@@ -283,6 +293,7 @@
       <button type="button" class="anadir" id="mesoAplicar">Guardar y rellenar calendario</button>
     </div>
     <div class="d-botones">
+      <button type="button" class="nav-btn" id="mesoCompartir">Compartir con un amigo…</button>
       <button type="button" class="enlace" id="mesoQuitar">Quitar sus series planificadas del calendario</button>
       <button type="button" class="peligro" id="mesoBorrar">Eliminar mesociclo</button>
     </div>
@@ -408,6 +419,14 @@
       <p>En el menú <b>⋯</b> de cada día puedes copiar el día, pegar lo último copiado, añadir una plantilla, guardar los ejercicios como plantilla o compartirlos con un amigo.</p>
       <p>Si los ejercicios tienen nombre de sesión (por ejemplo «Pierna»), su menú ⋯ copia, guarda o comparte solo esa sesión. Puedes tener varias sesiones el mismo día.</p>
     </details>
+    <details><summary>Discos y calentamiento</summary>
+      <p>En los ejercicios con barra verás qué discos van <b>por lado</b> (barra de 20 kg; se cambia en Plan → Ajustes). En la ficha del ejercicio puedes marcar si se hace con barra.</p>
+      <p>Hoy, antes de la primera serie de un ejercicio con peso, la app te propone un <b>calentamiento</b> (barra × 10, 50 % × 5, 70 % × 3, 85 % × 1). <b>Añadir</b> lo pone delante como series de calentamiento, que no cuentan para récords ni volumen; <b>No</b> deja de proponerlo ese día.</p>
+    </details>
+    <details><summary>Molestias y lesiones</summary>
+      <p>En <b>Plan → Molestias y lesiones</b> apuntas la zona, qué notas y desde cuándo, y la marcas como resuelta cuando pase.</p>
+      <p>Los ejercicios que trabajan esa zona muestran un aviso ⚠ (en la ficha de cada ejercicio puedes ajustar sus zonas) y «Crear con IA» la tiene en cuenta. No sustituye la opinión de un profesional.</p>
+    </details>
     <details><summary>Mesociclos y semana de descarga</summary>
       <p>En <b>Plan → Mesociclos</b> repartes tus plantillas por los días de la semana durante varias semanas. Puedes sumar kilos cada semana.</p>
       <p>La <b>semana de descarga</b> (la última, o cada N semanas) baja un 30 % el peso y la distancia, o el número de series (lo eliges tú). En la semana aparece marcada como «Descarga».</p>
@@ -429,6 +448,7 @@
     </details>
     <details><summary>Compartir con amigos</summary>
       <p>Desde el menú ⋯ de un día, una sesión o una plantilla, <b>Compartir con un amigo</b> crea un enlace o un código de 8 letras. Tu amigo lo abre o lo pega en <b>Plan → Añadir algo compartido</b>.</p>
+      <p>Un <b>mesociclo</b> entero se comparte desde su editor: tu amigo ve una vista previa y lo guarda con todas sus plantillas.</p>
     </details>
     <details><summary>Copia de seguridad</summary>
       <p>En <b>Plan → Copia de seguridad</b> descargas todos tus datos: la copia completa (JSON) sirve para restaurar; los CSV se abren con Excel o Numbers.</p>
@@ -448,6 +468,24 @@
       <p>En <b>Plan → Usuarios</b> apruebas las cuentas nuevas (te llega un correo cuando alguien se registra) o les quitas el acceso.</p>
       <p>Con <b>Puede editar el catálogo común</b> das permiso a alguien para editar los ejercicios compartidos. El 1RM y los entrenamientos de cada uno siguen siendo privados.</p>
     </details>
+  </div>
+</dialog>
+
+<dialog id="dlgMolestia" aria-label="Molestia o lesión">
+  <form method="dialog" class="d-cab">
+    <h3 class="d-tit">Molestia o lesión</h3>
+    <button class="cerrar" aria-label="Cerrar">✕</button>
+  </form>
+  <div class="d-cuerpo">
+    <label class="campo">Zona <select id="molZona"></select></label>
+    <label class="campo">Qué notas <textarea id="molDesc" rows="3" maxlength="500" placeholder="Dolor al bajar escaleras, tirón al correr…"></textarea></label>
+    <label class="campo">Desde <input type="date" id="molInicio"></label>
+    <div class="tabs seg" id="molEstado" role="group" aria-label="Estado">
+      <button type="button" data-estado="activa" aria-pressed="true">Activa</button>
+      <button type="button" data-estado="resuelta" aria-pressed="false">Resuelta</button>
+    </div>
+    <p class="menu-det nota">No sustituye la opinión de un profesional: si el dolor no mejora, consulta con tu médico o fisioterapeuta.</p>
+    <div class="d-botones"><button type="button" class="peligro" id="molBorrar">Eliminar</button><button type="button" class="anadir" id="molGuardar">Guardar</button></div>
   </div>
 </dialog>
 
@@ -480,6 +518,7 @@
     <p class="en-serie" id="enSerie"></p>
     <p class="en-valor" id="enValor"></p>
     <p class="en-extra" id="enExtra"></p>
+    <div class="calent-sug" id="enCalent" hidden><span class="cs-t" id="enCalentT"></span><span class="cs-b"><button type="button" class="nav-btn" id="enCalentNo">No</button><button type="button" class="anadir" id="enCalentSi">Añadir</button></span></div>
     <div class="en-campos">
       <label class="en-campo"><span id="enEtA"></span><span class="paso"><button type="button" class="menos" aria-label="Menos">−</button><input id="enA" autocomplete="off"><button type="button" class="mas" aria-label="Más">+</button></span></label>
       <label class="en-campo"><span id="enEtB"></span><span class="paso"><button type="button" class="menos" aria-label="Menos">−</button><input id="enB" autocomplete="off"><button type="button" class="mas" aria-label="Más">+</button></span></label>

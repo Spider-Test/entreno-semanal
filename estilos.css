@@ -624,3 +624,17 @@ dialog.pantalla[open] { display: flex; flex-direction: column; }
 
 /* Día plegado: el título del entreno en una línea */
 .dia-resumen.es-titulo { color: var(--fg); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Discos, calentamiento y molestias */
+.discos { flex-basis: 100%; font-size: 0.8em; color: var(--muted); font-variant-numeric: tabular-nums; }
+.series li.calent .sv-p { color: var(--muted); font-style: italic; }
+.series li.calent .n { color: var(--muted); font-weight: 700; }
+.calent-sug { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 10px; border-radius: 10px; background: var(--gold-soft); color: var(--gold); font-size: 14px; font-weight: 600; }
+.calent-sug .cs-t { flex: 1 1 180px; font-variant-numeric: tabular-nums; }
+.calent-sug .cs-b { display: flex; gap: 6px; margin-left: auto; }
+.calent-sug .nav-btn, .calent-sug .anadir { min-height: 36px; }
+.molestia-tag { font-size: 11px; font-weight: 700; color: var(--error); background: var(--error-soft); border-radius: 5px; padding: 0 6px; margin-left: 6px; vertical-align: 2px; white-space: nowrap; }
+.chip.zona[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--card); }
+.chip.zona:disabled { opacity: 0.7; cursor: default; }
+.tarjeta.molestia-resuelta { opacity: 0.6; }
+@media (max-width: 760px) { .calent-sug .nav-btn, .calent-sug .anadir { min-height: 44px; } .chip.zona { padding: 8px 12px; font-size: 14px; } }
