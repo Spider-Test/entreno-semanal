@@ -1,6 +1,6 @@
 // Guarda la app en el dispositivo para poder abrirla sin conexión.
 // Sube VERSION al cambiar cualquier archivo para que los dispositivos se actualicen.
-const VERSION = "entreno-v1";
+const VERSION = "entreno-v2";
 const ARCHIVOS = ["./", "./index.html", "./manifest.webmanifest", "./icono-180.png", "./icono-512.png"];
 
 self.addEventListener("install", e => {
@@ -14,14 +14,17 @@ self.addEventListener("activate", e => {
   );
 });
 
-// Primero lo guardado (rápido y sin conexión) y, de fondo, se actualiza desde la red
+// La página: primero la red (para tener siempre la última versión) y, sin conexión, la guardada.
+// El resto: primero lo guardado y, de fondo, se actualiza desde la red.
 self.addEventListener("fetch", e => {
   const req = e.request;
   if (req.method !== "GET" || new URL(req.url).origin !== location.origin) return;
   e.respondWith(
     caches.open(VERSION).then(async cache => {
       const guardado = await cache.match(req, { ignoreSearch: true });
-      const red = fetch(req).then(r => { if (r.ok) cache.put(req, r.clone()); return r; }).catch(() => guardado);
+      const red = fetch(req).then(r => { if (r.ok) cache.put(req, r.clone()); return r; });
+      if (req.mode === "navigate") return red.catch(() => guardado || cache.match("./"));
+      red.catch(() => {});
       return guardado || red;
     })
   );
