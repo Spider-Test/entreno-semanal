@@ -778,7 +778,9 @@ dialog.pantalla[open] { display: flex; flex-direction: column; }
 }
 /* Ventanas y hojas */
 dialog:not(.pantalla) { background: var(--vidrio-brillo), var(--vidrio-denso); border: 1px solid var(--vidrio-luz); box-shadow: 0 24px 60px rgba(0, 0, 0, 0.3), inset 0 1px 0 var(--vidrio-luz); }
-dialog:not(.pantalla) .d-cab { background: transparent; border-bottom-color: color-mix(in srgb, var(--line) 70%, transparent); }
+/* La cabecera fija del diálogo es opaca: si fuera transparente, el texto se vería por debajo al desplazarlo */
+dialog:not(.pantalla) .d-cab { background: var(--card); border-radius: 16px 16px 0 0; border-bottom-color: color-mix(in srgb, var(--line) 70%, transparent); }
+dialog details, dialog .plan-sec { scroll-margin-top: 64px; }
 dialog::backdrop { background: rgba(0, 0, 0, 0.35); }
 .toast { background: color-mix(in srgb, var(--toast-bg) 82%, transparent); border: 1px solid rgba(255, 255, 255, 0.18); }
 .toast.pr { background: color-mix(in srgb, var(--gold) 88%, transparent); }
