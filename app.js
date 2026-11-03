@@ -3506,7 +3506,7 @@ $("enSalir").addEventListener("click", salirEntreno);
 $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); abrirRpe(d); });
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
-const VERSION_APP = "v27";
+const VERSION_APP = "v28";
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";
@@ -3928,7 +3928,7 @@ function contadorSec(clave, n) {
   if (el) el.textContent = n === "" || n === 0 ? "" : "· " + n;
 }
 document.querySelectorAll("#vistaPlan > .plan-sec[data-sec]").forEach(sec => {
-  const h = sec.querySelector("h3"), cab = h.closest(".sec-cab") || h, clave = sec.dataset.sec;
+  const h = sec.querySelector("h3"), clave = sec.dataset.sec;
   const boton = document.createElement("button");
   boton.type = "button";
   boton.className = "sec-toggle";
@@ -3936,6 +3936,8 @@ document.querySelectorAll("#vistaPlan > .plan-sec[data-sec]").forEach(sec => {
   h.before(boton);
   boton.appendChild(h);
   const n = document.createElement("span"); n.className = "sec-n"; boton.appendChild(n);
+  // La cabecera es la fila con botones (.sec-cab) o, si el título va solo, el propio botón; lo de después se pliega
+  const cab = boton.closest(".sec-cab") || boton;
   const cuerpo = document.createElement("div"), dentro = document.createElement("div");
   cuerpo.className = "sec-cuerpo"; dentro.className = "sec-cuerpo-in";
   while (cab.nextSibling) dentro.appendChild(cab.nextSibling);

@@ -665,7 +665,7 @@ dialog.pantalla[open] { display: flex; flex-direction: column; }
 .sec-cuerpo { display: grid; grid-template-rows: 1fr; transition: grid-template-rows 0.25s ease; }
 .sec-cuerpo-in { min-height: 0; overflow: hidden; display: flex; flex-direction: column; gap: 10px; padding: 10px 4px 4px; margin: 0 -4px; }
 .plan-sec.cerrada .sec-cuerpo { grid-template-rows: 0fr; }
-.plan-sec.cerrada .sec-cuerpo-in { padding-top: 0; }
+.plan-sec.cerrada .sec-cuerpo-in { padding-top: 0; padding-bottom: 0; }
 .plan-sec:not(.cerrada) .sec-toggle .flecha-dia { transform: rotate(90deg); }
 #buscarPlantilla { flex: 1 1 180px; min-width: 0; font-size: 15px; padding: 6px 10px; }
 @media (prefers-reduced-motion: reduce) { .sec-cuerpo { transition: none; } }
