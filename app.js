@@ -29,14 +29,15 @@ const escribir = (k, v) => { try { v === null ? localStorage.removeItem(k) : loc
 // Cada tabla se sincroniza igual: gana la edición más reciente de cada fila.
 // El orden importa al subir: primero ejercicios y plantillas, después las series que los usan.
 const TABLAS = {
-  ejercicios: { clave: "id", conflicto: "id", campos: ["id", "nombre", "tipo", "video_url", "notas", "rm", "borrado", "actualizado"] },
+  ejercicios: { clave: "id", conflicto: "id", campos: ["id", "user_id", "nombre", "tipo", "video_url", "notas", "rm", "compartido", "borrado", "actualizado"] },
+  personales: { clave: "ejercicio_id", conflicto: "user_id,ejercicio_id", campos: ["ejercicio_id", "rm", "actualizado"] },
   ciclos: { clave: "id", conflicto: "id", campos: ["id", "ejercicio_id", "numero", "rm_inicio", "peso_inicial", "incremento", "reps_reset", "importadas", "cerrado", "borrado", "actualizado"] },
   plantillas: { clave: "id", conflicto: "id", campos: ["id", "nombre", "items", "borrado", "actualizado"] },
   mesociclos: { clave: "id", conflicto: "id", campos: ["id", "nombre", "inicio", "semanas", "dias", "progresion", "notas", "borrado", "actualizado"] },
   series: { clave: "id", conflicto: "id", campos: ["id", "fecha", "ejercicio_id", "orden", "peso", "reps", "distancia", "tiempo", "descanso", "hecha", "grupo", "meso_id", "bloque_id", "ronda", "rec_dist", "pct", "ciclo_id", "borrado", "actualizado"] },
   entrenos: { clave: "fecha", conflicto: "user_id,fecha", campos: ["fecha", "html", "texto", "actualizado"] }
 };
-const DEFECTOS = { tipo: "fuerza", hecha: true, grupo: "", meso_id: "", bloque_id: "", ciclo_id: "", importadas: [], cerrado: false, items: [], dias: {}, nombre: "", video_url: "", notas: "", html: "", texto: "", borrado: false };
+const DEFECTOS = { tipo: "fuerza", hecha: true, grupo: "", meso_id: "", bloque_id: "", ciclo_id: "", importadas: [], cerrado: false, compartido: false, items: [], dias: {}, nombre: "", video_url: "", notas: "", html: "", texto: "", borrado: false };
 let sesion = leer("sesion-v1");                 // {access_token, refresh_token, expires_at, user_id, email}
 let perfil = leer("perfil-v1");                 // {aprobado, es_admin, email}
 let usuarios = [];                              // solo para el administrador
@@ -123,6 +124,9 @@ const marcarVacio = ed => ed.classList.toggle("vacio", ed.textContent.trim() ===
 
 // ---------- Datos derivados: ejercicios, series y récords ----------
 const vivos = tabla => Object.values(db[tabla]).filter(x => !x.borrado);
+// Catálogo común: lo editan el administrador y quien él autorice; los ejercicios privados, su dueño
+const puedeEditarCatalogo = () => !!(perfil && perfil.aprobado && (perfil.es_admin || perfil.edita_catalogo));
+const editable = e => !!e && (!e.compartido || puedeEditarCatalogo());
 const ejercicioVivo = id => { const e = db.ejercicios[id]; return e && !e.borrado ? e : null; };
 const tipoDe = id => { const e = db.ejercicios[id]; return e && TIPOS[e.tipo] ? e.tipo : "fuerza"; };
 const esDistancia = tipo => tipo === "carrera" || tipo === "natacion";
@@ -136,9 +140,10 @@ const hecha = s => s.hecha !== false;   // las series planificadas tienen hecha 
 const rm = s => n0(s.reps) <= 1 ? n0(s.peso) : n0(s.peso) * (1 + n0(s.reps) / 30);    // 1RM estimado (Epley)
 const redondear = kg => Math.round(kg / 2.5) * 2.5;
 // 1RM de referencia: el que pongas en la ficha o, si no, el mejor estimado de tus series
+// El 1RM es personal: los ejercicios del catálogo común son de todos, pero cada uno tiene el suyo
+const rmPersonal = id => n0((db.personales[id] || {}).rm) || (db.ejercicios[id] && !db.ejercicios[id].compartido ? n0(db.ejercicios[id].rm) : 0);
 function rmReferencia(id) {
-  const e = db.ejercicios[id];
-  if (e && n0(e.rm) > 0) return n0(e.rm);
+  if (rmPersonal(id) > 0) return rmPersonal(id);
   const p = seriesDe(id).filter(s => n0(s.peso) > 0);
   return p.length ? Math.round(Math.max.apply(null, p.map(rm))) : 0;
 }
@@ -268,11 +273,11 @@ async function api(ruta, opciones = {}, reintento = false) {
 
 // Perfil: las cuentas nuevas quedan pendientes hasta que el administrador las aprueba
 async function cargarPerfil() {
-  const r = await api("/rest/v1/perfiles?select=user_id,email,aprobado,es_admin,creado&order=creado.asc");
+  const r = await api("/rest/v1/perfiles?select=user_id,email,aprobado,es_admin,edita_catalogo,creado&order=creado.asc");
   if (!r.ok) throw new Error("perfil " + r.status);
   const lista = await r.json();
   const mio = lista.find(p => p.user_id === sesion.user_id);
-  perfil = mio ? { aprobado: mio.aprobado, es_admin: mio.es_admin, email: mio.email } : { aprobado: false, es_admin: false, email: sesion.email };
+  perfil = mio ? { aprobado: mio.aprobado, es_admin: mio.es_admin, edita_catalogo: mio.edita_catalogo, email: mio.email } : { aprobado: false, es_admin: false, edita_catalogo: false, email: sesion.email };
   usuarios = perfil.es_admin ? lista : [];
   escribir("perfil-v1", perfil);
   avisoUsuarios();
@@ -336,7 +341,7 @@ async function sincronizar() {
       for (const t of Object.keys(TABLAS)) {
         const pend = Object.values(db[t]).filter(v => v.sucio);
         if (!pend.length) continue;
-        const filas = pend.map(v => { const f = { user_id: sesion.user_id }; TABLAS[t].campos.forEach(c => { f[c] = v[c] ?? (c in DEFECTOS ? DEFECTOS[c] : 0); }); return f; });
+        const filas = pend.map(v => { const f = {}; TABLAS[t].campos.forEach(c => { f[c] = v[c] ?? (c in DEFECTOS ? DEFECTOS[c] : 0); }); f.user_id = v.user_id || sesion.user_id; return f; });   // los ejercicios del catálogo conservan a su dueño
         const w = await api("/rest/v1/" + t + "?on_conflict=" + TABLAS[t].conflicto, {
           method: "POST", headers: { Prefer: "resolution=merge-duplicates,return=minimal" }, body: JSON.stringify(filas)
         });
@@ -1117,7 +1122,7 @@ $("selTipo").addEventListener("click", ev => {
 });
 function crearEjercicio(nombre, tipo) {
   const id = nuevoId();
-  cambiar("ejercicios", { id, nombre: nombre.trim(), tipo: TIPOS[tipo] ? tipo : "fuerza", video_url: "", notas: "", borrado: false });
+  cambiar("ejercicios", { id, user_id: sesion.user_id, nombre: nombre.trim(), tipo: TIPOS[tipo] ? tipo : "fuerza", video_url: "", notas: "", compartido: puedeEditarCatalogo(), borrado: false });
   return id;
 }
 function abrirSelector(dia, alElegir) {
@@ -1238,6 +1243,7 @@ function pintarCatalogo() {
     const nombre = t.querySelector(".t-nombre");
     nombre.textContent = e.nombre || "Sin nombre";
     nombre.appendChild(etiquetaTipo(st.tipo));
+    if (e.compartido) { const c = document.createElement("span"); c.className = "comun-tag"; c.textContent = "común"; nombre.appendChild(c); }
     if (e.video_url) { const v = document.createElement("span"); v.className = "ico"; v.textContent = "▶ vídeo"; nombre.appendChild(v); }
     t.querySelector(".t-mejor").textContent = st.resumen;
     t.querySelector(".t-ultima").textContent = st.ultima;
@@ -1332,9 +1338,9 @@ function refrescarDetalle() {
   $("detRmSec").hidden = !fuerza;
   $("detBilboSec").hidden = !fuerza;
   if (fuerza) {
-    if (document.activeElement !== $("detRm")) $("detRm").value = n0(e.rm) > 0 ? num(e.rm) : "";
+    if (document.activeElement !== $("detRm")) $("detRm").value = rmPersonal(e.id) > 0 ? num(rmPersonal(e.id)) : "";
     const p = st.lista.filter(s => n0(s.peso) > 0);
-    $("detRmEst").textContent = p.length ? "Estimado con tus series: " + num(Math.round(Math.max.apply(null, p.map(rm)))) + " kg" + (n0(e.rm) > 0 ? "" : " (se usa este)")
+    $("detRmEst").textContent = p.length ? "Estimado con tus series: " + num(Math.round(Math.max.apply(null, p.map(rm)))) + " kg" + (rmPersonal(e.id) > 0 ? "" : " (se usa este)")
                                          : "Ponlo para que las series en % del RM calculen los kg.";
     pintarBilbo(e);
   }
@@ -1499,7 +1505,7 @@ function tablaBilbo(ses) {
 }
 $("detRm").addEventListener("change", () => {
   const v = parseFloat(($("detRm").value || "0").replace(",", "."));
-  editarEjercicio({ rm: v > 0 ? v : 0 });
+  cambiar("personales", { ejercicio_id: detalleId, rm: v > 0 ? v : 0 });
   refrescarDetalle();
 });
 
@@ -1513,12 +1519,21 @@ function abrirDetalle(id) {
   $("detNotas").value = e.notas || "";
   $("detBorrar").classList.remove("confirmar");
   $("detBorrar").textContent = "Eliminar ejercicio";
+  // Los del catálogo común solo los editan el administrador y quien él autorice
+  const puede = editable(e), propio = !e.user_id || e.user_id === sesion.user_id;
+  ["detNombre", "detVideo", "detNotas"].forEach(x => { $(x).disabled = !puede; });
+  $("detTipo").querySelectorAll("button").forEach(b => { b.disabled = !puede; });
+  $("detBorrar").hidden = !puede;
+  $("detAvisoComun").hidden = puede;
+  $("detCompSec").hidden = !(puedeEditarCatalogo() && propio);
+  $("detComp").checked = !!e.compartido;
   pintarVideo(e);
   refrescarDetalle();
   if (!$("detalle").open) $("detalle").showModal();
   $("detalle").scrollTop = 0;
 }
-const editarEjercicio = cambios => { const e = ejercicioVivo(detalleId); if (e) cambiar("ejercicios", { ...e, ...cambios }); };
+const editarEjercicio = cambios => { const e = ejercicioVivo(detalleId); if (editable(e)) cambiar("ejercicios", { ...e, ...cambios }); };
+$("detComp").addEventListener("change", () => { editarEjercicio({ compartido: $("detComp").checked }); pintarTodo(); });
 $("detTipo").addEventListener("click", ev => {
   const b = ev.target.closest("button[data-tipo]");
   if (!b) return;
@@ -1808,9 +1823,18 @@ function pintarPlan() {
         b.type = "button";
         b.className = u.aprobado ? "nav-btn" : "anadir";
         b.textContent = u.aprobado ? "Quitar acceso" : "Aprobar";
-        b.addEventListener("click", () => aprobar(u.user_id, !u.aprobado));
+        b.addEventListener("click", () => cambiarPerfil(u.user_id, { aprobado: !u.aprobado }, !u.aprobado ? "Usuario aprobado" : "Acceso retirado"));
         if (!u.aprobado) { const p = document.createElement("span"); p.className = "pr"; p.textContent = "PENDIENTE"; est.appendChild(p); }
         est.appendChild(b);
+        if (u.aprobado) {
+          const l = document.createElement("label");
+          l.className = "permiso";
+          l.innerHTML = '<input type="checkbox"> Puede editar el catálogo común';
+          const c = l.querySelector("input");
+          c.checked = !!u.edita_catalogo;
+          c.addEventListener("change", () => cambiarPerfil(u.user_id, { edita_catalogo: c.checked }, c.checked ? "Ahora puede editar el catálogo" : "Ya no puede editar el catálogo"));
+          fila.appendChild(l);
+        }
       }
       lu.appendChild(fila);
     });
@@ -1824,12 +1848,12 @@ function menuPlantilla(p) {
     { texto: "Eliminar plantilla", peligro: true, accion: () => { cambiar("plantillas", { ...p, borrado: true }); pintarPlan(); } }
   ]);
 }
-async function aprobar(uid, valor) {
+async function cambiarPerfil(uid, cambios, aviso) {
   try {
-    const r = await api("/rest/v1/perfiles?user_id=eq." + encodeURIComponent(uid), { method: "PATCH", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ aprobado: valor }) });
+    const r = await api("/rest/v1/perfiles?user_id=eq." + encodeURIComponent(uid), { method: "PATCH", headers: { Prefer: "return=minimal" }, body: JSON.stringify(cambios) });
     if (!r.ok) throw new Error();
     await cargarPerfil();
-    setEstado(valor ? "Usuario aprobado" : "Acceso retirado");
+    setEstado(aviso);
   } catch { setEstado("No se ha podido cambiar. Revisa la conexión.", true); }
   pintarPlan();
 }
