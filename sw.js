@@ -1,6 +1,8 @@
 // Guarda la app en el dispositivo para poder abrirla sin conexión.
 // Sube VERSION al cambiar cualquier archivo para que los dispositivos se actualicen.
-const VERSION = "entreno-v35";
+// La beta (carpeta /beta/) usa este mismo archivo con su propia caché y no toca la de la principal
+const BETA = self.location.pathname.includes("/beta/"), PREFIJO = BETA ? "beta-entreno-" : "entreno-";
+const VERSION = PREFIJO + "v36";
 const ARCHIVOS = ["./", "./index.html", "./estilos.css", "./app.js", "./manifest.webmanifest", "./icono-180.png", "./icono-512.png", "./icono-maskable-192.png", "./icono-maskable-512.png"];
 
 // GitHub Pages pide guardar los archivos 10 minutos: se piden siempre al servidor para no copiar una versión vieja
@@ -10,7 +12,7 @@ self.addEventListener("install", e => {
 
 self.addEventListener("activate", e => {
   e.waitUntil(
-    caches.keys().then(ks => Promise.all(ks.filter(k => k !== VERSION).map(k => caches.delete(k))))
+    caches.keys().then(ks => Promise.all(ks.filter(k => k !== VERSION && k.startsWith(PREFIJO)).map(k => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });
@@ -18,7 +20,8 @@ self.addEventListener("activate", e => {
 // Con conexión, siempre la última versión de cada archivo; sin conexión (o si la red tarda más de 3,5 s), la guardada
 self.addEventListener("fetch", e => {
   const req = e.request;
-  if (req.method !== "GET" || new URL(req.url).origin !== location.origin) return;
+  const url = new URL(req.url);
+  if (req.method !== "GET" || url.origin !== location.origin || (!BETA && url.pathname.includes("/beta/"))) return;
   e.respondWith((async () => {
     const cache = await caches.open(VERSION);
     const red = fetch(req.url, { cache: "no-cache", credentials: "same-origin" }).then(r => { if (r.ok) cache.put(req, r.clone()); return r; });

@@ -40,6 +40,8 @@ body {
 }
 h1, h3 { font-family: var(--display); text-transform: uppercase; margin: 0; }
 h1 { font-weight: 700; font-size: 26px; letter-spacing: 0.04em; }
+/* Versión de pruebas (carpeta /beta/): una etiqueta para no confundirla con la principal */
+html.beta h1::after { content: "BETA"; margin-left: 8px; padding: 2px 6px; border-radius: 6px; background: #c2410c; color: #fff; font-size: 11px; letter-spacing: 0.08em; vertical-align: middle; }
 h3 { font-weight: 700; font-size: 15px; letter-spacing: 0.08em; color: var(--muted); }
 button, input, textarea { font-family: var(--body); color: var(--fg); }
 button { cursor: pointer; }
@@ -581,6 +583,10 @@ dialog.pantalla[open] { display: flex; flex-direction: column; }
 @media (min-width: 1240px) {
   .semana, #navSemana, .sem-barra, .resumen-sem, .meso-banda { max-width: none; }
   #vistaSemana:not(.solo-dia) .semana { grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 10px; }
+  /* El día desplegado se ensancha para que sus series quepan en una o dos líneas; los plegados quedan como columnas estrechas */
+  #vistaSemana:not(.solo-dia) .semana { display: flex; align-items: flex-start; }
+  #vistaSemana:not(.solo-dia) .semana > .dia { flex: 1 1 0; min-width: 0; }
+  #vistaSemana:not(.solo-dia) .semana > .dia:not(.plegado) { flex-grow: 2.2; }
   /* Columnas estrechas: el formulario de cada ejercicio aparece al pasar el ratón o al escribir */
   #vistaSemana:not(.solo-dia) .dia-nombre { font-size: 17px; }
   /* Cabecera en dos líneas: el día arriba; el progreso y los botones debajo */
@@ -589,7 +595,10 @@ dialog.pantalla[open] { display: flex; flex-direction: column; }
   #vistaSemana:not(.solo-dia) .dia-abrir .dia-nombre { overflow: visible; }
   #vistaSemana:not(.solo-dia) .anillo { margin-left: 6px; margin-right: auto; }
   #vistaSemana:not(.solo-dia) .anillo[hidden] + .negrita, #vistaSemana:not(.solo-dia) .anillo[hidden] ~ .dia-max { margin-left: auto; }
-  #vistaSemana:not(.solo-dia) .dia-max, #vistaSemana:not(.solo-dia) .dia-cab .menu-btn { width: 30px; height: 30px; }
+  #vistaSemana:not(.solo-dia) .dia-max, #vistaSemana:not(.solo-dia) .dia-cab .menu-btn { width: 28px; height: 30px; }
+  /* Que el anillo, ⤢ y ⋯ quepan en una sola línea aunque la columna sea estrecha */
+  #vistaSemana:not(.solo-dia) .dia-cab { column-gap: 2px; }
+  #vistaSemana:not(.solo-dia) .anillo { min-width: 0; }
   #vistaSemana:not(.solo-dia) .dia-resumen { padding: 0 10px 10px; font-size: 13px; }
   #vistaSemana:not(.solo-dia) .series li { font-size: 14px; }
   #vistaSemana:not(.solo-dia) .paso button { display: none; }

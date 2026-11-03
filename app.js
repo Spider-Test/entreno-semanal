@@ -23,8 +23,11 @@ const SUGERIDOS = [
 const $ = id => document.getElementById(id);
 
 // ---------- Almacenamiento local (funciona sin conexión) ----------
-const leer = k => { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } };
-const escribir = (k, v) => { try { v === null ? localStorage.removeItem(k) : localStorage.setItem(k, JSON.stringify(v)); } catch {} };
+// La beta (carpeta /beta/ en la misma web) comparte el navegador con la principal: guarda todo con su propio prefijo
+const BETA = location.pathname.includes("/beta/"), PREFIJO = BETA ? "beta:" : "";
+const leer = k => { try { return JSON.parse(localStorage.getItem(PREFIJO + k)); } catch { return null; } };
+const escribir = (k, v) => { try { v === null ? localStorage.removeItem(PREFIJO + k) : localStorage.setItem(PREFIJO + k, JSON.stringify(v)); } catch {} };
+if (BETA) { document.documentElement.classList.add("beta"); document.title = "Entreno β"; document.querySelector('meta[name="apple-mobile-web-app-title"]').content = "Entreno β"; }
 
 // Cada tabla se sincroniza igual: gana la edición más reciente de cada fila.
 // El orden importa al subir: primero ejercicios y plantillas, después las series que los usan.
@@ -173,9 +176,25 @@ function serieTexto(s) {
 }
 const descTexto = s => n0(s.rec_dist) > 0 ? "rec. " + fmtDist(s.rec_dist) : n0(s.descanso) > 0 ? "desc. " + fmtTiempo(s.descanso) : "";
 const recTexto = s => n0(s.rec_dist) > 0 ? num(s.rec_dist) + " m" : n0(s.descanso) > 0 ? fmtTiempo(s.descanso) : "";
-const seriesVivas = () => Object.values(db.series).filter(s => !s.borrado && ejercicioVivo(s.ejercicio_id));
 const ordenSerie = (a, b) => a.fecha < b.fecha ? -1 : a.fecha > b.fecha ? 1 : a.orden - b.orden;
-const seriesDe = id => seriesVivas().filter(s => s.ejercicio_id === id && hecha(s) && !s.calentamiento).sort(ordenSerie);   // solo lo hecho (sin calentamiento) cuenta para récords
+// Índice de las series vivas, por día y por ejercicio: se rehace solo cuando cambian los datos (versionDatos).
+// Quien lo usa recibe copias, así puede ordenar o filtrar sin estropear el índice.
+let indice = { v: -1 };
+function indiceSeries() {
+  if (indice.v === versionDatos) return indice;
+  const vivas = Object.values(db.series).filter(s => !s.borrado && ejercicioVivo(s.ejercicio_id)), porFecha = {}, porEj = {};
+  vivas.forEach(s => {
+    (porFecha[s.fecha] = porFecha[s.fecha] || []).push(s);
+    if (hecha(s) && !s.calentamiento) (porEj[s.ejercicio_id] = porEj[s.ejercicio_id] || []).push(s);
+  });
+  Object.values(porFecha).forEach(l => l.sort((a, b) => a.orden - b.orden));
+  Object.values(porEj).forEach(l => l.sort(ordenSerie));
+  return (indice = { v: versionDatos, vivas, porFecha, porEj, prs: {} });
+}
+const seriesVivas = () => indiceSeries().vivas.slice();
+const seriesDe = id => (indiceSeries().porEj[id] || []).slice();   // solo lo hecho (sin calentamiento) cuenta para récords
+// Récords de un ejercicio, calculados una vez por versión de los datos
+const prsEj = id => { const ix = indiceSeries(); return ix.prs[id] || (ix.prs[id] = prsDe(ix.porEj[id] || [], tipoDe(id))); };
 // PR: más peso (o más reps sin peso) en fuerza; menos tiempo para la misma distancia en carrera y natación
 function prsDe(lista, tipo) {
   const prs = new Set();
@@ -528,7 +547,7 @@ document.addEventListener("selectionchange", () => {
 });
 
 // ---------- Copiar, pegar y plantillas ----------
-const seriesDelDia = fecha => seriesVivas().filter(s => s.fecha === fecha).sort((a, b) => a.orden - b.orden);
+const seriesDelDia = fecha => (indiceSeries().porFecha[fecha] || []).slice();
 // Convierte series en una lista de ejercicios con sus series (para copiar o guardar como plantilla)
 // Los bloques se guardan como tramos con una serie por ronda: { bloque: true, tramos: [{ ejercicio_id, series: [ronda 1, ronda 2…] }] }
 const valores = s => ({ peso: n0(s.peso), reps: s.ciclo_id ? 0 : n0(s.reps), distancia: n0(s.distancia), tiempo: n0(s.tiempo), descanso: n0(s.descanso), rec_dist: n0(s.rec_dist), pct: n0(s.pct), bilbo: !!s.ciclo_id, calentamiento: !!s.calentamiento });
@@ -827,7 +846,7 @@ function etiquetaTipo(tipo) {
 function bloque(dia, id, series, grupo) {
   const ej = db.ejercicios[id], tipo = tipoDe(id), dist = esDistancia(tipo);
   const historia = seriesDe(id);
-  const prs = prsDe(historia, tipo);
+  const prs = prsEj(id);
   let editando = null;   // serie planificada que se está completando
   const b = document.createElement("div");
   b.className = "bloque t-" + tipo;
@@ -1127,7 +1146,7 @@ function tarjetaBloque(dia, bloqueId, series) {
 
   const form = c.querySelector("form"), fa = c.querySelector(".in-a"), fb = c.querySelector(".in-b"), fc = c.querySelector(".in-c");
   const prs = {};
-  primera.forEach(s => { if (!prs[s.ejercicio_id]) prs[s.ejercicio_id] = prsDe(seriesDe(s.ejercicio_id), tipoDe(s.ejercicio_id)); });
+  primera.forEach(s => { if (!prs[s.ejercicio_id]) prs[s.ejercicio_id] = prsEj(s.ejercicio_id); });
   const editar = (s, li) => {
     c.querySelector(".desmarcar").hidden = !hecha(s);
     c.querySelector(".desmarcar").onclick = () => desmarcar(s);
@@ -2301,7 +2320,7 @@ $("loginForm").addEventListener("submit", async e => {
     const j = await r.json().catch(() => ({}));
     if (!r.ok || !j.access_token) throw new Error(traducir(j.msg || j.error_description || j.message || ""));
     if (leer("entrenos-dueno") !== j.user.id) {
-      db = {}; Object.keys(TABLAS).forEach(t => { db[t] = {}; }); cursores = {}; enEspera = {}; perfil = null; porta = null;
+      db = {}; Object.keys(TABLAS).forEach(t => { db[t] = {}; }); versionDatos++; cursores = {}; enEspera = {}; perfil = null; porta = null;
       guardarLocal(); guardarEspera(); escribir("perfil-v1", null); escribir("portapapeles-v1", null); escribir("entrenos-dueno", j.user.id);
     }
     guardarSesion(j);
@@ -2403,7 +2422,7 @@ function datosSemana(lunes) {
     const t = tipoDe(s.ejercicio_id);
     if (t === "carrera") r.km += n0(s.distancia) / 1000; else if (t === "natacion") r.nado += n0(s.distancia);
   });
-  [...new Set(hechas.map(s => s.ejercicio_id))].forEach(id => { const prs = prsDe(seriesDe(id), tipoDe(id)); hechas.forEach(s => { if (prs.has(s.id)) r.prs++; }); });
+  [...new Set(hechas.map(s => s.ejercicio_id))].forEach(id => { const prs = prsEj(id); hechas.forEach(s => { if (prs.has(s.id)) r.prs++; }); });
   const rpes = Object.values(db.entrenos).filter(e => e.fecha >= ini && e.fecha < fin && n0(e.rpe) > 0).map(e => n0(e.rpe));
   r.rpe = rpes.length ? rpes.reduce((a, b) => a + b, 0) / rpes.length : 0;
   return r;
@@ -3411,7 +3430,7 @@ function celebrar() {
 }
 // Avisa del récord (con celebración) o, si no lo es, de que la serie está hecha; las dos con Deshacer
 function avisarSiPR(fila, deshacer) {
-  const pr = hecha(fila) && prsDe(seriesDe(fila.ejercicio_id), tipoDe(fila.ejercicio_id)).has(fila.id);
+  const pr = hecha(fila) && prsEj(fila.ejercicio_id).has(fila.id);
   if (pr) { celebrar(); avisoDeshacer("¡Nuevo récord! " + nombreEj(fila.ejercicio_id) + " · " + serieTexto(fila), deshacer, true); }
   else if (deshacer) avisoDeshacer("Serie hecha · " + nombreEj(fila.ejercicio_id), deshacer);
   return pr;
@@ -3546,7 +3565,9 @@ function pintarEntreno() {
     $(et).textContent = etiqueta[c] + (dist && k === 1 ? " (opcional)" : "");
     $(inp).value = valor(c);
     $(inp).inputMode = c === "reps" || c === "m" ? "numeric" : "decimal";
-    $(inp).placeholder = c === "reps" && s.ciclo_id ? "máx" : c === "t" ? "3,40" : "";
+    // En carrera, el ejemplo del tiempo es el objetivo de la serie (si lo hay), no un número cualquiera
+    const obj = c === "t" && !hecha(s) ? objetivoSerie(s) : null;
+    $(inp).placeholder = c === "reps" && s.ciclo_id ? "máx" : c === "t" ? (obj && obj.tiempo ? "obj. " + fmtTiempo(obj.tiempo) : "3:40") : "";
   });
   $("enHecha").textContent = hecha(s) ? "Guardar cambios" : "✓ Hecha";
   $("enDesmarcar").hidden = !hecha(s);
@@ -3677,7 +3698,7 @@ $("enSalir").addEventListener("click", salirEntreno);
 $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); abrirRpe(d); });
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
-const VERSION_APP = "v35";
+const VERSION_APP = "v36" + (BETA ? " beta" : "");
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";
