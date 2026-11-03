@@ -2116,8 +2116,6 @@ function mostrarApp() {
   verPestana(leer("pestana-v1") || "semana");
   setEstado("Sincronizando…");
   sincronizar();
-  // La primera vez en cada dispositivo se abren las instrucciones
-  if (!leer("ayuda-vista-v1")) { escribir("ayuda-vista-v1", true); abrirAyuda(); }
   // Enlace compartido por un amigo: #c=CODIGO
   if (/^#c=/i.test(location.hash)) {
     const h = location.hash;
