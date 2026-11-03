@@ -340,26 +340,54 @@
       <button type="button" role="tab" data-paso="pegar" aria-selected="false">2 · Pegar respuesta</button>
     </div>
     <div id="iaPrompt" class="ia-paso">
-      <div class="fila">
-        <label class="campo">Objetivo
-          <select id="iaObjetivo">
-            <option value="fuerza">Fuerza</option>
-            <option value="hipertrofia">Hipertrofia</option>
-            <option value="5k">Carrera 5 km</option>
-            <option value="10k">Carrera 10 km</option>
-            <option value="combinado">Fuerza + carrera</option>
-          </select>
-        </label>
-        <label class="campo">Días por semana <input id="iaDias" type="number" min="1" max="7" value="3" inputmode="numeric"></label>
-      </div>
-      <div class="fila">
-        <label class="campo">Nivel
-          <select id="iaNivel"><option>principiante</option><option selected>intermedio</option><option>avanzado</option></select>
-        </label>
+      <label class="campo">¿Qué quieres?
+        <select id="iaModo"><option value="plan">Plan de varias semanas o mesociclo</option><option value="sesion">Entrenamiento suelto (una sesión)</option></select>
+      </label>
+      <div id="iaCamposPlan">
+        <div class="fila">
+          <label class="campo">Objetivo
+            <select id="iaObjetivo">
+              <option value="fuerza">Fuerza</option>
+              <option value="hipertrofia">Hipertrofia</option>
+              <option value="5k">Carrera 5 km</option>
+              <option value="10k">Carrera 10 km</option>
+              <option value="media">Media maratón (21,1 km)</option>
+              <option value="maraton">Maratón (42,2 km)</option>
+              <option value="combinado">Fuerza + carrera</option>
+            </select>
+          </label>
+          <label class="campo">Días por semana <input id="iaDias" type="number" min="1" max="7" value="3" inputmode="numeric"></label>
+        </div>
+        <div class="fila" id="iaCamposCarrera" hidden>
+          <label class="campo">Marca objetivo (opcional) <input id="iaMarca" placeholder="1:45:00" autocomplete="off"></label>
+          <label class="campo">Fecha de la carrera (opcional) <input id="iaFechaCarrera" type="date"></label>
+        </div>
         <label class="campo">Semanas <input id="iaSemanas" type="number" min="1" max="26" value="6" inputmode="numeric"></label>
+        <label class="campo">Objetivo concreto <input id="iaMeta" placeholder="Bajar de 25 min en 5 km, subir mi sentadilla…" autocomplete="off"></label>
       </div>
+      <div id="iaCamposSesion" hidden>
+        <div class="fila">
+          <label class="campo">Tipo de sesión
+            <select id="iaSesTipo">
+              <option value="pierna">Pierna</option><option value="torso">Torso</option><option value="pecho">Pecho</option><option value="espalda">Espalda</option>
+              <option value="hombro">Hombro y brazos</option><option value="completo">Cuerpo completo</option><option value="empuje">Empuje</option><option value="tiron">Tirón</option>
+              <option value="series">Carrera: series</option><option value="umbral">Carrera: umbral</option><option value="rodaje">Carrera: rodaje</option><option value="tirada">Carrera: tirada larga</option>
+              <option value="natacion">Natación</option><option value="combinado">Combinado (fuerza + carrera)</option><option value="otro">Otro…</option>
+            </select>
+          </label>
+          <label class="campo">Duración
+            <select id="iaDuracion"><option>30</option><option>45</option><option selected>60</option><option>90</option></select>
+          </label>
+        </div>
+        <label class="campo" id="iaSesOtroL" hidden>¿Qué sesión? <input id="iaSesOtro" placeholder="Core y movilidad, cuestas, técnica de crol…" autocomplete="off"></label>
+        <label class="campo">Intensidad
+          <select id="iaIntensidad"><option>suave (RPE 5-6)</option><option selected>moderada (RPE 7)</option><option>dura (RPE 8-9)</option></select>
+        </label>
+      </div>
+      <label class="campo">Nivel
+        <select id="iaNivel"><option>principiante</option><option selected>intermedio</option><option>avanzado</option></select>
+      </label>
       <label class="campo">Material <input id="iaMaterial" placeholder="Gimnasio completo, mancuernas en casa, pista…" autocomplete="off"></label>
-      <label class="campo">Objetivo concreto <input id="iaMeta" placeholder="Bajar de 25 min en 5 km, subir mi sentadilla…" autocomplete="off"></label>
       <label class="campo">Limitaciones <input id="iaLimites" placeholder="Molestias de rodilla, 45 min por sesión…" autocomplete="off"></label>
       <label class="campo">Prompt para la IA <textarea id="iaTexto" readonly rows="7"></textarea></label>
       <div class="d-botones"><span class="menu-det nota" id="iaCopiarAviso" role="status"></span><button type="button" class="anadir" id="iaCopiar">Copiar prompt</button></div>
@@ -382,6 +410,13 @@
         <button type="button" class="nav-btn" id="iaPlantillas">Usar como plantillas</button>
         <button type="button" class="anadir" id="iaMeso" hidden>Crear mesociclo</button>
       </div>
+      <div id="iaDiaOp" hidden>
+        <div class="fila">
+          <label class="campo">Añadir al día <input id="iaDiaFecha" type="date"></label>
+          <label class="campo chk"><input type="checkbox" id="iaDiaPlantilla"> Guardarla también como plantilla</label>
+        </div>
+        <div class="d-botones"><button type="button" class="anadir" id="iaAnadirDia">Añadir al día</button></div>
+      </div>
     </div>
   </div>
 </dialog>
@@ -393,7 +428,8 @@
   </form>
   <div class="d-cuerpo ayuda">
     <p>Toca cada apartado para verlo. Puedes volver aquí cuando quieras con el botón <b>?</b> de arriba. ¿Echas algo en falta o algo no va bien? Envíanos una sugerencia:</p>
-    <details class="novedades" open><summary>Novedades · versión 41</summary>
+    <details class="novedades" open><summary>Novedades · versión 42</summary>
+      <p><b>Crear con IA:</b> ahora también un <b>entrenamiento suelto</b> (tipo de sesión, duración, intensidad…) que se añade directamente a un día o se guarda como plantilla, y planes para <b>media maratón y maratón</b> con marca objetivo, fecha de carrera, tus marcas previstas y tapering. · El botón <b>?</b> avisa con un punto cuando hay novedades que no has visto.</p>
       <p><b>Agrupar en bloque:</b> mantén pulsada una serie, elige varias y agrúpalas en un bloque ×N (propone el patrón que se repite); «Desagrupar» en el ⋯ del bloque. Al importar, marca vueltas y agrúpalas a mano antes de guardar.</p>
       <p><b>Archivos FIT</b> de COROS y Garmin: la app usa las vueltas tal como las marcó el reloj (serie, recuperación, descanso, calentamiento, vuelta a la calma), el nombre del entrenamiento y sus objetivos de ritmo, el desnivel del barómetro, y las <b>pulsaciones</b> y la cadencia de cada vuelta. En los rodajes con pulsaciones, la forma (VDOT) se estima con tu FC: un rodaje suave ya no la rebaja. Pon tu FC máxima en Plan → Ajustes (si no, se usa la mayor registrada).</p>
       <p><b>Desnivel en las carreras importadas</b> (GPX, TCX y CSV de COROS, Strava o Garmin): cada serie guarda lo que sube y baja («+18 m / −5 m») y su <b>ritmo ajustado por pendiente</b> («3:58/km (aj. 3:44/km)»). La forma (VDOT), las marcas, las predicciones y los objetivos usan el ritmo ajustado. Las series con pendiente media de más del 4 % quedan fuera de las marcas por distancia (cámbialo en Plan → Ajustes).</p>
@@ -477,6 +513,8 @@
     <details><summary>Crear con IA y rutinas tipo</summary>
       <p>En <b>Plan → Crear con IA</b> eliges objetivo, días, nivel, material y limitaciones. Copia el prompt, pégalo en ChatGPT, Claude u otra IA y pega su respuesta en el paso 2.</p>
       <p>La app te muestra una vista previa y lo guarda como plantillas o como mesociclo. Crea los ejercicios que falten. Si algo no encaja, te dice qué línea falla.</p>
+      <p><b>Entrenamiento suelto:</b> en «¿Qué quieres?» elige «Entrenamiento suelto», el tipo de sesión (pierna, torso, series, umbral, tirada larga, natación, «Otro»…), la duración y la intensidad. Tus molestias activas y tus ritmos van en el prompt. Al pegar la respuesta, elige el día y pulsa <b>Añadir al día</b> (y, si quieres, guárdala también como plantilla).</p>
+      <p><b>Media maratón y maratón:</b> además de 5 y 10 km. Puedes poner tu marca objetivo y la fecha de la carrera (las semanas se cuentan hasta ella). El prompt incluye tus marcas previstas de Marcas (VDOT y Riegel) y pide descarga y tapering antes de la carrera. Las tiradas largas pueden llevar ritmos distintos por tramos.</p>
       <p>En <b>Rutinas tipo</b> tienes algunos ejemplos listos. Todo se copia a tus plantillas y lo puedes editar como cualquier otra.</p>
       <p>Son sugerencias generales, no un plan médico ni personalizado.</p>
     </details>

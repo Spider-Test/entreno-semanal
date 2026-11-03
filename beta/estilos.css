@@ -911,3 +911,12 @@ body.sel-series .series li.sel { background: var(--accent-soft); border-radius: 
 body.sel-series .series li.sel::before { background: var(--accent); border-color: var(--accent); }
 .imp-marca { margin-right: 4px; width: 18px; height: 18px; vertical-align: middle; }
 .imp-agrupar { margin-top: 8px; gap: 8px; flex-wrap: wrap; }
+
+/* Novedades sin ver: punto en el «?» y un pulso suave (sin animación si se pide menos movimiento) */
+.ayuda-btn { position: relative; }
+.ayuda-btn.nuevo::after { content: ""; position: absolute; top: -2px; right: -2px; width: 10px; height: 10px; border-radius: 50%; background: var(--gold); border: 2px solid var(--card); }
+.ayuda-btn.nuevo { animation: pulso-nov 2.4s ease-in-out infinite; }
+@keyframes pulso-nov { 0%, 100% { box-shadow: 0 0 0 0 rgba(212, 160, 23, 0.45); } 50% { box-shadow: 0 0 0 7px rgba(212, 160, 23, 0); } }
+@media (prefers-reduced-motion: reduce) { .ayuda-btn.nuevo { animation: none; } }
+#iaDiaOp { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 10px; }
+.campo.chk { flex-direction: row; align-items: center; gap: 8px; }

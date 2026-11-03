@@ -335,14 +335,15 @@ async function api(ruta, opciones = {}, reintento = false) {
 
 // Perfil: las cuentas nuevas quedan pendientes hasta que el administrador las aprueba
 async function cargarPerfil() {
-  const r = await api("/rest/v1/perfiles?select=user_id,email,aprobado,es_admin,edita_catalogo,creado&order=creado.asc");
+  const r = await api("/rest/v1/perfiles?select=user_id,email,aprobado,es_admin,edita_catalogo,creado,novedades_vistas&order=creado.asc");
   if (!r.ok) throw new Error("perfil " + r.status);
   const lista = await r.json();
   const mio = lista.find(p => p.user_id === sesion.user_id);
-  perfil = mio ? { aprobado: mio.aprobado, es_admin: mio.es_admin, edita_catalogo: mio.edita_catalogo, email: mio.email } : { aprobado: false, es_admin: false, edita_catalogo: false, email: sesion.email };
+  perfil = mio ? { aprobado: mio.aprobado, es_admin: mio.es_admin, edita_catalogo: mio.edita_catalogo, email: mio.email, novedades_vistas: mio.novedades_vistas || "" } : { aprobado: false, es_admin: false, edita_catalogo: false, email: sesion.email };
   usuarios = perfil.es_admin ? lista : [];
   escribir("perfil-v1", perfil);
   avisoUsuarios();
+  pintarAvisoNovedades();
   return perfil;
 }
 
@@ -3077,7 +3078,14 @@ function abrirRutina(r) {
 }
 
 // ---------- Crear con IA: prompt listo para copiar y lectura de la respuesta ----------
-const OBJETIVOS_IA = { fuerza: "ganar fuerza", hipertrofia: "ganar masa muscular (hipertrofia)", "5k": "preparar una carrera de 5 km", "10k": "preparar una carrera de 10 km", combinado: "combinar fuerza y carrera" };
+const OBJETIVOS_IA = { fuerza: "ganar fuerza", hipertrofia: "ganar masa muscular (hipertrofia)", "5k": "preparar una carrera de 5 km", "10k": "preparar una carrera de 10 km", media: "preparar una media maratón (21,1 km)", maraton: "preparar un maratón (42,2 km)", combinado: "combinar fuerza y carrera" };
+const CARRERA_IA = { "5k": 5000, "10k": 10000, media: 21097, maraton: 42195 };
+const EJEMPLO_SESION_IA = `RUTINA: Pierna 60 min
+NOTA: Nivel intermedio, RPE 7-8. Si te sobran repeticiones, sube 2,5 kg la próxima vez.
+## Pierna
+- Sentadilla [fuerza]: 4x6 @RPE8 desc 2:30
+- Peso muerto rumano [fuerza]: 3x8 @RPE7 desc 2:00
+- Zancadas [fuerza]: 3x10 @RPE7 desc 1:30`;
 const EJEMPLO_IA = `RUTINA: Fuerza y carrera 3 días
 SEMANAS: 6
 NOTA: Para nivel intermedio. Sube 2,5 kg cuando completes todas las series.
@@ -3092,16 +3100,23 @@ NOTA: Para nivel intermedio. Sube 2,5 kg cuando completes todas las series.
 ## Rodaje @ Sábado
 - Rodaje [carrera]: 1x45min`;
 function textoPrompt() {
+  if ($("iaModo").value === "sesion") return textoPromptSesion();
   const g = id => $(id).value.trim(), obj = g("iaObjetivo");
   const f = rendimiento().forma;
   const rms = vivos("ejercicios").filter(e => tipoDe(e.id) === "fuerza" && rmReferencia(e.id) > 0)
     .sort((a, b) => rmReferencia(b.id) - rmReferencia(a.id)).slice(0, 8).map(e => e.nombre + " " + num(rmReferencia(e.id)) + " kg");
-  const corre = obj === "5k" || obj === "10k" || obj === "combinado";
+  const corre = !!CARRERA_IA[obj] || obj === "combinado", carrera = CARRERA_IA[obj];
+  // Marcas previstas (VDOT y Riegel desde tu mejor marca) para que la IA ajuste el plan a tu nivel real
+  const marcas = marcasDe("carrera"), ref = marcas.filter(m => m.d >= 1000).sort((x, y) => vdotDe(y.d, y.t) - vdotDe(x.d, x.t))[0];
+  const previstas = f ? [5000, 10000, 21097, 42195].map(d => nombreDist(d) + " " + fmtTiempo(tiempoPrevisto(f.vdot, d)) + (ref ? " (Riegel " + fmtTiempo(ref.t * Math.pow(d / ref.d, 1.06)) + ")" : "")).join(", ") : "";
+  const fechaCarrera = g("iaFechaCarrera"), semanasHasta = fechaCarrera ? Math.max(1, Math.round((deIso(fechaCarrera) - lunesDe(new Date())) / 6048e5)) : 0;
   const datos = [
     "Objetivo: " + OBJETIVOS_IA[obj] + (g("iaMeta") ? " (" + g("iaMeta") + ")" : ""),
     "Días por semana: " + (g("iaDias") || 3),
     "Nivel: " + g("iaNivel"),
-    "Duración: " + (g("iaSemanas") || 4) + " semanas",
+    "Duración: " + (semanasHasta || g("iaSemanas") || 4) + " semanas" + (semanasHasta ? " (la carrera es el " + fechaCorta(fechaCarrera) + ")" : ""),
+    carrera && g("iaMarca") && "Marca objetivo en la carrera: " + g("iaMarca"),
+    carrera && previstas && "Mis marcas previstas ahora: " + previstas,
     "Material: " + (g("iaMaterial") || "gimnasio completo"),
     g("iaLimites") && "Limitaciones: " + g("iaLimites"),
     obj !== "5k" && obj !== "10k" && rms.length && "Mis 1RM aproximados: " + rms.join(", "),
@@ -3119,7 +3134,45 @@ function textoPrompt() {
     "- Series: 4x8 (repeticiones), 3xmáx, 5x1000m, 8x100m, 1x40min, 6x2min. Sin rangos: 4x10, no 4x8-12.",
     "- Intensidad: @RPE8 o @75% (del 1RM) en fuerza, @4:30/km en carrera, @1:50/100m en natación. No pongas kilos fijos.",
     "- Descanso: «desc 2:00» o «desc 90» (segundos). En carrera y natación la recuperación también puede ir en metros: «rec 200m».",
-    "- Tramos que se repiten seguidos: «- BLOQUE x4: Ejercicio [tipo] 400m rec 200m | Ejercicio [tipo] 200m»."].join("\n");
+    "- Tramos que se repiten seguidos: «- BLOQUE x4: Ejercicio [tipo] 400m rec 200m | Ejercicio [tipo] 200m».",
+    "- Tirada larga con ritmos distintos por tramos, en una línea: «- Tirada larga [carrera]: 1x8km @5:20/km + 1x6km @4:50/km + 1x2km @5:30/km».",
+    carrera && "- Como el plan prepara una carrera, escribe «SEMANA 1», «SEMANA 2»… hasta la última, que es la de la carrera, con progresión, semanas de descarga y un tapering (menos volumen, algo de ritmo de carrera) en las 1–2 semanas previas. La carrera va como «## Carrera @ Día» con «- " + nombreDist(carrera) + " [carrera]: 1x" + (carrera / 1000).toString().replace(".", ",") + "km @ritmo»."].filter(Boolean).join("\n");
+}
+// Un solo entrenamiento: tipo de sesión, duración, nivel, material, intensidad y molestias
+function textoPromptSesion() {
+  const g = id => $(id).value.trim(), f = rendimiento().forma;
+  const tipo = g("iaSesTipo") === "otro" ? g("iaSesOtro") || "sesión libre" : $("iaSesTipo").selectedOptions[0].textContent;
+  const esCarrera = /carrera|series|umbral|rodaje|tirada/i.test(tipo);
+  const rms = vivos("ejercicios").filter(e => tipoDe(e.id) === "fuerza" && rmReferencia(e.id) > 0)
+    .sort((a, b) => rmReferencia(b.id) - rmReferencia(a.id)).slice(0, 8).map(e => e.nombre + " " + num(rmReferencia(e.id)) + " kg");
+  const datos = [
+    "Tipo de sesión: " + tipo,
+    "Duración aproximada: " + g("iaDuracion") + " minutos",
+    "Nivel: " + g("iaNivel"),
+    "Intensidad: " + $("iaIntensidad").selectedOptions[0].textContent,
+    "Material: " + (g("iaMaterial") || "gimnasio completo"),
+    g("iaLimites") && "Limitaciones: " + g("iaLimites"),
+    !esCarrera && rms.length && "Mis 1RM aproximados: " + rms.join(", "),
+    molestiasActivas().length && "Molestias o lesiones que tengo ahora (adapta la sesión para no agravarlas): " + molestiasActivas().map(m => m.zona + (m.descripcion ? " (" + m.descripcion + ")" : "")).join("; "),
+    esCarrera && f && "Mis ritmos de carrera actuales por km: " + ZONAS.map(([n, fr]) => n.split(" (")[0] + " " + fmtTiempo(ritmoZona(f.vdot, fr))).join(", ") + " (VDOT " + num(Math.round(f.vdot)) + "). Usa estos ritmos."
+  ].filter(Boolean);
+  return ["Actúa como entrenador. Diséñame UN SOLO entrenamiento (una sesión) con estos datos:", ...datos.map(d => "- " + d), "",
+    "Responde SOLO con la sesión dentro de un bloque de código, sin texto fuera, en este formato exacto (una app lo lee automáticamente):",
+    "```", EJEMPLO_SESION_IA, "```",
+    "Reglas del formato:",
+    "- Empieza por «RUTINA: nombre» y «NOTA:» con una o dos frases. Después UNA sola línea «## Nombre de la sesión» (sin día).",
+    "- Un ejercicio por línea: «- Nombre [tipo]: series». El tipo es fuerza, carrera o natacion. Incluye calentamiento y vuelta a la calma si encajan.",
+    "- Series: 4x8, 3xmáx, 5x1000m, 8x100m, 1x40min, 6x2min. Sin rangos. Intensidad: @RPE8 o @75% en fuerza, @4:30/km en carrera, @1:50/100m en natación.",
+    "- Descanso: «desc 2:00» o «desc 90»; en carrera y natación también «rec 200m».",
+    "- Tramos que se repiten: «- BLOQUE x4: Ejercicio [tipo] 400m rec 200m | Ejercicio [tipo] 200m». Tirada por tramos: «- Tirada larga [carrera]: 1x8km @5:20/km + 1x6km @4:50/km»."].filter(Boolean).join("\n");
+}
+function pintarCamposIA() {
+  const sesion = $("iaModo").value === "sesion", carrera = !sesion && !!CARRERA_IA[$("iaObjetivo").value];
+  $("iaCamposPlan").hidden = sesion;
+  $("iaCamposSesion").hidden = !sesion;
+  $("iaCamposCarrera").hidden = !carrera;
+  $("iaSesOtroL").hidden = $("iaSesTipo").value !== "otro";
+  $("iaTexto").value = textoPrompt();
 }
 let rutinaIA = null;
 function pasoIA(paso) {
@@ -3135,7 +3188,7 @@ function abrirIA(paso) {
   $("iaError").textContent = "";
   $("dlgIA").setAttribute("aria-label", paso === "vista" ? "Rutina tipo" : "Crear con IA");
   pasoIA(paso);
-  if (paso === "prompt") $("iaTexto").value = textoPrompt();
+  if (paso === "prompt") pintarCamposIA();
   if (!$("dlgIA").open) $("dlgIA").showModal();
 }
 function pintarVistaIA() {
@@ -3148,11 +3201,14 @@ function pintarVistaIA() {
   $("iaInicio").value = lunesSiguiente();
   $("iaMesoSem").value = semanasRutina(r);
   const n = r.bloques.reduce((a, b) => a + b.sesiones.length, 0);
-  $("iaPlantillas").textContent = n === 1 ? "Usar como plantilla" : "Usar como plantillas (" + n + ")";
+  $("iaPlantillas").textContent = n === 1 ? "Guardar como plantilla" : "Usar como plantillas (" + n + ")";
+  // Entrenamiento suelto: se puede añadir directamente a un día (y también guardarlo como plantilla)
+  $("iaDiaOp").hidden = n !== 1;
+  $("iaDiaFecha").value = $("iaDiaFecha").value || iso(new Date());
   $("iaAvisoDias").textContent = r.conDias ? (r.bloques.some(b => b.sesiones.some(s => !s.dias.length)) ? "Las sesiones sin día solo se guardan como plantilla." : "") : "Ninguna sesión tiene día: se guardan como plantillas para usarlas cuando quieras.";
 }
 $("iaPasos").addEventListener("click", ev => { const b = ev.target.closest("[data-paso]"); if (b) { pasoIA(b.dataset.paso); if (b.dataset.paso === "prompt") $("iaTexto").value = textoPrompt(); } });
-["iaObjetivo", "iaDias", "iaNivel", "iaSemanas", "iaMaterial", "iaMeta", "iaLimites"].forEach(id => $(id).addEventListener("input", () => { $("iaTexto").value = textoPrompt(); }));
+["iaObjetivo", "iaDias", "iaNivel", "iaSemanas", "iaMaterial", "iaMeta", "iaLimites", "iaModo", "iaSesTipo", "iaSesOtro", "iaDuracion", "iaIntensidad", "iaMarca", "iaFechaCarrera"].forEach(id => ["input", "change"].forEach(ev => $(id).addEventListener(ev, pintarCamposIA)));
 $("iaCopiar").addEventListener("click", () => {
   const t = $("iaTexto").value;
   const hecho = () => { $("iaCopiarAviso").textContent = "Prompt copiado. Pégalo en ChatGPT, Claude u otra IA y después pega su respuesta en el paso 2."; };
@@ -3176,6 +3232,17 @@ $("iaMeso").addEventListener("click", () => {
   if (!ini || !(sem >= 1 && sem <= 26)) { $("iaAvisoDias").textContent = "Elige la fecha de inicio y entre 1 y 26 semanas."; return; }
   $("dlgIA").close();
   guardarRutina(rutinaIA, true, iso(lunesDe(deIso(ini))), sem);
+});
+$("iaAnadirDia").addEventListener("click", () => {
+  const r = rutinaIA, f = $("iaDiaFecha").value;
+  if (!r || !f) return;
+  const s = r.bloques[0].sesiones[0];
+  if ($("iaDiaPlantilla").checked) guardarRutina(r, false);
+  pegarItems(f, desdeCompartido(s.items), s.nombre);
+  persistir();
+  $("dlgIA").close();
+  abrirDia(f);
+  setEstado("«" + s.nombre + "» añadida al " + fechaCorta(f));
 });
 $("iaAbrir").addEventListener("click", () => abrirIA("prompt"));
 $("iaPegarAbrir").addEventListener("click", () => { abrirIA("pegar"); $("iaRespuesta").focus(); });
@@ -3954,7 +4021,7 @@ $("enSalir").addEventListener("click", salirEntreno);
 $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); abrirRpe(d); });
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
-const VERSION_APP = "v41" + (BETA ? " beta" : "");
+const VERSION_APP = "v42" + (BETA ? " beta" : "");
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";
@@ -4688,10 +4755,33 @@ if (window.visualViewport) {
 }
 
 // ---------- Instrucciones de uso ----------
+// Novedades sin ver: el «?» lleva un punto (y un pulso suave) hasta que abres la Ayuda; se recuerda en tu perfil y en el dispositivo
+const VERSION_NOV = VERSION_APP.split(" ")[0];
+const novedadesVistas = () => [(perfil && perfil.novedades_vistas) || "", leer("novedades-vistas-v1") || ""].includes(VERSION_NOV);
+function pintarAvisoNovedades() {
+  const nuevo = !!sesion && !novedadesVistas();
+  $("ayudaBtn").classList.toggle("nuevo", nuevo);
+  $("ayudaBtn").setAttribute("aria-label", nuevo ? "Instrucciones de uso (hay novedades)" : "Instrucciones de uso");
+}
+function marcarNovedadesVistas() {
+  escribir("novedades-vistas-v1", VERSION_NOV);
+  if (perfil) { perfil.novedades_vistas = VERSION_NOV; escribir("perfil-v1", perfil); }
+  if (sesion) api("/rest/v1/rpc/marcar_novedades", { method: "POST", body: JSON.stringify({ v: VERSION_NOV }) }).catch(() => {});
+  pintarAvisoNovedades();
+}
 function abrirAyuda() {
   $("ayudaAdmin").hidden = !(perfil && perfil.es_admin);
+  const habia = $("ayudaBtn").classList.contains("nuevo");
   if (!$("dlgAyuda").open) $("dlgAyuda").showModal();
+  if (habia) {
+    // Con novedades sin ver, se abre directamente por ellas
+    const nov = $("dlgAyuda").querySelector(".novedades");
+    nov.open = true;
+    nov.scrollIntoView({ block: "start" });
+    marcarNovedadesVistas();
+  }
 }
+pintarAvisoNovedades();
 $("ayudaBtn").addEventListener("click", abrirAyuda);
 $("dlgAyuda").querySelectorAll("details").forEach(d => d.addEventListener("toggle", () => { if (d.open) verAlAbrir(d); }));
 
