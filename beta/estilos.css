@@ -929,3 +929,9 @@ body.sel-series .series li.sel::before { background: var(--accent); border-color
 .zf-1 { background: #9ca3af; } .zf-2 { background: #3b82f6; } .zf-3 { background: #22c55e; } .zf-4 { background: #f59e0b; } .zf-5 { background: #ef4444; }
 .zf-texto { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .por-que { font-size: 13px; }
+
+/* Marcas: apartados desplegables con sus secciones dentro */
+.marcas-sec { margin-bottom: 12px; }
+.marcas-sec .plan-sec { box-shadow: none; padding-left: 0; padding-right: 0; background: none; }
+.marcas-sec.t-carrera h3 { color: var(--carrera, var(--fg)); }
+.marcas-sec.t-natacion h3 { color: var(--natacion, var(--fg)); }

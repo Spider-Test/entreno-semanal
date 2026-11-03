@@ -2057,6 +2057,7 @@ $("detalle").addEventListener("close", () => {
 // ---------- Rendimiento: marcas, forma (VDOT de Daniels), predicciones y ritmos objetivo ----------
 // Son estimaciones orientativas calculadas con las series hechas.
 const DIST_MARCAS = [200, 400, 800, 1000, 1500, 3000, 5000, 10000, 21097, 42195];
+const DIST_NADO = [50, 100, 200, 400, 800, 1500];
 const nombreDist = d => ({ 21097: "Media maratón", 42195: "Maratón" })[d] || fmtDist(d);
 const vo2 = v => -4.6 + 0.182258 * v + 0.000104 * v * v;                                   // v en m/min
 // t en min; por debajo de 5 min la fórmula de Daniels deja de ser fiable, así que se toma 5 como mínimo
@@ -2242,7 +2243,7 @@ const textoObjetivo = o => !o ? "" : (o.suave ? "obj. suave ~" + fmtTiempo(o.rit
 // Mejores marcas por distancia: exactas o, dentro de una serie algo más larga, a su ritmo medio
 function marcasDe(tipo) {
   const lista = seriesVivas().filter(s => hecha(s) && !s.calentamiento && tipoDe(s.ejercicio_id) === tipo && n0(s.distancia) > 0 && n0(s.tiempo) > 0 && !fueraDeMarcas(s));
-  return DIST_MARCAS.map(d => {
+  return (tipo === "natacion" ? DIST_NADO : DIST_MARCAS).map(d => {
     let mejor = null;
     const evol = {};
     lista.filter(s => n0(s.distancia) >= d && n0(s.distancia) <= d * 3).forEach(s => {
@@ -2286,9 +2287,64 @@ function tablaSimple(cabecera, filas) {
   return caja;
 }
 let distGrafica = "";
+// Marcas en tres apartados desplegables (como el catálogo): Fuerza por zonas del cuerpo, Carrera y Piscina
+let marcasAbiertas = leer("marcas-abiertas-v1") || {};
+function apartadoMarcas(cont, clave, titulo, n) {
+  const abierta = marcasAbiertas[clave] !== false;
+  const sec = document.createElement("section");
+  sec.className = "cat-sec marcas-sec t-" + clave + (abierta ? "" : " cerrada");
+  sec.innerHTML = '<button type="button" class="sec-toggle"><span class="flecha-dia" aria-hidden="true">▸</span><h3></h3><span class="sec-n"></span></button><div class="sec-cuerpo"><div class="sec-cuerpo-in"></div></div>';
+  sec.querySelector("h3").textContent = titulo;
+  sec.querySelector(".sec-n").textContent = n ? "· " + n : "";
+  const boton = sec.querySelector(".sec-toggle"), cuerpo = sec.querySelector(".sec-cuerpo");
+  boton.setAttribute("aria-expanded", String(abierta));
+  cuerpo.inert = !abierta;
+  boton.addEventListener("click", () => {
+    const abrir = sec.classList.contains("cerrada");
+    sec.classList.toggle("cerrada", !abrir);
+    boton.setAttribute("aria-expanded", String(abrir));
+    cuerpo.inert = !abrir;
+    marcasAbiertas[clave] = abrir;
+    escribir("marcas-abiertas-v1", marcasAbiertas);
+    if (abrir) verAlAbrir(sec);
+  });
+  cont.appendChild(sec);
+  return sec.querySelector(".sec-cuerpo-in");
+}
+// Zona del cuerpo de un ejercicio de fuerza: por su nombre (brazos, core) o por las zonas que trabaja
+const ZONAS_REGION = [["Pierna", ["Cadera", "Glúteo", "Isquios", "Rodilla", "Gemelo", "Tobillo", "Pie"]], ["Torso", ["Pecho", "Espalda alta", "Hombro", "Cuello"]], ["Brazos", ["Codo", "Muñeca"]], ["Core", ["Lumbar"]]];
+function regionEjercicio(id) {
+  const n = norm(nombreEj(id));
+  if (/curl(?! femoral)|triceps|biceps|antebrazo/.test(n)) return "Brazos";
+  if (/plancha|abdominal|crunch|core|rueda|pallof|lumbar/.test(n)) return "Core";
+  const z = (db.ejercicios[id] || {}).zonas && db.ejercicios[id].zonas.length ? db.ejercicios[id].zonas : zonasPorNombre(id);
+  const cuenta = ZONAS_REGION.map(([r, zs]) => [r, z.filter(x => zs.includes(x)).length]);
+  if (cuenta[0][1] > cuenta[1][1]) return "Pierna";
+  const mejor = cuenta.find(([, c]) => c > 0);
+  return mejor ? mejor[0] : "Otros";
+}
+function marcasFuerza(cont) {
+  const ejs = vivos("ejercicios").filter(e => tipoDe(e.id) === "fuerza" && seriesDe(e.id).length);
+  const caja = apartadoMarcas(cont, "fuerza", "Fuerza", ejs.length);
+  if (!ejs.length) { caja.appendChild(nota("Cuando apuntes series de fuerza, aquí verás tu récord y tu 1RM estimado de cada ejercicio, separados por pierna, torso, brazos y core.")); return; }
+  ["Pierna", "Torso", "Brazos", "Core", "Otros"].forEach(region => {
+    const deRegion = ejs.filter(e => regionEjercicio(e.id) === region).map(e => ({ e, st: estadisticas(e.id) }))
+      .sort((a, b) => (b.st.mejorRm ? rm(b.st.mejorRm) : 0) - (a.st.mejorRm ? rm(a.st.mejorRm) : 0) || a.e.nombre.localeCompare(b.e.nombre, "es"));
+    if (!deRegion.length) return;
+    const s = seccionMarcas(region);
+    s.appendChild(tablaSimple(["Ejercicio", "Récord", "1RM est.", "Fecha"], deRegion.map(({ e, st }) => {
+      const m = st.mejor || st.mejorReps;
+      return { celdas: [e.nombre, m ? (st.mejor ? serieTexto(m) : n0(m.reps) + (n0(m.reps) === 1 ? " rep" : " reps")) : "—", st.mejorRm ? num(Math.round(rm(st.mejorRm))) + " kg" : "—", m ? fechaCorta(m.fecha) : ""], alPulsar: () => abrirDetalle(e.id) };
+    })));
+    caja.appendChild(s);
+  });
+  caja.appendChild(nota("Toca un ejercicio para ver su gráfica e historial. La zona sale de las que trabaja el ejercicio (en su ficha)."));
+}
 function pintarMarcas() {
-  const cont = $("marcasCont");
-  cont.textContent = "";
+  const raiz = $("marcasCont");
+  raiz.textContent = "";
+  marcasFuerza(raiz);
+  const cont = apartadoMarcas(raiz, "carrera", "Carrera");
   const { forma: f, carga } = rendimiento();
   const s1 = seccionMarcas("Forma en carrera");
   if (!f) s1.appendChild(nota("Apunta series o rodajes de carrera con metros y tiempo para estimar tu forma, tus marcas previstas y tus ritmos."));
@@ -2323,7 +2379,9 @@ function pintarMarcas() {
     if (z) { s4.appendChild(nota("Tiempo en cada zona en las últimas 4 semanas (carreras importadas con pulso):")); s4.appendChild(barraZonas(z)); }
     cont.appendChild(s4);
   }
-  [["carrera", "Mejores marcas de carrera", 1000, "/km"]].forEach(([tipo, titulo, por, suf]) => {
+  const piscina = apartadoMarcas(raiz, "natacion", "Piscina", marcasDe("natacion").length);
+  if (!marcasDe("natacion").length) piscina.appendChild(nota("Cuando apuntes series de natación con metros y tiempo, aquí verás tus mejores marcas en 50, 100, 200, 400, 800 y 1500 m y su evolución."));
+  [["carrera", "Mejores marcas de carrera", 1000, "/km", cont], ["natacion", "Mejores marcas en piscina", 100, "/100 m", piscina]].forEach(([tipo, titulo, por, suf, destino]) => {
     const marcas = marcasDe(tipo);
     if (!marcas.length) return;
     const s = seccionMarcas(titulo);
@@ -2339,7 +2397,7 @@ function pintarMarcas() {
     const g = document.createElement("div");
     g.innerHTML = grafica(sel.evol, v => fmtTiempo(v));
     s.append(tit, g, nota("Toca otra distancia para ver su evolución. En esta gráfica, más abajo es más rápido."));
-    cont.appendChild(s);
+    destino.appendChild(s);
   });
 }
 
@@ -4115,7 +4173,7 @@ $("enSalir").addEventListener("click", salirEntreno);
 $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); abrirRpe(d); });
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
-const VERSION_APP = "v43" + (BETA ? " beta" : "");
+const VERSION_APP = "v44" + (BETA ? " beta" : "");
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";
