@@ -812,3 +812,17 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.35); }
 @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) { .sel-acciones { background: var(--card); -webkit-backdrop-filter: none; backdrop-filter: none; } }
 body.seleccionando { padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 150px); }
 @media (min-width: 761px) { body.seleccionando { padding-bottom: 96px; } }
+
+/* Serie hecha: su número o ✓ es un botón para volver a pendiente */
+.n-hecha { border: 0; background: none; padding: 0; font: inherit; font-size: 13px; color: var(--muted); width: 1.6em; min-height: 32px; border-radius: 6px; cursor: pointer; position: relative; flex: none; text-align: right; }
+.ronda .n-hecha { color: var(--accent); font-weight: 700; text-align: center; }
+.n-hecha::after { content: ""; position: absolute; inset: -6px -8px; }
+.n-hecha:hover { color: var(--accent); background: var(--accent-soft); }
+.nueva-serie .desmarcar, .br-form .desmarcar { align-self: flex-start; font-size: 14px; padding: 4px 0; }
+.en-desmarcar { align-self: center; min-height: 44px; }
+
+/* Plantillas: buscador y Seleccionar en una fila, dentro de la sección (se pliegan con ella) */
+.plant-barra { align-items: center; }
+.plant-barra #buscarPlantilla { flex: 1 1 auto; min-width: 0; }
+.plant-barra .nav-btn { flex: none; }
+@media (max-width: 760px) { .plant-barra #buscarPlantilla { flex-basis: auto; } }

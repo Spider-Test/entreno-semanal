@@ -820,6 +820,7 @@ function bloque(dia, id, series, grupo) {
       '<div class="ns-fila"><input class="in-c" inputmode="decimal" placeholder="⏱ descanso 1,30 o 300 m" aria-label="Descanso o recuperación después de la serie (tiempo o metros)" autocomplete="off" enterkeyhint="done">' +
       '<select class="veces" aria-label="Cuántas series iguales añadir">' + [1, 2, 3, 4, 5, 6, 8, 10].map(n => '<option value="' + n + '">×' + n + '</option>').join("") + '</select>' +
       '<button class="anadir">+ Serie</button></div>' +
+      '<button type="button" class="enlace desmarcar" hidden>↺ Marcar como pendiente</button>' +
     '</form>';
   const nom = b.querySelector(".ej-nombre");
   nom.textContent = ej.nombre || "Sin nombre";
@@ -950,7 +951,7 @@ function bloque(dia, id, series, grupo) {
         marcarHecha(s, { ...s, hecha: true, peso: pesoMostrado(s) });
       });
       marca.replaceWith(c);
-    } else marca.textContent = s.calentamiento ? "C" : numero;
+    } else marca.replaceWith(botonHecha(s, s.calentamiento ? "C" : String(numero), "serie " + numero));
     li.querySelector(".sv-p").textContent = (s.calentamiento ? "Calent. · " : "") + serieTexto(s);
     if (descTexto(s)) { const d = document.createElement("span"); d.className = "desc"; d.textContent = descTexto(s); li.querySelector(".sv").appendChild(d); }
     if (!dist && usaBarra(id) && textoDiscos(pesoMostrado(s))) { const d = document.createElement("span"); d.className = "discos"; d.textContent = textoDiscos(pesoMostrado(s)); li.querySelector(".sv").appendChild(d); }
@@ -963,6 +964,8 @@ function bloque(dia, id, series, grupo) {
       if (chkBilbo) chkBilbo.checked = !!s.ciclo_id;
       if (s.ciclo_id === "auto") { fb.value = ""; fb.placeholder = "reps máx"; }
       boton.textContent = "✓ Guardar " + numero;
+      b.querySelector(".desmarcar").hidden = planificada;
+      b.querySelector(".desmarcar").onclick = () => desmarcar(s);
       ol.querySelectorAll("li").forEach(x => x.classList.remove("editando"));
       li.classList.add("editando");
       fa.focus();
@@ -971,7 +974,7 @@ function bloque(dia, id, series, grupo) {
     if (prs.has(s.id)) { const p = document.createElement("span"); p.className = "pr"; p.textContent = "PR"; p.title = "Récord personal"; li.querySelector(".sv").after(p); }
     li.querySelector(".borrar").addEventListener("click", () => borrarSerie(s));
     // Deslizar: a la derecha la marca hecha; a la izquierda la borra (con Deshacer)
-    deslizable(li, planificada && s.ciclo_id !== "auto" ? () => marcarHecha(s, { ...s, hecha: true, peso: pesoMostrado(s) }) : null, () => borrarSerie(s));
+    deslizable(li, planificada ? (s.ciclo_id !== "auto" ? () => marcarHecha(s, { ...s, hecha: true, peso: pesoMostrado(s) }) : null) : () => desmarcar(s), () => borrarSerie(s));
     li.dataset.sid = s.id;
     if (series.length > 1) li.appendChild(asaArrastre(li, () => [...ol.querySelectorAll(":scope > li[data-sid]")], n => reordenar(n.map(x => [db.series[x.dataset.sid]]), "Serie movida"), "Serie " + (s.calentamiento ? "de calentamiento" : numero)));
     ol.appendChild(li);
@@ -1047,7 +1050,7 @@ function tarjetaBloque(dia, bloqueId, series) {
     '<form class="nueva-serie br-form" hidden><span class="br-que"></span>' +
       '<div class="ns-fila"><input class="in-a" autocomplete="off" enterkeyhint="next"><span class="por"></span><input class="in-b" autocomplete="off" enterkeyhint="next"></div>' +
       '<div class="ns-fila"><input class="in-c" inputmode="decimal" placeholder="⏱ recuperación 2,00 o 300 m" aria-label="Recuperación (tiempo o metros)" autocomplete="off" enterkeyhint="done">' +
-      '<button class="anadir">✓ Guardar</button></div></form>';
+      '<button class="anadir">✓ Guardar</button></div><button type="button" class="enlace desmarcar" hidden>↺ Marcar como pendiente</button></form>';
   c.querySelector(".br-tit").textContent = "Bloque ×" + rondas.length + " · " + primera.map(s => nombreEj(s.ejercicio_id)).join(" + ");
   c.querySelector(".g-prog").textContent = series.filter(hecha).length + "/" + series.length;
   const menu = c.querySelector(".menu-btn");
@@ -1075,6 +1078,8 @@ function tarjetaBloque(dia, bloqueId, series) {
   const prs = {};
   primera.forEach(s => { if (!prs[s.ejercicio_id]) prs[s.ejercicio_id] = prsDe(seriesDe(s.ejercicio_id), tipoDe(s.ejercicio_id)); });
   const editar = (s, li) => {
+    c.querySelector(".desmarcar").hidden = !hecha(s);
+    c.querySelector(".desmarcar").onclick = () => desmarcar(s);
     editando = s;
     const dist = esDistancia(tipoDe(s.ejercicio_id));
     c.querySelector(".br-que").textContent = "R" + n0(s.ronda) + " · " + nombreEj(s.ejercicio_id);
@@ -1108,8 +1113,8 @@ function tarjetaBloque(dia, bloqueId, series) {
         m.setAttribute("aria-label", "Marcar como hecho: ronda " + r + ", " + nombreEj(s.ejercicio_id));
         m.addEventListener("click", () => marcarHecha(s, { ...s, hecha: true, peso: pesoMostrado(s) }));
         li.querySelector(".n").replaceWith(m);
-      }
-      deslizable(li, !hecha(s) ? () => marcarHecha(s, { ...s, hecha: true, peso: pesoMostrado(s) }) : null, null);
+      } else li.querySelector(".n").replaceWith(botonHecha(s, "✓", "ronda " + r + ", " + nombreEj(s.ejercicio_id)));
+      deslizable(li, !hecha(s) ? () => marcarHecha(s, { ...s, hecha: true, peso: pesoMostrado(s) }) : () => desmarcar(s), null);
       // El nombre del tramo solo si aporta algo: «Series 1000 m · 1000 m» se queda en «1000 m»
       const nomTramo = variosTramos && !distDeNombre(nombreEj(s.ejercicio_id)) ? nombreEj(s.ejercicio_id) + " · " : "";
       li.querySelector(".sv-p").textContent = nomTramo + serieTexto(s);
@@ -3268,6 +3273,22 @@ function marcarHecha(antes, fila) {
   pintarBloques(true);
   avisarSiPR(fila, [["series", antes]]);
 }
+// Volver a pendiente una serie hecha: deja de contar para récords, volumen y marcas; los objetivos se recalculan
+function desmarcar(s) {
+  cambiar("series", { ...s, hecha: false });
+  pintarBloques(true);
+  avisoDeshacer("Serie marcada como pendiente · " + nombreEj(s.ejercicio_id), [["series", s]]);
+}
+function botonHecha(s, texto, nombre) {
+  const b = document.createElement("button");
+  b.type = "button";
+  b.className = "n n-hecha";
+  b.textContent = texto;
+  b.title = "Marcar como pendiente";
+  b.setAttribute("aria-label", "Hecha: " + nombre + ". Pulsa para marcarla como pendiente");
+  b.addEventListener("click", () => desmarcar(s));
+  return b;
+}
 function borrarSerie(s) {
   cambiar("series", { ...s, borrado: true });
   pintarBloques(true);
@@ -3380,6 +3401,7 @@ function pintarEntreno() {
     $(inp).placeholder = c === "reps" && s.ciclo_id ? "máx" : c === "t" ? "3,40" : "";
   });
   $("enHecha").textContent = hecha(s) ? "Guardar cambios" : "✓ Hecha";
+  $("enDesmarcar").hidden = !hecha(s);
   $("enAviso").textContent = "";
   $("enAnt").disabled = ent.i === 0;
   $("enSig").disabled = ent.i >= lista.length - 1;
@@ -3481,6 +3503,7 @@ $("enMenos").addEventListener("click", () => moverDescanso(-15));
 $("enMas").addEventListener("click", () => moverDescanso(15));
 $("enSaltarD").addEventListener("click", () => { clearInterval(ent.timer); ent.timer = null; ent.fin = 0; $("enDescanso").hidden = true; });
 $("enAnt").addEventListener("click", () => { if (ent.i > 0) { ent.i--; pintarEntreno(); } });
+$("enDesmarcar").addEventListener("click", () => { const s = serieEnt(); if (!s || !hecha(s)) return; $("enFin").hidden = true; desmarcar(s); pintarEntreno(); });
 $("enCalentSi").addEventListener("click", () => {
   const s = serieEnt();
   if (!s || !ent.calent) return;
@@ -3506,7 +3529,7 @@ $("enSalir").addEventListener("click", salirEntreno);
 $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); abrirRpe(d); });
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
-const VERSION_APP = "v28";
+const VERSION_APP = "v29";
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";

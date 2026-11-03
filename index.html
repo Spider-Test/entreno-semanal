@@ -83,7 +83,8 @@
 
   <div id="vistaPlan" hidden>
     <section class="plan-sec" data-sec="plantillas">
-      <div class="sec-cab"><h3>Plantillas</h3><input id="buscarPlantilla" type="search" placeholder="Buscar plantilla" aria-label="Buscar plantilla por nombre o ejercicio" autocomplete="off"><button type="button" class="nav-btn" id="selPlantEntrar">Seleccionar</button></div>
+      <h3>Plantillas</h3>
+      <div class="barra plant-barra"><input id="buscarPlantilla" type="search" placeholder="Buscar plantilla" aria-label="Buscar plantilla por nombre o ejercicio" autocomplete="off"><button type="button" class="nav-btn" id="selPlantEntrar">Seleccionar</button></div>
       <div class="sel-barra" id="selPlantBarra" hidden><span id="selPlantN"></span><button type="button" class="enlace" id="selPlantTodas">Seleccionar todas</button><button type="button" class="nav-btn" id="selPlantCancelar">Cancelar</button></div>
       <div class="lista-tarjetas" id="listaPlantillas"></div>
     </section>
@@ -390,8 +391,8 @@
   </form>
   <div class="d-cuerpo ayuda">
     <p>Toca cada apartado para verlo. Puedes volver aquí cuando quieras con el botón <b>?</b> de arriba. ¿Echas algo en falta o algo no va bien? Envíanos una sugerencia:</p>
-    <details class="novedades" open><summary>Novedades · versión 28</summary>
-      <p>Arreglado: ya se abren y cierran todas las secciones de Plan (Importar, Crear con IA, Rutinas, Compartido, Copia, Ajustes y Usuarios).</p>
+    <details class="novedades" open><summary>Novedades · versión 29</summary>
+      <p>Desmarcar una serie hecha por error: toca su número o ✓, deslízala a la derecha o usa «↺ Marcar como pendiente» (también en el modo entreno) · arreglados los desplegables de Plan; en Plantillas, el buscador y «Seleccionar» se pliegan con la sección.</p>
       <p>Selección múltiple de plantillas (mantén pulsada una): añadir a un día, a un mesociclo, compartir juntas o eliminar · diseño más compacto y estilo de cristal · importar carreras del reloj o de Strava · reordenar con el asa ≡.</p>
     </details>
     <button type="button" class="nav-btn sug-btn" id="sugAyuda">💬 Enviar una sugerencia o avisar de un fallo</button>
@@ -422,6 +423,7 @@
       <p>Las series que añades en días futuros (o que vienen de plantillas y mesociclos) quedan <b>planificadas</b>, en gris y con un círculo.</p>
       <p>Toca el círculo para marcarla como hecha tal cual. Si hiciste otra cosa, toca la serie, corrige los datos y guárdala. También puedes corregir después una serie ya hecha tocándola.</p>
       <p>En el móvil también puedes <b>deslizar</b> una serie: a la derecha la marca hecha y a la izquierda la borra. Durante 5 segundos aparece abajo <b>Deshacer</b>. Si consigues un récord, te lo celebra.</p>
+      <p>¿Marcaste una serie por error? Toca su número (o el ✓ en los bloques), desliza la serie hecha a la derecha, o tócala y elige <b>↺ Marcar como pendiente</b>. Vuelve a planificada y deja de contar para récords, volumen y marcas. En el modo entreno tienes el mismo botón (vuelve con <b>‹ Anterior</b> si ya pasaste a la siguiente).</p>
     </details>
     <details><summary>Modo entreno</summary>
       <p>En el día de hoy (o en un día abierto) pulsa <b>Empezar entreno</b>: verás en grande cada serie, con los discos que van por lado y el ritmo objetivo en carrera.</p>
@@ -566,6 +568,7 @@
     </div>
     <p class="aviso" id="enAviso" role="status"></p>
     <button type="button" class="primario en-hecha" id="enHecha">✓ Hecha</button>
+    <button type="button" class="nav-btn en-desmarcar" id="enDesmarcar" hidden>↺ Marcar como pendiente</button>
     <div class="en-descanso" id="enDescanso" hidden>
       <span class="en-d-t" id="enDescTit">Descanso</span>
       <span class="en-d-n" id="enReloj">0:00</span>
