@@ -1706,7 +1706,7 @@ function duracionEquivalente(total, segRep, recMedia) {
 }
 // Una sesión de carrera es todo lo corrido ese día: las series de trabajo y los trotes entre ellas
 function sesionCarrera(fecha, extra) {
-  const todas = seriesVivas().filter(s => s.fecha === fecha && tipoDe(s.ejercicio_id) === "carrera").concat(extra || []);
+  const todas = seriesVivas().filter(s => s.fecha === fecha && tipoDe(s.ejercicio_id) === "carrera" && !s.calentamiento).concat(extra || []);
   return { trabajo: todas.filter(s => !esRecuperacion(s.ejercicio_id) && n0(s.distancia) > 0).sort((x, y) => x.orden - y.orden), trotes: todas.filter(s => esTrote(s.ejercicio_id)) };
 }
 // Recuperación media entre series de trabajo: la apuntada en cada serie más el tiempo de los trotes
@@ -1795,7 +1795,7 @@ const textoObjetivo = o => !o ? "" : (o.suave ? "objetivo suave ~" + fmtTiempo(o
   : "objetivo " + fmtTiempo(o.tiempo) + " (" + fmtTiempo(o.ritmo) + "/km)" + (o.ajustado ? " · ajustado a cómo vas" : "")) + (o.fatiga ? " · más suave por tu esfuerzo reciente" : "");
 // Mejores marcas por distancia: exactas o, dentro de una serie algo más larga, a su ritmo medio
 function marcasDe(tipo) {
-  const lista = seriesVivas().filter(s => hecha(s) && tipoDe(s.ejercicio_id) === tipo && n0(s.distancia) > 0 && n0(s.tiempo) > 0);
+  const lista = seriesVivas().filter(s => hecha(s) && !s.calentamiento && tipoDe(s.ejercicio_id) === tipo && n0(s.distancia) > 0 && n0(s.tiempo) > 0);
   return DIST_MARCAS.map(d => {
     let mejor = null;
     const evol = {};
@@ -2297,9 +2297,11 @@ function datosSemana(lunes) {
   const ini = iso(lunes), fin = iso(sumarDias(lunes, 7));
   const todas = seriesVivas().filter(s => s.fecha >= ini && s.fecha < fin && !s.calentamiento), hechas = todas.filter(hecha);
   const r = { series: hechas.length, total: todas.length, km: 0, nado: 0, kg: 0, prs: 0, dias: new Set(hechas.map(s => s.fecha)).size };
-  hechas.forEach(s => {
+  hechas.forEach(s => { if (tipoDe(s.ejercicio_id) === "fuerza") r.kg += n0(s.peso) * n0(s.reps); });
+  // Los km y metros sí incluyen calentamiento y vuelta a la calma: también se corren
+  seriesVivas().filter(s => s.fecha >= ini && s.fecha < fin && hecha(s)).forEach(s => {
     const t = tipoDe(s.ejercicio_id);
-    if (t === "carrera") r.km += n0(s.distancia) / 1000; else if (t === "natacion") r.nado += n0(s.distancia); else r.kg += n0(s.peso) * n0(s.reps);
+    if (t === "carrera") r.km += n0(s.distancia) / 1000; else if (t === "natacion") r.nado += n0(s.distancia);
   });
   [...new Set(hechas.map(s => s.ejercicio_id))].forEach(id => { const prs = prsDe(seriesDe(id), tipoDe(id)); hechas.forEach(s => { if (prs.has(s.id)) r.prs++; }); });
   const rpes = Object.values(db.entrenos).filter(e => e.fecha >= ini && e.fecha < fin && n0(e.rpe) > 0).map(e => n0(e.rpe));
@@ -3486,7 +3488,7 @@ $("enSalir").addEventListener("click", salirEntreno);
 $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); abrirRpe(d); });
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
-const VERSION_APP = "v23";
+const VERSION_APP = "v24";
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";
@@ -3567,6 +3569,246 @@ $("sugAyuda").addEventListener("click", abrirSug);
 $("sugPie").addEventListener("click", abrirSug);
 $("sugRecargar").addEventListener("click", cargarSugerencias);
 $("tabPlan").addEventListener("click", cargarSugerencias);
+
+// ---------- Importar carreras: GPX y TCX del reloj, o el CSV de actividades de Strava o Garmin ----------
+const ritmoRecImport = () => n0(ajustes().ritmoRec) || 480;   // más lento que esto (s/km) es recuperación
+const distGeo = (a, b) => {
+  const r = Math.PI / 180, dLat = (b.lat - a.lat) * r, dLon = (b.lon - a.lon) * r;
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * r) * Math.cos(b.lat * r) * Math.sin(dLon / 2) ** 2;
+  return 2 * 6371000 * Math.asin(Math.min(1, Math.sqrt(h)));
+};
+const textoDe = (el, tag) => ((el.getElementsByTagName(tag)[0] || {}).textContent || "").trim();
+function leerGPX(doc) {
+  return [...doc.getElementsByTagName("trk")].map(trk => {
+    const pts = [...trk.getElementsByTagName("trkpt")].map(p => ({ lat: +p.getAttribute("lat"), lon: +p.getAttribute("lon"), t: Date.parse(textoDe(p, "time")) }))
+      .filter(p => !isNaN(p.lat) && !isNaN(p.lon) && !isNaN(p.t));
+    if (pts.length < 2) return null;
+    let d = 0;
+    for (let i = 1; i < pts.length; i++) d += distGeo(pts[i - 1], pts[i]);
+    return { inicio: pts[0].t, nombre: textoDe(trk, "name"), deporte: textoDe(trk, "type"), vueltas: [{ distancia: d, tiempo: (pts[pts.length - 1].t - pts[0].t) / 1000 }] };
+  }).filter(Boolean);
+}
+function leerTCX(doc) {
+  return [...doc.getElementsByTagName("Activity")].map(a => {
+    const laps = [...a.getElementsByTagName("Lap")];
+    const vueltas = laps.map(l => ({ distancia: +textoDe(l, "DistanceMeters") || 0, tiempo: +textoDe(l, "TotalTimeSeconds") || 0 }));
+    if (!vueltas.length) return null;
+    return { inicio: Date.parse(textoDe(a, "Id") || laps[0].getAttribute("StartTime")), nombre: textoDe(a, "Notes"), deporte: a.getAttribute("Sport") || "", vueltas };
+  }).filter(Boolean);
+}
+function filasCSV(texto) {
+  const primera = texto.split("\n")[0], sep = (primera.match(/;/g) || []).length > (primera.match(/,/g) || []).length ? ";" : ",";
+  const filas = [];
+  let fila = [], campo = "", comillas = false;
+  for (let i = 0; i < texto.length; i++) {
+    const c = texto[i];
+    if (comillas) { if (c === '"') { if (texto[i + 1] === '"') { campo += '"'; i++; } else comillas = false; } else campo += c; }
+    else if (c === '"') comillas = true;
+    else if (c === sep) { fila.push(campo); campo = ""; }
+    else if (c === "\n" || c === "\r") { if (c === "\r" && texto[i + 1] === "\n") i++; fila.push(campo); filas.push(fila); fila = []; campo = ""; }
+    else campo += c;
+  }
+  if (campo || fila.length) { fila.push(campo); filas.push(fila); }
+  return filas.filter(f => f.some(x => x.trim()));
+}
+const MESES_EN = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+function leerFechaCSV(s) {
+  const t = norm(String(s || "")).replace(/\./g, "");
+  let m;
+  if ((m = t.match(/^(\d{4})-(\d{2})-(\d{2})[ t](\d{1,2}):(\d{2})/))) return new Date(+m[1], m[2] - 1, +m[3], +m[4], +m[5]).getTime();   // Garmin: hora local
+  if ((m = t.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:[ ,]+(\d{1,2}):(\d{2}))?/))) return new Date(+m[3], m[2] - 1, +m[1], +(m[4] || 12), +(m[5] || 0)).getTime();
+  // Strava (en UTC): «Nov 3, 2026, 5:45:12 PM» o «3 nov 2026, 17:45:12»
+  if ((m = t.match(/^([a-z]{3})[a-z]* (\d{1,2}),? (\d{4}),? (\d{1,2}):(\d{2})(?::\d{2})? ?(am|pm)?/)) && MESES_EN.includes(m[1])) {
+    let h = +m[4];
+    if (m[6] === "pm" && h < 12) h += 12;
+    if (m[6] === "am" && h === 12) h = 0;
+    return Date.UTC(+m[3], MESES_EN.indexOf(m[1]), +m[2], h, +m[5]);
+  }
+  if ((m = t.match(/^(\d{1,2}) (?:de )?([a-z]{3})[a-z]*(?: de)? (\d{4}),? (\d{1,2}):(\d{2})/)) && MESES.map(norm).includes(m[2])) return Date.UTC(+m[3], MESES.map(norm).indexOf(m[2]), +m[1], +m[4], +m[5]);
+  const x = Date.parse(s);
+  return isNaN(x) ? NaN : x;
+}
+function leerCSVActividades(texto) {
+  const filas = filasCSV(texto);
+  if (filas.length < 2) return [];
+  const cab = filas[0].map(h => norm(h)), col = (...n) => cab.findIndex(h => n.includes(h));
+  const iF = col("activity date", "date", "fecha", "fecha de la actividad", "start time", "hora de inicio"), iT = col("activity type", "tipo de actividad", "type", "tipo");
+  const iD = col("distance", "distancia"), iM = col("moving time", "tiempo en movimiento"), iE = col("elapsed time", "tiempo transcurrido", "time", "tiempo");
+  const iN = col("activity name", "title", "titulo", "nombre de la actividad", "nombre");
+  if (iF < 0 || iD < 0 || (iM < 0 && iE < 0)) throw new Error("No reconozco las columnas del CSV (hacen falta fecha, distancia y tiempo).");
+  return filas.slice(1).map(f => {
+    const tt = String((iM >= 0 && f[iM]) || (iE >= 0 && f[iE]) || "").trim(), tiempo = /:/.test(tt) ? leerTiempo(tt.replace(/\.\d+$/, "")) : parseFloat(tt.replace(",", "."));
+    let d = parseFloat(String(f[iD] || "").replace(/\s/g, "").replace(",", "."));
+    if (d > 0 && d < 300) d *= 1000;   // en km
+    return { inicio: leerFechaCSV(f[iF]), nombre: iN >= 0 ? (f[iN] || "").trim() : "", deporte: iT >= 0 ? f[iT] || "" : "", vueltas: [{ distancia: d || 0, tiempo: tiempo || 0 }] };
+  }).filter(a => !isNaN(a.inicio) && a.vueltas[0].distancia > 0 && a.vueltas[0].tiempo > 0);
+}
+// Clasifica las vueltas: las rápidas son series; más lentas que el límite, recuperación; sin avanzar, descanso parado;
+// las lentas y largas del principio y del final, calentamiento y vuelta a la calma
+function clasificarVueltas(vueltas) {
+  const lim = ritmoRecImport();
+  const v = vueltas.map(x => ({ distancia: x.distancia, tiempo: x.tiempo, ritmo: x.distancia > 0 ? x.tiempo / (x.distancia / 1000) : Infinity }));
+  v.forEach(x => { x.clase = x.distancia < 50 || x.tiempo <= 0 || x.ritmo > 1800 ? "parado" : x.ritmo > lim ? "rec" : "serie"; });
+  const rapidas = v.filter(x => x.clase === "serie").map(x => x.ritmo).sort((a, b) => a - b);
+  if (!rapidas.length) return { continuo: true, vueltas: v };
+  // Vueltas automáticas por km en un rodaje: ritmos parecidos y sin recuperaciones
+  if (v.length === 1 || (!v.some(x => x.clase === "rec") && rapidas[rapidas.length - 1] / rapidas[0] < 1.15)) return { continuo: true, vueltas: v };
+  const ref = rapidas[Math.floor((rapidas.length - 1) / 3)], lenta = x => x.ritmo > ref * 1.2, larga = x => x.distancia >= 800 || x.tiempo >= 240;
+  const i0 = v.findIndex(x => x.clase === "serie" && !lenta(x)), i1 = v.length - 1 - v.slice().reverse().findIndex(x => x.clase === "serie" && !lenta(x));
+  v.forEach((x, i) => {
+    if (x.clase === "parado" || !larga(x) || !(lenta(x) || x.clase === "rec")) return;
+    if (i < i0) x.clase = "calent"; else if (i > i1) x.clase = "calma";
+  });
+  return { continuo: false, vueltas: v };
+}
+const CLASES_VUELTA = { serie: "Serie", rec: "Recuperación", parado: "Descanso parado", calent: "Calentamiento", calma: "Vuelta a la calma", ignorar: "No importar" };
+// Series de distancia parecida (±5 %): se pueden agrupar como bloque ×N
+function patronSeries(v) {
+  const s = v.filter(x => x.clase === "serie");
+  if (!s.length) return { nombre: "Series", regular: false };
+  const media = s.reduce((a, x) => a + x.distancia, 0) / s.length, regular = s.every(x => Math.abs(x.distancia - media) <= media * 0.05);
+  const redondo = media >= 300 ? Math.round(media / 100) * 100 : Math.round(media / 50) * 50;
+  return { nombre: regular ? "Series " + redondo + " m" : "Series", regular: regular && s.length >= 3, n: s.length };
+}
+let importadas = [];
+const noEsCarrera = d => /bik|cycl|ride|cicl|bici|swim|nata|walk|camin|hik|sender|yoga|weight|fuerza|gym/.test(norm(d));
+function prepararActividad(a) {
+  const d0 = new Date(a.inicio), fecha = iso(d0), hora = String(d0.getHours()).padStart(2, "0") + ":" + String(d0.getMinutes()).padStart(2, "0");
+  const total = a.vueltas.reduce((x, v) => ({ d: x.d + v.distancia, t: x.t + v.tiempo }), { d: 0, t: 0 });
+  const c = clasificarVueltas(a.vueltas), grupo = (a.nombre || "Carrera").slice(0, 40) + " · " + hora;
+  // Ya importada: misma sesión ese día, o casi la misma distancia de carrera ese día
+  const delDia = seriesVivas().filter(s => s.fecha === fecha && tipoDe(s.ejercicio_id) === "carrera");
+  const kmDia = delDia.reduce((x, s) => x + n0(s.distancia) + n0(s.rec_dist), 0);
+  const dup = delDia.some(s => s.grupo === grupo) || (kmDia > 0 && Math.abs(kmDia - total.d) <= total.d * 0.03);
+  return { ...a, fecha, hora, grupo, total, vueltas: c.vueltas, modo: c.continuo ? "rodaje" : "vueltas", bloque: patronSeries(c.vueltas).regular, dup, otro: noEsCarrera(a.deporte), importar: !dup && !noEsCarrera(a.deporte) };
+}
+async function leerArchivosImport(archivos) {
+  $("impAviso").textContent = "";
+  const nuevas = [];
+  for (const f of archivos) {
+    try {
+      const texto = await f.text(), nombre = f.name.toLowerCase();
+      let acts;
+      if (/\.csv$/.test(nombre) || !/^\s*</.test(texto)) acts = leerCSVActividades(texto);
+      else {
+        const doc = new DOMParser().parseFromString(texto, "application/xml");
+        if (doc.getElementsByTagName("parsererror").length) throw new Error("el archivo está dañado o no es GPX/TCX");
+        acts = doc.getElementsByTagName("TrainingCenterDatabase").length ? leerTCX(doc) : leerGPX(doc);
+      }
+      if (!acts.length) throw new Error("no tiene ninguna actividad con distancia y tiempo");
+      nuevas.push(...acts.map(prepararActividad));
+    } catch (e) { $("impAviso").textContent += f.name + ": " + (e.message || "no se ha podido leer") + ". "; }
+  }
+  importadas = nuevas.sort((a, b) => b.inicio - a.inicio);
+  pintarImportar();
+}
+function pintarImportar() {
+  const cont = $("impLista");
+  cont.textContent = "";
+  importadas.forEach((a, k) => {
+    const caja = document.createElement("div");
+    caja.className = "imp-act";
+    const cab = document.createElement("label");
+    cab.className = "imp-cab";
+    cab.innerHTML = '<input type="checkbox"><span class="imp-t"></span>';
+    const chk = cab.querySelector("input");
+    chk.checked = a.importar;
+    chk.addEventListener("change", () => { a.importar = chk.checked; pintarBotonImport(); });
+    cab.querySelector(".imp-t").textContent = NOMBRES[(new Date(a.inicio).getDay() + 6) % 7] + " " + fechaCorta(a.fecha) + " · " + a.hora + (a.nombre ? " · " + a.nombre : "") +
+      " — " + fmtDist(a.total.d) + " en " + fmtTiempo(a.total.t) + " (" + fmtTiempo(a.total.t / (a.total.d / 1000)) + "/km)";
+    caja.appendChild(cab);
+    if (a.dup || a.otro) caja.appendChild(nota(a.dup ? "Parece que ya está en tu calendario: no se importará salvo que la marques." : "No parece una carrera (" + a.deporte + "): márcala si quieres importarla igualmente."));
+    if (a.vueltas.length > 1) {
+      const modo = document.createElement("select");
+      modo.className = "imp-modo";
+      modo.innerHTML = '<option value="rodaje">Como un rodaje (una sola serie)</option><option value="vueltas">Vuelta a vuelta (series y recuperaciones)</option>';
+      modo.value = a.modo;
+      modo.setAttribute("aria-label", "Cómo guardar esta actividad");
+      modo.addEventListener("change", () => { a.modo = modo.value; pintarImportar(); });
+      caja.appendChild(modo);
+    }
+    if (a.modo === "vueltas") {
+      const tabla = document.createElement("div");
+      tabla.className = "imp-vueltas";
+      a.vueltas.forEach((v, i) => {
+        const fila = document.createElement("div");
+        fila.className = "imp-v c-" + v.clase;
+        fila.innerHTML = '<span class="imp-n"></span><span class="imp-d"></span><select></select>';
+        fila.querySelector(".imp-n").textContent = i + 1;
+        fila.querySelector(".imp-d").textContent = fmtDist(v.distancia) + " · " + fmtTiempo(v.tiempo) + (isFinite(v.ritmo) && v.distancia >= 50 ? " · " + fmtTiempo(v.ritmo) + "/km" : "");
+        const sel = fila.querySelector("select");
+        Object.keys(CLASES_VUELTA).forEach(c => { const o = document.createElement("option"); o.value = c; o.textContent = CLASES_VUELTA[c]; sel.appendChild(o); });
+        sel.value = v.clase;
+        sel.setAttribute("aria-label", "Vuelta " + (i + 1));
+        sel.addEventListener("change", () => { v.clase = sel.value; a.bloque = a.bloque && patronSeries(a.vueltas).regular; pintarImportar(); });
+        tabla.appendChild(fila);
+      });
+      caja.appendChild(tabla);
+      const p = patronSeries(a.vueltas);
+      caja.appendChild(nota(p.n ? p.n + (p.n === 1 ? " serie" : " series") + " → «" + p.nombre + "». Las recuperaciones y los descansos se guardan como descanso de la serie anterior; el calentamiento y la vuelta a la calma no cuentan para marcas." : "No hay ninguna vuelta marcada como serie."));
+      if (p.regular) {
+        const b = document.createElement("label");
+        b.className = "permiso";
+        b.innerHTML = '<input type="checkbox"> Agrupar las series como bloque ×' + p.n;
+        b.querySelector("input").checked = a.bloque;
+        b.querySelector("input").addEventListener("change", ev => { a.bloque = ev.target.checked; });
+        caja.appendChild(b);
+      }
+    }
+    cont.appendChild(caja);
+  });
+  pintarBotonImport();
+}
+function pintarBotonImport() {
+  const n = importadas.filter(a => a.importar).length;
+  $("impGuardar").hidden = !importadas.length;
+  $("impGuardar").disabled = !n;
+  $("impGuardar").textContent = n ? "Importar " + n + (n === 1 ? " actividad" : " actividades") : "Marca alguna actividad";
+}
+function guardarActividad(a) {
+  let orden = Date.now() + Math.round(Math.random() * 1000);
+  const filas = [];
+  const fila = (ej, extra) => { const f = { id: nuevoId(), fecha: a.fecha, ejercicio_id: ej, orden: orden++, peso: 0, reps: 0, distancia: 0, tiempo: 0, descanso: 0, rec_dist: 0, pct: 0,
+    ciclo_id: "", calentamiento: false, hecha: true, grupo: a.grupo, meso_id: "", bloque_id: "", ronda: 0, borrado: false, ...extra }; filas.push(f); return f; };
+  if (a.modo === "rodaje") fila(idPorNombre("Rodaje", "carrera"), { distancia: Math.round(a.total.d), tiempo: Math.round(a.total.t) });
+  else {
+    const p = patronSeries(a.vueltas), idSerie = idPorNombre(p.nombre, "carrera"), bloque = a.bloque && p.regular ? nuevoId() : "";
+    let ultima = null, ronda = 0;
+    a.vueltas.forEach(v => {
+      const d = Math.round(v.distancia), t = Math.round(v.tiempo);
+      if (v.clase === "serie") ultima = fila(idSerie, { distancia: d, tiempo: t, bloque_id: bloque, ronda: bloque ? ++ronda : 0 });
+      else if ((v.clase === "rec" || v.clase === "parado") && ultima) { ultima.descanso += t; if (v.clase === "rec") ultima.rec_dist += d; }
+      else if (v.clase === "calent" || v.clase === "calma") { fila(idPorNombre(v.clase === "calent" ? "Calentamiento carrera" : "Vuelta a la calma", "carrera"), { distancia: d, tiempo: t, calentamiento: true }); ultima = null; }
+    });
+  }
+  filas.forEach(f => cambiar("series", f, true));
+  return filas.length;
+}
+$("impArchivo").addEventListener("change", ev => { const fs = [...ev.target.files]; ev.target.value = ""; if (fs.length) leerArchivosImport(fs); });
+$("impGuardar").addEventListener("click", () => {
+  const elegidas = importadas.filter(a => a.importar);
+  const n = elegidas.reduce((x, a) => x + guardarActividad(a), 0);
+  persistir();
+  $("dlgImport").close();
+  setEstado("Importadas " + elegidas.length + (elegidas.length === 1 ? " actividad" : " actividades") + " (" + n + " series)");
+  if (elegidas.length === 1) abrirDia(elegidas[0].fecha); else { pintarTodo(); verPestana("semana"); }
+});
+$("impAbrir").addEventListener("click", () => {
+  importadas = [];
+  $("impLista").textContent = "";
+  $("impAviso").textContent = "";
+  pintarBotonImport();
+  $("dlgImport").showModal();
+});
+// Ajuste: ritmo a partir del cual una vuelta es recuperación
+$("ajRitmoRec").value = ajustes().ritmoRec ? fmtTiempo(ajustes().ritmoRec) : "";
+$("ajRitmoRec").addEventListener("change", () => {
+  const a = leer("ajustes-v1") || {}, v = leerTiempo($("ajRitmoRec").value);
+  if (v >= 180 && v <= 1200) a.ritmoRec = v; else delete a.ritmoRec;
+  escribir("ajustes-v1", a);
+  $("ajRitmoRec").value = a.ritmoRec ? fmtTiempo(a.ritmoRec) : "";
+  setEstado("Ajuste guardado en este dispositivo");
+});
 
 // ---------- Plan: secciones desplegables con contador; se recuerda cuáles quedan abiertas ----------
 let seccionesPlan = { plantillas: true, mesociclos: true, ...(leer("plan-abiertas-v1") || {}) };

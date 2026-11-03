@@ -90,6 +90,11 @@
       <div class="sec-cab"><h3>Mesociclos</h3><button type="button" class="nav-btn" id="nuevoMeso">+ Nuevo</button></div>
       <div class="lista-tarjetas" id="listaMesos"></div>
     </section>
+    <section class="plan-sec" data-sec="importar">
+      <h3>Importar carreras</h3>
+      <p class="vacio-lista">Trae tus carreras del reloj (archivo GPX o TCX) o de Strava y Garmin (CSV de actividades). Con vueltas, cada serie se guarda por separado y sus recuperaciones como descanso.</p>
+      <div class="botonera"><button type="button" class="anadir" id="impAbrir">Importar archivo…</button></div>
+    </section>
     <section class="plan-sec" data-sec="molestias">
       <div class="sec-cab"><h3>Molestias y lesiones</h3><button type="button" class="nav-btn" id="nuevaMolestia">+ Nueva</button></div>
       <div class="lista-tarjetas" id="listaMolestias"></div>
@@ -124,6 +129,7 @@
         <label class="campo">Peso de la barra (kg) <input id="ajBarra" inputmode="decimal" placeholder="20"></label>
         <label class="campo">Botones − y + de peso (kg) <input id="ajPaso" inputmode="decimal" placeholder="2,5"></label>
       </div>
+      <label class="campo">Al importar, una vuelta más lenta que este ritmo (min/km) es recuperación <input id="ajRitmoRec" inputmode="decimal" placeholder="8:00"></label>
     </section>
     <section class="plan-sec" data-sec="sugerencias" id="bloqueSug" hidden>
       <div class="sec-cab"><h3 id="sugTit">Sugerencias</h3><button type="button" class="nav-btn" id="sugRecargar">Actualizar</button></div>
@@ -383,8 +389,8 @@
   </form>
   <div class="d-cuerpo ayuda">
     <p>Toca cada apartado para verlo. Puedes volver aquí cuando quieras con el botón <b>?</b> de arriba. ¿Echas algo en falta o algo no va bien? Envíanos una sugerencia:</p>
-    <details class="novedades" open><summary>Novedades · versión 23</summary>
-      <p>Reordenar arrastrando el asa ≡ (o con Subir y Bajar) · secciones de Plan desplegables con contador · buscador de plantillas · antes: discos por lado y calentamiento, molestias, compartir mesociclos.</p>
+    <details class="novedades" open><summary>Novedades · versión 24</summary>
+      <p>Importar carreras del reloj o de Strava (GPX, TCX y CSV), con cada vuelta clasificada · reordenar arrastrando el asa ≡ · secciones de Plan desplegables con buscador de plantillas.</p>
     </details>
     <button type="button" class="nav-btn sug-btn" id="sugAyuda">💬 Enviar una sugerencia o avisar de un fallo</button>
     <details><summary>La semana y el texto del día</summary>
@@ -451,6 +457,11 @@
       <p>En <b>Rutinas tipo</b> tienes algunos ejemplos listos. Todo se copia a tus plantillas y lo puedes editar como cualquier otra.</p>
       <p>Son sugerencias generales, no un plan médico ni personalizado.</p>
     </details>
+    <details><summary>Importar carreras</summary>
+      <p>En <b>Plan → Importar carreras</b> subes un archivo GPX o TCX del reloj o de Strava, o el CSV de actividades de Strava o Garmin. Cada carrera se guarda en su fecha con distancia y tiempo, y alimenta Marcas y ritmos.</p>
+      <p>Si tiene vueltas (lap): las rápidas son <b>series</b>; las más lentas de 8:00/km son <b>recuperación</b> y se guardan como descanso de la serie anterior; las que casi no avanzan son <b>descanso parado</b>; las lentas y largas del principio y del final son <b>calentamiento</b> y <b>vuelta a la calma</b> (no cuentan para marcas). Puedes cambiar cada vuelta en la vista previa, y si las series son iguales, agruparlas como bloque ×N. El límite de 8:00 se cambia en Plan → Ajustes.</p>
+      <p>Si una carrera ya está en tu calendario, la app lo detecta y no la duplica. Los rodajes con vuelta automática cada km se guardan como una sola serie.</p>
+    </details>
     <details><summary>Marcas y ritmos recomendados</summary>
       <p>La pestaña <b>Marcas</b> estima tu forma en carrera (VDOT), tus marcas previstas y tus ritmos de entrenamiento, con tus sesiones completas de las últimas semanas.</p>
       <p>Las series de carrera planificadas muestran un objetivo que se ajusta según cómo te van saliendo. Si tus últimos días tienen esfuerzo alto, el objetivo se suaviza un poco. Son estimaciones orientativas.</p>
@@ -499,6 +510,20 @@
     </div>
     <p class="menu-det nota">No sustituye la opinión de un profesional: si el dolor no mejora, consulta con tu médico o fisioterapeuta.</p>
     <div class="d-botones"><button type="button" class="peligro" id="molBorrar">Eliminar</button><button type="button" class="anadir" id="molGuardar">Guardar</button></div>
+  </div>
+</dialog>
+
+<dialog id="dlgImport" aria-label="Importar carreras">
+  <form method="dialog" class="d-cab">
+    <h3 class="d-tit">Importar carreras</h3>
+    <button class="cerrar" aria-label="Cerrar">✕</button>
+  </form>
+  <div class="d-cuerpo">
+    <p class="menu-det nota">Elige uno o varios archivos: GPX o TCX exportados del reloj (Garmin, Coros, Suunto, Polar…) o de una actividad de Strava, o el CSV de actividades de Strava o Garmin Connect. Revisa cada vuelta antes de importar.</p>
+    <div class="botonera"><label class="anadir imp-elegir">Elegir archivo…<input type="file" id="impArchivo" accept=".gpx,.tcx,.csv,.xml,application/gpx+xml,text/csv" multiple hidden></label></div>
+    <p class="aviso" id="impAviso" role="status"></p>
+    <div id="impLista" class="imp-lista"></div>
+    <div class="d-botones"><button type="button" class="anadir" id="impGuardar" hidden>Importar</button></div>
   </div>
 </dialog>
 

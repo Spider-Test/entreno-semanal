@@ -670,3 +670,19 @@ dialog.pantalla[open] { display: flex; flex-direction: column; }
 #buscarPlantilla { flex: 1 1 180px; min-width: 0; font-size: 15px; padding: 6px 10px; }
 @media (prefers-reduced-motion: reduce) { .sec-cuerpo { transition: none; } }
 @media (max-width: 760px) { .sec-toggle { min-height: 44px; } #buscarPlantilla { flex-basis: 100%; font-size: 16px; } }
+
+/* Importar carreras */
+.imp-elegir { display: inline-flex; align-items: center; cursor: pointer; }
+.imp-lista { display: flex; flex-direction: column; gap: 12px; }
+.imp-act { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border-radius: 12px; background: var(--bg); }
+.imp-cab { display: flex; align-items: flex-start; gap: 10px; font-weight: 600; line-height: 1.35; cursor: pointer; }
+.imp-cab input { width: 20px; height: 20px; margin-top: 1px; accent-color: var(--accent); flex: none; }
+.imp-modo { font-size: 15px; border: 1px solid var(--line); background: var(--card); color: var(--fg); border-radius: 8px; padding: 6px 8px; }
+.imp-vueltas { display: flex; flex-direction: column; }
+.imp-v { display: grid; grid-template-columns: 1.8em 1fr auto; gap: 8px; align-items: center; padding: 4px 0; border-top: 1px solid var(--line); font-size: 14px; font-variant-numeric: tabular-nums; }
+.imp-v select { font-size: 14px; border: 1px solid var(--line); background: var(--card); color: var(--fg); border-radius: 8px; padding: 4px 6px; }
+.imp-n { color: var(--muted); text-align: right; }
+.imp-v.c-serie .imp-d { font-weight: 700; color: var(--carrera); }
+.imp-v.c-rec .imp-d, .imp-v.c-parado .imp-d, .imp-v.c-calent .imp-d, .imp-v.c-calma .imp-d { color: var(--muted); }
+.imp-v.c-ignorar .imp-d { text-decoration: line-through; color: var(--muted); }
+@media (max-width: 760px) { .imp-v select, .imp-modo { font-size: 16px; min-height: 40px; } }
