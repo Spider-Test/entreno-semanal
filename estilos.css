@@ -608,3 +608,16 @@ dialog.pantalla[open] { display: flex; flex-direction: column; }
   .menu-btn:focus-visible, .series .borrar:focus-visible, .bloque .quitar:focus-visible { opacity: 1; }
   .dia:not(:hover):not(:focus-within) .add-ej { opacity: 0.55; }
 }
+
+/* Sugerencias */
+.sug-btn { height: auto; min-height: 44px; padding: 8px 12px; justify-content: flex-start; text-align: left; }
+.sug { border-top: 1px solid var(--line); padding: 10px 0; display: flex; flex-direction: column; gap: 6px; }
+.sug-cab { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.sug-tipo { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; border-radius: 5px; padding: 1px 6px; background: var(--accent-soft); color: var(--accent); }
+.sug-tipo.t-fallo { background: var(--error-soft); color: var(--error); }
+.sug-tipo.t-otro { background: var(--bg); color: var(--muted); }
+.sug-de { flex: 1; min-width: 0; font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
+.sug-texto { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.45; }
+.sug:not(.leida) .sug-texto { font-weight: 600; }
+.sug.leida { opacity: 0.65; }
+.pie { flex-wrap: wrap; }

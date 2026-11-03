@@ -121,6 +121,10 @@
         <label class="campo">Botones − y + de peso (kg) <input id="ajPaso" inputmode="decimal" placeholder="2,5"></label>
       </div>
     </section>
+    <section class="plan-sec" id="bloqueSug" hidden>
+      <div class="sec-cab"><h3 id="sugTit">Sugerencias</h3><button type="button" class="nav-btn" id="sugRecargar">Actualizar</button></div>
+      <div id="listaSug"></div>
+    </section>
     <section class="plan-sec" id="bloqueUsuarios" hidden>
       <h3>Usuarios</h3>
       <p class="vacio-lista">Las cuentas nuevas no pueden ver ni guardar nada hasta que las apruebes.</p>
@@ -135,6 +139,7 @@
 
   <div class="pie">
     <span id="estado" role="status"></span>
+    <button type="button" class="enlace" id="sugPie">Enviar sugerencia</button>
     <button type="button" class="enlace" id="salirBtn">Cerrar sesión</button>
   </div>
 </section>
@@ -367,6 +372,7 @@
   </form>
   <div class="d-cuerpo ayuda">
     <p>Toca cada apartado para verlo. Puedes volver aquí cuando quieras con el botón <b>?</b> de arriba.</p>
+    <button type="button" class="nav-btn sug-btn" id="sugAyuda">💬 Enviar una sugerencia o avisar de un fallo</button>
     <details><summary>La semana y el texto del día</summary>
       <p>Abajo tienes las secciones: <b>Semana</b>, <b>Ejercicios</b>, <b>Marcas</b> y <b>Plan</b>.</p>
       <p>En el móvil, el día de hoy aparece abierto y el resto plegados en una línea (sesiones y series hechas). Toca el nombre de un día para abrirlo solo, a pantalla completa; con ‹ › o deslizando a los lados pasas al día anterior o siguiente, y <b>‹ Semana</b> te devuelve.</p>
@@ -438,6 +444,24 @@
       <p>En <b>Plan → Usuarios</b> apruebas las cuentas nuevas (te llega un correo cuando alguien se registra) o les quitas el acceso.</p>
       <p>Con <b>Puede editar el catálogo común</b> das permiso a alguien para editar los ejercicios compartidos. El 1RM y los entrenamientos de cada uno siguen siendo privados.</p>
     </details>
+  </div>
+</dialog>
+
+<dialog id="dlgSug" aria-label="Enviar sugerencia">
+  <form method="dialog" class="d-cab">
+    <h3 class="d-tit">Enviar sugerencia</h3>
+    <button class="cerrar" aria-label="Cerrar">✕</button>
+  </form>
+  <div class="d-cuerpo">
+    <div class="tabs seg" id="sugTipo" role="group" aria-label="Tipo">
+      <button type="button" data-tipo="idea" aria-pressed="true">Idea</button>
+      <button type="button" data-tipo="fallo" aria-pressed="false">Fallo</button>
+      <button type="button" data-tipo="otro" aria-pressed="false">Otro</button>
+    </div>
+    <label class="campo">Cuéntanos <textarea id="sugTexto" rows="6" maxlength="2000" placeholder="Qué echas en falta, qué no funciona o qué cambiarías…"></textarea></label>
+    <p class="menu-det nota">Se envía con tu email, la fecha, la versión de la app y tu navegador, para poder responderte y reproducir el fallo.</p>
+    <p class="aviso" id="sugAviso" role="status"></p>
+    <div class="d-botones"><button type="button" class="anadir" id="sugEnviar">Enviar</button></div>
   </div>
 </dialog>
 

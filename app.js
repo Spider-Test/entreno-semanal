@@ -357,6 +357,7 @@ async function sincronizar() {
         guardarLocal();
       }
     } while (repetir);
+    await enviarSugerencias();
     setEstado("Sincronizado");
   } catch (e) {
     if (e instanceof SesionCaducada) cerrarSesion("Tu sesión ha caducado. Vuelve a entrar; lo que escribiste sigue guardado en este dispositivo.");
@@ -1866,6 +1867,7 @@ function pintarPlan() {
       resumenDiasMeso(m) + (n0(m.progresion) ? " · +" + num(m.progresion) + " kg/semana" : "") + (textoDescarga(m) ? " · " + textoDescarga(m) : "")], () => abrirMeso(m.id)));
   });
 
+  pintarSugerencias();
   $("bloqueUsuarios").hidden = !(perfil && perfil.es_admin);
   if (perfil && perfil.es_admin) {
     const lu = $("listaUsuarios");
@@ -3121,6 +3123,89 @@ $("dlgEntreno").addEventListener("close", () => {
 });
 $("enSalir").addEventListener("click", salirEntreno);
 $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); abrirRpe(d); });
+
+// ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
+const VERSION_APP = "v19";
+let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
+function abrirSug() {
+  sugTipo = "idea";
+  $("sugTipo").querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.tipo === sugTipo)));
+  $("sugAviso").textContent = "";
+  if ($("dlgAyuda").open) $("dlgAyuda").close();
+  $("dlgSug").showModal();
+  $("sugTexto").focus();
+}
+$("sugTipo").addEventListener("click", ev => {
+  const b = ev.target.closest("[data-tipo]");
+  if (!b) return;
+  sugTipo = b.dataset.tipo;
+  $("sugTipo").querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+});
+$("sugEnviar").addEventListener("click", async () => {
+  const texto = $("sugTexto").value.trim();
+  if (!texto) { $("sugAviso").textContent = "Escribe tu sugerencia antes de enviarla."; $("sugTexto").focus(); return; }
+  sugPend.push({ id: nuevoId(), tipo: sugTipo, texto: texto.slice(0, 2000), email: (sesion && sesion.email) || "", version: VERSION_APP, agente: navigator.userAgent.slice(0, 300), creado: new Date().toISOString() });
+  escribir("sugerencias-pend-v1", sugPend);
+  $("sugTexto").value = "";
+  $("dlgSug").close();
+  const ok = await enviarSugerencias();
+  avisoDeshacer(ok ? "¡Gracias! Tu sugerencia se ha enviado" : "¡Gracias! Se enviará en cuanto haya conexión");
+});
+// Envía las pendientes; el id evita duplicados si un envío se repite
+async function enviarSugerencias() {
+  if (!sugPend.length || !sesion) return true;
+  try {
+    const r = await api("/rest/v1/sugerencias?on_conflict=id", { method: "POST", headers: { Prefer: "resolution=ignore-duplicates,return=minimal" }, body: JSON.stringify(sugPend) });
+    if (!r.ok) return false;
+    sugPend = [];
+    escribir("sugerencias-pend-v1", sugPend);
+    return true;
+  } catch { return false; }
+}
+// Para el administrador: lista en Plan con leídas y no leídas
+async function cargarSugerencias() {
+  if (!(perfil && perfil.es_admin)) return;
+  try {
+    const r = await api("/rest/v1/sugerencias?select=id,email,tipo,texto,version,agente,creado,leida&order=creado.desc&limit=200");
+    if (r.ok) sugerencias = await r.json();
+  } catch {}
+  pintarSugerencias();
+}
+function pintarSugerencias() {
+  const admin = !!(perfil && perfil.es_admin);
+  $("bloqueSug").hidden = !admin;
+  if (!admin) return;
+  const noLeidas = sugerencias.filter(s => !s.leida).length;
+  $("sugTit").textContent = "Sugerencias" + (noLeidas ? " · " + noLeidas + " sin leer" : "");
+  const cont = $("listaSug");
+  cont.textContent = "";
+  if (!sugerencias.length) { cont.appendChild(nota("Aún no hay sugerencias. Cuando alguien envíe una, te llegará también un correo.")); return; }
+  sugerencias.forEach(s => {
+    const d = document.createElement("div");
+    d.className = "sug" + (s.leida ? " leida" : "");
+    d.innerHTML = '<div class="sug-cab"><span class="sug-tipo"></span><span class="sug-de"></span><button type="button" class="nav-btn"></button></div><p class="sug-texto"></p>';
+    d.querySelector(".sug-tipo").textContent = { idea: "Idea", fallo: "Fallo", otro: "Otro" }[s.tipo] || s.tipo;
+    d.querySelector(".sug-tipo").classList.add("t-" + s.tipo);
+    d.querySelector(".sug-de").textContent = (s.email || "?") + " · " + fechaCorta(iso(new Date(s.creado))) + (s.version ? " · " + s.version : "");
+    d.querySelector(".sug-de").title = s.agente || "";
+    d.querySelector(".sug-texto").textContent = s.texto;
+    const b = d.querySelector("button");
+    b.textContent = s.leida ? "Marcar no leída" : "Marcar leída";
+    b.addEventListener("click", async () => {
+      try {
+        const r = await api("/rest/v1/sugerencias?id=eq." + encodeURIComponent(s.id), { method: "PATCH", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ leida: !s.leida }) });
+        if (!r.ok) throw new Error();
+        s.leida = !s.leida;
+        pintarSugerencias();
+      } catch { setEstado("No se ha podido cambiar. Revisa la conexión.", true); }
+    });
+    cont.appendChild(d);
+  });
+}
+$("sugAyuda").addEventListener("click", abrirSug);
+$("sugPie").addEventListener("click", abrirSug);
+$("sugRecargar").addEventListener("click", cargarSugerencias);
+$("tabPlan").addEventListener("click", cargarSugerencias);
 
 // ---------- Instrucciones de uso ----------
 function abrirAyuda() {
