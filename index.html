@@ -1,0 +1,455 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Entreno Semanal</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Entreno">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#eef1ee" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#101512" media="(prefers-color-scheme: dark)">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icono-180.png">
+<link rel="icon" type="image/png" href="icono-180.png">
+<style>
+  /* Layout: una tira de 7 columnas en pantallas anchas; en el móvil, una lista de días grandes que se apilan. */
+  :root {
+    --bg: #eef1ee;
+    --card: #ffffff;
+    --fg: #17201b;
+    --muted: #64716a;
+    --line: #d3dad5;
+    --accent: #1d7a4f;
+    --accent-soft: #e0f0e7;
+    --error: #c0392b;
+    --display: "Avenir Next Condensed", "Barlow Condensed", "Arial Narrow", system-ui, sans-serif;
+    --body: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #101512; --card: #18201b; --fg: #e6ece8; --muted: #8e9b94;
+      --line: #2a352f; --accent: #4cc48a; --accent-soft: #1c3428; --error: #ff7b6b; color-scheme: dark;
+    }
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 15px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    padding-top: max(12px, env(safe-area-inset-top, 0px));
+    padding-bottom: max(16px, env(safe-area-inset-bottom, 0px));
+    display: flex; flex-direction: column; gap: 12px;
+    -webkit-text-size-adjust: 100%;
+  }
+  h1 {
+    font-family: var(--display); font-weight: 700; font-size: 26px; margin: 0;
+    text-transform: uppercase; letter-spacing: 0.04em;
+  }
+  button { font-family: var(--body); }
+  button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+  /* Inicio de sesión */
+  #login { max-width: 360px; width: 100%; margin: 12vh auto 0; display: flex; flex-direction: column; gap: 14px; }
+  #login p { margin: 0; color: var(--muted); line-height: 1.45; }
+  #login label { display: flex; flex-direction: column; gap: 6px; font-weight: 600; font-size: 14px; }
+  #login input {
+    font: inherit; font-size: 17px; padding: 12px; border-radius: 10px;
+    border: 1px solid var(--line); background: var(--card); color: var(--fg);
+  }
+  .primario {
+    font-size: 17px; font-weight: 600; padding: 13px; border-radius: 10px; border: 0;
+    background: var(--accent); color: var(--card); cursor: pointer;
+  }
+  .primario:disabled { opacity: 0.6; }
+  .enlace { background: none; border: 0; color: var(--accent); font-size: 15px; cursor: pointer; padding: 6px; }
+  #loginError { color: var(--error); font-size: 14px; min-height: 1em; }
+
+  /* Calendario */
+  #app { display: flex; flex-direction: column; gap: 12px; flex: 1; min-height: 0; }
+  header { display: flex; align-items: center; justify-content: space-between; gap: 8px 16px; flex-wrap: wrap; }
+  .nav { display: flex; align-items: center; gap: 8px; }
+  .nav-btn {
+    flex: none; height: 34px; min-width: 34px; padding: 0 10px; border-radius: 8px;
+    border: 1px solid var(--line); background: var(--card); color: var(--fg);
+    font-weight: 600; font-size: 15px; cursor: pointer;
+  }
+  .nav-btn.flecha { font-size: 20px; line-height: 1; padding: 0; }
+  #hoyBtn { color: var(--accent); }
+  .semana-info { display: flex; flex-direction: column; align-items: center; min-width: 9.5em; line-height: 1.2; }
+  #rango { font-weight: 600; font-variant-numeric: tabular-nums; }
+  #relativa { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; }
+  #relativa.actual { color: var(--accent); }
+  .pie { display: flex; justify-content: space-between; align-items: center; gap: 12px; font-size: 13px; color: var(--muted); }
+  #estado.error { color: var(--error); }
+  #salirBtn { font-size: 13px; color: var(--muted); }
+  .semana { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; }
+  .dia {
+    display: flex; flex-direction: column; min-width: 0; min-height: 0;
+    background: var(--card); border: 1px solid var(--line); border-radius: 10px; overflow: hidden;
+  }
+  .dia.hoy { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+  .dia:focus-within { border-color: var(--accent); }
+  .dia-cab { display: flex; align-items: center; gap: 6px; padding: 6px 6px 6px 10px; border-bottom: 1px solid var(--line); }
+  .dia.hoy .dia-cab { background: var(--accent-soft); }
+  .dia-nombre {
+    font-family: var(--display); font-weight: 700; font-size: 18px;
+    text-transform: uppercase; letter-spacing: 0.05em;
+    min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .dia.hoy .dia-nombre { color: var(--accent); }
+  .dia-fecha { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; margin-left: auto; white-space: nowrap; }
+  .negrita {
+    flex: none; width: 28px; height: 28px; border-radius: 6px;
+    border: 1px solid var(--line); background: var(--card); color: var(--fg);
+    font-weight: 700; font-size: 15px; cursor: pointer; padding: 0;
+  }
+  .negrita[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--card); }
+  .editor {
+    flex: 1; min-height: 0; overflow-y: auto; outline: none;
+    padding: 8px 10px; line-height: 1.45; overflow-wrap: anywhere; white-space: pre-wrap;
+    -webkit-user-select: text; user-select: text;
+  }
+  .editor b, .editor strong { font-weight: 700; }
+  .editor.vacio::before { content: attr(data-pista); color: var(--muted); opacity: 0.7; pointer-events: none; }
+
+  @media (max-width: 760px) {
+    html, body { height: auto; min-height: 100%; }
+    body { font-size: 17px; }
+    h1 { font-size: 30px; }
+    .nav { width: 100%; justify-content: space-between; }
+    .nav-btn { height: 44px; min-width: 44px; border-radius: 10px; font-size: 16px; }
+    .nav-btn.flecha { font-size: 24px; }
+    .semana-info { flex: 1; }
+    #rango { font-size: 17px; }
+    .semana { grid-template-columns: 1fr; flex: none; gap: 14px; }
+    .dia { border-radius: 14px; }
+    .dia-cab { padding: 10px 10px 10px 14px; gap: 10px; }
+    .dia-nombre { font-size: 26px; }
+    .dia-fecha { font-size: 15px; }
+    .negrita { width: 40px; height: 40px; font-size: 19px; border-radius: 9px; }
+    .editor { min-height: 160px; padding: 12px 14px; font-size: 17px; line-height: 1.5; }
+  }
+</style>
+</head>
+<body>
+
+<section id="login" hidden>
+  <h1>Entreno Semanal</h1>
+  <p id="loginTexto">Entra con tu email y tu contraseña. Solo hace falta una vez en cada dispositivo.</p>
+  <form id="loginForm" novalidate>
+    <div style="display:flex;flex-direction:column;gap:14px">
+      <label>Email <input id="email" type="email" autocomplete="username" inputmode="email" required></label>
+      <label>Contraseña <input id="password" type="password" autocomplete="current-password" minlength="6" required></label>
+      <div id="loginError" role="alert"></div>
+      <button class="primario" id="loginBtn" type="submit">Entrar</button>
+      <button class="enlace" id="modoBtn" type="button">¿Primera vez? Crear cuenta</button>
+    </div>
+  </form>
+</section>
+
+<section id="app" hidden>
+  <header>
+    <h1>Entreno Semanal</h1>
+    <nav class="nav" aria-label="Cambiar de semana">
+      <button type="button" class="nav-btn flecha" id="antBtn" aria-label="Semana anterior">‹</button>
+      <div class="semana-info"><span id="rango"></span><span id="relativa"></span></div>
+      <button type="button" class="nav-btn flecha" id="sigBtn" aria-label="Semana siguiente">›</button>
+      <button type="button" class="nav-btn" id="hoyBtn" hidden>Hoy</button>
+    </nav>
+  </header>
+  <main class="semana" id="semana"></main>
+  <div class="pie">
+    <span id="estado" role="status"></span>
+    <button type="button" class="enlace" id="salirBtn">Cerrar sesión</button>
+  </div>
+</section>
+
+<script>
+  const SUPA = "https://qtdvehlewuuljolistlw.supabase.co";
+  const CLAVE = "sb_publishable_1W_oC99R9By_5iGixwbEqw_rogdHvoQ";   // clave pública; los datos los protegen las reglas de la tabla
+
+  const DIAS = ["lunes", "martes", "miercoles", "jueves", "viernes", "sabado", "domingo"];
+  const NOMBRES = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"];
+  const MESES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+  const PISTAS = ["Ej.: Pierna — sentadilla 5×5, peso muerto 3×5", "Ej.: Correr 8 km suave", "Ej.: Torso — press banca 4×8",
+                  "Ej.: Descanso activo, movilidad 20 min", "Ej.: Series 6×400 m", "Ej.: Tirada larga 15 km", "Ej.: Descanso"];
+  const $ = id => document.getElementById(id);
+
+  // ---------- Almacenamiento local (funciona sin conexión) ----------
+  const leer = k => { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } };
+  const escribir = (k, v) => { try { v === null ? localStorage.removeItem(k) : localStorage.setItem(k, JSON.stringify(v)); } catch {} };
+  let sesion = leer("sesion-v1");                 // {access_token, refresh_token, expires_at, user_id, email}
+  let datos = leer("entrenos-v1") || {};          // fecha -> {html, texto, actualizado, sucio}
+  const guardarLocal = () => escribir("entrenos-v1", datos);
+
+  const estado = $("estado");
+  const setEstado = (t, err) => { estado.textContent = t; estado.classList.toggle("error", !!err); };
+
+  // ---------- Fechas ----------
+  const iso = d => d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+  const lunesDe = d => { const l = new Date(d.getFullYear(), d.getMonth(), d.getDate()); l.setDate(l.getDate() - (l.getDay() + 6) % 7); return l; };
+  const sumarDias = (d, n) => { const r = new Date(d); r.setDate(r.getDate() + n); return r; };
+  const fmt = d => d.getDate() + " " + MESES[d.getMonth()];
+  let desplazamiento = 0;   // semanas respecto a la actual
+  const lunesVista = () => sumarDias(lunesDe(new Date()), desplazamiento * 7);
+
+  // ---------- Texto: solo saltos de línea y negrita ----------
+  function limpiar(html) {
+    const tpl = document.createElement("template");
+    tpl.innerHTML = html;
+    const salida = document.createElement("div");
+    (function copiar(origen, destino) {
+      origen.childNodes.forEach(n => {
+        if (n.nodeType === 3) { destino.appendChild(document.createTextNode(n.nodeValue)); return; }
+        if (n.nodeType !== 1) return;
+        const tag = n.tagName;
+        const peso = n.style && n.style.fontWeight;
+        let nuevo = null;
+        if (tag === "BR") { destino.appendChild(document.createElement("br")); return; }
+        if (tag === "B" || tag === "STRONG" || peso === "bold" || +peso >= 600) nuevo = document.createElement("b");
+        else if (tag === "DIV" || tag === "P") nuevo = document.createElement("div");
+        if (nuevo) { copiar(n, nuevo); destino.appendChild(nuevo); } else copiar(n, destino);
+      });
+    })(tpl.content, salida);
+    return salida.innerHTML;
+  }
+  const aTexto = html => { const t = document.createElement("div"); t.innerHTML = html.replace(/<br>/g, "\n").replace(/<div>/g, "\n"); return t.textContent.replace(/^\n/, ""); };
+  const marcarVacio = ed => ed.classList.toggle("vacio", ed.textContent.trim() === "");
+
+  // ---------- Conexión con Supabase ----------
+  function guardarSesion(j) {
+    sesion = {
+      access_token: j.access_token, refresh_token: j.refresh_token,
+      expires_at: j.expires_at || Math.floor(Date.now() / 1000) + (j.expires_in || 3600),
+      user_id: j.user.id, email: j.user.email
+    };
+    escribir("sesion-v1", sesion);
+  }
+  class SesionCaducada extends Error {}
+  async function refrescar() {
+    const r = await fetch(SUPA + "/auth/v1/token?grant_type=refresh_token", {
+      method: "POST", headers: { apikey: CLAVE, "Content-Type": "application/json" },
+      body: JSON.stringify({ refresh_token: sesion.refresh_token })
+    });
+    if (r.status === 400 || r.status === 401) throw new SesionCaducada();
+    if (!r.ok) throw new Error("refresh " + r.status);
+    guardarSesion(await r.json());
+  }
+  async function api(ruta, opciones = {}, reintento = false) {
+    if (sesion.expires_at * 1000 - 60000 < Date.now()) await refrescar();
+    const r = await fetch(SUPA + ruta, {
+      ...opciones,
+      headers: { apikey: CLAVE, Authorization: "Bearer " + sesion.access_token, "Content-Type": "application/json", ...(opciones.headers || {}) }
+    });
+    if (r.status === 401 && !reintento) { await refrescar(); return api(ruta, opciones, true); }
+    return r;
+  }
+
+  // Sincroniza: baja lo de la nube, gana la edición más reciente, y sube lo pendiente
+  let sincronizando = false, repetir = false;
+  async function sincronizar() {
+    if (!sesion) return;
+    if (sincronizando) { repetir = true; return; }
+    sincronizando = true;
+    try {
+      do {
+        repetir = false;
+        const r = await api("/rest/v1/entrenos?select=fecha,html,texto,actualizado");
+        if (!r.ok) throw new Error("leer " + r.status);
+        let cambio = false;
+        for (const fila of await r.json()) {
+          const local = datos[fila.fecha];
+          const tRemoto = Date.parse(fila.actualizado);
+          if (!local || (!local.sucio && Date.parse(local.actualizado) !== tRemoto) || (local.sucio && tRemoto > Date.parse(local.actualizado))) {
+            datos[fila.fecha] = { html: fila.html, texto: fila.texto, actualizado: new Date(tRemoto).toISOString(), sucio: false };
+            cambio = true;
+          }
+        }
+        if (cambio) { guardarLocal(); rellenar(); }
+
+        const pendientes = Object.entries(datos).filter(([, v]) => v.sucio);
+        if (pendientes.length) {
+          const filas = pendientes.map(([fecha, v]) => ({ user_id: sesion.user_id, fecha, html: v.html, texto: v.texto, actualizado: v.actualizado }));
+          const w = await api("/rest/v1/entrenos?on_conflict=user_id,fecha", {
+            method: "POST", headers: { Prefer: "resolution=merge-duplicates,return=minimal" }, body: JSON.stringify(filas)
+          });
+          if (!w.ok) throw new Error("guardar " + w.status);
+          for (const f of filas) if (datos[f.fecha] && datos[f.fecha].actualizado === f.actualizado) datos[f.fecha].sucio = false;
+          guardarLocal();
+        }
+      } while (repetir);
+      setEstado("Sincronizado");
+    } catch (e) {
+      if (e instanceof SesionCaducada) { cerrarSesion("Tu sesión ha caducado. Vuelve a entrar; lo que escribiste sigue guardado en este dispositivo."); }
+      else {
+        const quedan = Object.values(datos).some(v => v.sucio);
+        setEstado(quedan ? "Sin conexión · guardado en el dispositivo, se subirá al volver la conexión" : "Sin conexión · mostrando lo último guardado");
+      }
+    } finally {
+      sincronizando = false;
+    }
+  }
+
+  // ---------- Calendario ----------
+  const dias = DIAS.map((_, i) => {
+    const col = document.createElement("section");
+    col.className = "dia";
+    col.innerHTML = '<div class="dia-cab"><span class="dia-nombre"></span><span class="dia-fecha"></span>' +
+                    '<button type="button" class="negrita" aria-pressed="false" title="Negrita (⌘B)">N</button></div>' +
+                    '<div class="editor vacio" id="e-' + DIAS[i] + '" role="textbox" aria-multiline="true" contenteditable="true"></div>';
+    col.querySelector(".dia-nombre").textContent = NOMBRES[i];
+    const ed = col.querySelector(".editor");
+    const btn = col.querySelector(".negrita");
+    ed.dataset.pista = PISTAS[i];
+    ed.setAttribute("aria-label", "Entrenamiento del " + NOMBRES[i]);
+    btn.setAttribute("aria-label", "Negrita en " + NOMBRES[i]);
+    $("semana").appendChild(col);
+    return { i, col, ed, btn, fechaEl: col.querySelector(".dia-fecha"), id: "" };
+  });
+
+  // Pone en cada día lo guardado (sin tocar el que se está escribiendo)
+  function rellenar() {
+    dias.forEach(({ id, ed }) => {
+      if (document.activeElement === ed) return;
+      const nuevo = limpiar(datos[id]?.html || "");
+      if (limpiar(ed.innerHTML) !== nuevo) ed.innerHTML = nuevo;
+      marcarVacio(ed);
+    });
+  }
+
+  function pintarSemana() {
+    const lunes = lunesVista();
+    const hoyIso = iso(new Date());
+    $("rango").textContent = fmt(lunes) + " – " + fmt(sumarDias(lunes, 6));
+    const n = desplazamiento, rel = $("relativa");
+    rel.textContent = n === 0 ? "Esta semana" : n === -1 ? "Semana pasada" : n === 1 ? "Próxima semana"
+                    : n < 0 ? "Hace " + -n + " semanas" : "Dentro de " + n + " semanas";
+    rel.classList.toggle("actual", n === 0);
+    $("hoyBtn").hidden = n === 0;
+    dias.forEach(d => {
+      const f = sumarDias(lunes, d.i);
+      d.id = iso(f);
+      d.fechaEl.textContent = fmt(f);
+      d.col.classList.toggle("hoy", d.id === hoyIso);
+      d.ed.innerHTML = "";
+    });
+    rellenar();
+  }
+
+  let timerSync;
+  function editado(dia) {
+    const html = limpiar(dia.ed.innerHTML);
+    marcarVacio(dia.ed);
+    datos[dia.id] = { html, texto: aTexto(html), actualizado: new Date().toISOString(), sucio: true };
+    guardarLocal();
+    setEstado("Guardado en el dispositivo");
+    clearTimeout(timerSync);
+    timerSync = setTimeout(sincronizar, 1000);
+  }
+
+  dias.forEach(dia => {
+    const { ed, btn } = dia;
+    ed.addEventListener("input", () => editado(dia));
+    ed.addEventListener("blur", () => rellenar());
+    ed.addEventListener("paste", e => {   // pegar siempre como texto sin formato
+      e.preventDefault();
+      document.execCommand("insertText", false, (e.clipboardData || window.clipboardData).getData("text/plain"));
+    });
+    btn.addEventListener("pointerdown", e => e.preventDefault());   // que el botón no quite el foco
+    btn.addEventListener("mousedown", e => e.preventDefault());
+    btn.addEventListener("click", () => {
+      if (document.activeElement !== ed) {
+        ed.focus();
+        const r = document.createRange(); r.selectNodeContents(ed); r.collapse(false);
+        const s = getSelection(); s.removeAllRanges(); s.addRange(r);
+      }
+      document.execCommand("bold");
+      btn.setAttribute("aria-pressed", document.queryCommandState("bold") ? "true" : "false");
+      editado(dia);
+    });
+  });
+  document.addEventListener("selectionchange", () => {
+    dias.forEach(({ ed, btn }) => {
+      btn.setAttribute("aria-pressed", document.activeElement === ed && document.queryCommandState("bold") ? "true" : "false");
+    });
+  });
+
+  function irA(n) {
+    if (document.activeElement && document.activeElement.classList.contains("editor")) document.activeElement.blur();
+    desplazamiento = n;
+    pintarSemana();
+  }
+  $("antBtn").addEventListener("click", () => irA(desplazamiento - 1));
+  $("sigBtn").addEventListener("click", () => irA(desplazamiento + 1));
+  $("hoyBtn").addEventListener("click", () => irA(0));
+
+  // Sincronizar al abrir, al volver a la app, al recuperar conexión y cada 30 s
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) { pintarSemana(); sincronizar(); } });
+  addEventListener("online", sincronizar);
+  setInterval(() => { if (!document.hidden) sincronizar(); }, 30000);
+
+  // ---------- Inicio de sesión ----------
+  let creando = false;
+  $("modoBtn").addEventListener("click", () => {
+    creando = !creando;
+    $("loginBtn").textContent = creando ? "Crear cuenta" : "Entrar";
+    $("modoBtn").textContent = creando ? "Ya tengo cuenta" : "¿Primera vez? Crear cuenta";
+    $("password").autocomplete = creando ? "new-password" : "current-password";
+    $("loginTexto").textContent = creando
+      ? "Elige tu email y una contraseña de al menos 6 caracteres. Con ellos entrarás en el iPhone y en el Mac."
+      : "Entra con tu email y tu contraseña. Solo hace falta una vez en cada dispositivo.";
+    $("loginError").textContent = "";
+  });
+  const traducir = m => /invalid login/i.test(m) ? "Email o contraseña incorrectos."
+    : /already registered|already exists/i.test(m) ? "Ya existe una cuenta con ese email. Pulsa «Ya tengo cuenta» y entra."
+    : /at least 6|password should/i.test(m) ? "La contraseña debe tener al menos 6 caracteres."
+    : /signups not allowed|signup is disabled/i.test(m) ? "No se pueden crear cuentas nuevas. Entra con tu cuenta."
+    : /valid email|invalid format/i.test(m) ? "Escribe un email válido."
+    : m || "No se ha podido entrar.";
+  $("loginForm").addEventListener("submit", async e => {
+    e.preventDefault();
+    const email = $("email").value.trim(), password = $("password").value;
+    if (!email || password.length < 6) { $("loginError").textContent = "Escribe tu email y una contraseña de al menos 6 caracteres."; return; }
+    $("loginBtn").disabled = true; $("loginError").textContent = "";
+    try {
+      const ruta = creando ? "/auth/v1/signup" : "/auth/v1/token?grant_type=password";
+      const r = await fetch(SUPA + ruta, { method: "POST", headers: { apikey: CLAVE, "Content-Type": "application/json" }, body: JSON.stringify({ email, password }) });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j.access_token) throw new Error(traducir(j.msg || j.error_description || j.message || ""));
+      if (leer("entrenos-dueno") !== j.user.id) { datos = {}; guardarLocal(); escribir("entrenos-dueno", j.user.id); }
+      guardarSesion(j);
+      $("password").value = "";
+      mostrarApp();
+    } catch (err) {
+      $("loginError").textContent = navigator.onLine === false ? "Necesitas conexión para entrar la primera vez." : err.message;
+    } finally {
+      $("loginBtn").disabled = false;
+    }
+  });
+  function cerrarSesion(msg) {
+    sesion = null; escribir("sesion-v1", null);
+    $("app").hidden = true; $("login").hidden = false;
+    $("loginError").textContent = msg || "";
+  }
+  $("salirBtn").addEventListener("click", () => {
+    if (Object.values(datos).some(v => v.sucio)) { setEstado("Hay cambios sin subir. Conéctate a internet antes de cerrar sesión.", true); return; }
+    cerrarSesion("");
+  });
+  function mostrarApp() {
+    $("login").hidden = true; $("app").hidden = false;
+    pintarSemana();
+    setEstado("Sincronizando…");
+    sincronizar();
+  }
+
+  if (sesion) mostrarApp(); else $("login").hidden = false;
+
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+</script>
+</body>
+</html>

@@ -1,0 +1,14 @@
+{
+  "name": "Entreno Semanal",
+  "short_name": "Entreno",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#eef1ee",
+  "theme_color": "#1d7a4f",
+  "lang": "es",
+  "icons": [
+    { "src": "icono-180.png", "sizes": "180x180", "type": "image/png" },
+    { "src": "icono-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
