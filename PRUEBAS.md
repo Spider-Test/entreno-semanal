@@ -124,6 +124,9 @@ Apunta en cada versión: fecha, versión, dispositivo (iPhone / Mac / Android) y
 - [ ] Enviar una sugerencia de prueba desde «Enviar sugerencia».
 - [ ] (Administrador) Plan → Sugerencias: aparece; marcarla como leída; borrarla y deshacer.
 
+## 12b. Accesos (administrador)
+- [ ] Plan → Usuarios: cada usuario muestra «Último uso: hoy 21:14 · iPhone (app) · v52» y «Último inicio de sesión»; ordenada por uso; «activo esta semana» en quien entró en 7 días. Un usuario normal no ve nada de esto.
+
 ## 13. Móvil (iPhone y Android)
 - [ ] Doble toque sin zoom no amplía; pellizcar sí amplía; con zoom, el doble toque reduce sin pulsar lo de debajo.
 - [ ] La barra de pestañas no tapa el último elemento de ninguna pestaña.
