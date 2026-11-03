@@ -83,7 +83,8 @@
 
   <div id="vistaPlan" hidden>
     <section class="plan-sec" data-sec="plantillas">
-      <div class="sec-cab"><h3>Plantillas</h3><input id="buscarPlantilla" type="search" placeholder="Buscar plantilla" aria-label="Buscar plantilla por nombre o ejercicio" autocomplete="off"></div>
+      <div class="sec-cab"><h3>Plantillas</h3><input id="buscarPlantilla" type="search" placeholder="Buscar plantilla" aria-label="Buscar plantilla por nombre o ejercicio" autocomplete="off"><button type="button" class="nav-btn" id="selPlantEntrar">Seleccionar</button></div>
+      <div class="sel-barra" id="selPlantBarra" hidden><span id="selPlantN"></span><button type="button" class="enlace" id="selPlantTodas">Seleccionar todas</button><button type="button" class="nav-btn" id="selPlantCancelar">Cancelar</button></div>
       <div class="lista-tarjetas" id="listaPlantillas"></div>
     </section>
     <section class="plan-sec" data-sec="mesociclos">
@@ -389,8 +390,8 @@
   </form>
   <div class="d-cuerpo ayuda">
     <p>Toca cada apartado para verlo. Puedes volver aquí cuando quieras con el botón <b>?</b> de arriba. ¿Echas algo en falta o algo no va bien? Envíanos una sugerencia:</p>
-    <details class="novedades" open><summary>Novedades · versión 26</summary>
-      <p>Diseño más compacto en el móvil (cabe más entreno sin desplazarte) y estilo de cristal en la barra de pestañas, la cabecera y las ventanas · importar carreras del reloj o de Strava · reordenar con el asa ≡ · Plan desplegable con buscador.</p>
+    <details class="novedades" open><summary>Novedades · versión 27</summary>
+      <p>Selección múltiple de plantillas (mantén pulsada una): añadir a un día, a un mesociclo, compartir juntas o eliminar · diseño más compacto y estilo de cristal · importar carreras del reloj o de Strava · reordenar con el asa ≡.</p>
     </details>
     <button type="button" class="nav-btn sug-btn" id="sugAyuda">💬 Enviar una sugerencia o avisar de un fallo</button>
     <details><summary>La semana y el texto del día</summary>
@@ -447,6 +448,7 @@
     </details>
     <details><summary>Mesociclos y semana de descarga</summary>
       <p>Las secciones de <b>Plan</b> se abren y cierran tocando su título (con su contador); la app recuerda cuáles dejas abiertas. En <b>Plantillas</b> tienes un buscador por nombre o por ejercicio.</p>
+      <p>Para trabajar con varias plantillas a la vez, <b>mantén pulsada</b> una (o pulsa <b>Seleccionar</b>) y marca las que quieras, también entre los resultados del buscador. Abajo aparecen las acciones: <b>Añadir a un día</b> (cada una como su sesión), <b>Mesociclo</b> (crear uno repartiéndolas por la semana o añadirlas a uno existente), <b>Compartir</b> (un solo enlace con todas) y <b>Eliminar</b> (con confirmación y Deshacer).</p>
       <p>En <b>Plan → Mesociclos</b> repartes tus plantillas por los días de la semana durante varias semanas. Puedes sumar kilos cada semana.</p>
       <p>La <b>semana de descarga</b> (la última, o cada N semanas) baja un 30 % el peso y la distancia, o el número de series (lo eliges tú). En la semana aparece marcada como «Descarga».</p>
       <p>Pulsa <b>Guardar y rellenar calendario</b> para que aparezcan las series planificadas.</p>
@@ -576,6 +578,12 @@
   <div class="en-pie"><button type="button" class="nav-btn" id="enAnt">‹ Anterior</button><button type="button" class="nav-btn" id="enSig">Siguiente ›</button></div>
 </dialog>
 
+<div class="sel-acciones" id="selPlantAcciones" hidden>
+  <button type="button" id="selPlantDia">Añadir a un día</button>
+  <button type="button" id="selPlantMeso">Mesociclo</button>
+  <button type="button" id="selPlantCompartir">Compartir</button>
+  <button type="button" id="selPlantBorrar" class="peligro-op">Eliminar</button>
+</div>
 <div class="toast" id="toast" role="status" hidden><span id="toastTxt"></span><button type="button" id="toastBtn">Deshacer</button></div>
 <div class="fiesta" id="fiesta" aria-hidden="true"></div>
 

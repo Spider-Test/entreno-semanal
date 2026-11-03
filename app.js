@@ -692,6 +692,15 @@ async function abrirCompartido(texto) {
     if (r.ok) c = await r.json();
   } catch { setEstado("Necesitas conexión para abrir algo compartido.", true); return; }
   if (!c) { setEstado("No hay nada compartido con el código " + m[1] + ".", true); return; }
+  // Varias plantillas juntas: vista previa y guardarlas (o añadirlas a un día)
+  if (c.items[0] && c.items[0].paquete) {
+    const x = c.items[0], lunesP = lunesVista();
+    abrirMenu("«" + c.nombre + "»", "Compartido por " + (c.autor || "un amigo") + ": " + x.plantillas.map(p => p.nombre + " (" + contarSeries(p.items) + " series)").join(", ") + ".",
+      [{ texto: "Guardar en mis plantillas", accion: () => guardarPaqueteCompartido(c) }].concat(NOMBRES.map((n, i) => ({ texto: "Añadir al " + n + " " + fmt(sumarDias(lunesP, i)), accion: () => {
+        x.plantillas.forEach(p => pegarItems(iso(sumarDias(lunesP, i)), desdeCompartido(p.items), p.nombre)); persistir(); verPestana("semana");
+      } }))));
+    return;
+  }
   // Un mesociclo entero: vista previa y guardarlo con sus plantillas
   if (c.items[0] && c.items[0].mesociclo) {
     const x = c.items[0], mm = x.mesociclo;
@@ -1917,7 +1926,13 @@ function pintarPlan() {
   contadorSec("plantillas", q ? ps.length + " de " + todas.length : todas.length);
   if (!todas.length) lp.innerHTML = '<p class="vacio-lista">Monta un entrenamiento en un día de la semana (por ejemplo, Pierna) y en su menú ⋯ elige «Guardar ejercicios como plantilla».</p>';
   else if (!ps.length) { const v = document.createElement("p"); v.className = "vacio-lista"; v.textContent = "Ninguna plantilla tiene «" + $("buscarPlantilla").value.trim() + "» en su nombre ni en sus ejercicios."; lp.appendChild(v); }
-  ps.forEach(p => lp.appendChild(tarjeta(p.nombre, [resumenItems(p.items || []), nombresItems(p.items || [])], () => menuPlantilla(p))));
+  ps.forEach(p => {
+    const t = tarjeta(p.nombre, [resumenItems(p.items || []), nombresItems(p.items || [])], () => { if (pulsacionLarga) { pulsacionLarga = false; return; } if (selPlant) marcarPlant(p.id); else menuPlantilla(p); });
+    if (selPlant) { t.classList.add("seleccionable"); t.setAttribute("aria-pressed", String(selPlant.has(p.id))); }
+    mantenerPulsado(t, () => { if (!selPlant) { selPlant = new Set(); } selPlant.add(p.id); pintarPlan(); });
+    lp.appendChild(t);
+  });
+  pintarSeleccion(ps);
 
   const lm = $("listaMesos");
   lm.textContent = "";
@@ -2146,6 +2161,7 @@ const VISTAS = { semana: "vistaSemana", ejercicios: "vistaEjercicios", plan: "vi
 const TABS = { semana: "tabSemana", ejercicios: "tabEjercicios", plan: "tabPlan", marcas: "tabMarcas" };
 function verPestana(cual) {
   if (!VISTAS[cual]) cual = "semana";
+  if (cual !== "plan" && selPlant) { selPlant = null; $("selPlantAcciones").hidden = true; document.body.classList.remove("seleccionando"); }
   Object.keys(VISTAS).forEach(k => {
     $(VISTAS[k]).hidden = k !== cual;
     $(TABS[k]).setAttribute("aria-selected", String(k === cual));
@@ -3490,7 +3506,7 @@ $("enSalir").addEventListener("click", salirEntreno);
 $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); abrirRpe(d); });
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
-const VERSION_APP = "v26";
+const VERSION_APP = "v27";
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";
@@ -3811,6 +3827,94 @@ $("ajRitmoRec").addEventListener("change", () => {
   $("ajRitmoRec").value = a.ritmoRec ? fmtTiempo(a.ritmoRec) : "";
   setEstado("Ajuste guardado en este dispositivo");
 });
+
+// ---------- Selección múltiple de plantillas ----------
+let selPlant = null, pulsacionLarga = false;
+// Mantener pulsado medio segundo sin mover el dedo entra en modo selección
+function mantenerPulsado(el, accion) {
+  let timer = null, x = 0, y = 0;
+  const parar = () => { clearTimeout(timer); timer = null; };
+  el.addEventListener("pointerdown", e => { if (e.button > 0) return; x = e.clientX; y = e.clientY; parar(); timer = setTimeout(() => { timer = null; pulsacionLarga = true; if (navigator.vibrate) navigator.vibrate(15); accion(); }, 500); });
+  el.addEventListener("pointermove", e => { if (timer && Math.hypot(e.clientX - x, e.clientY - y) > 10) parar(); });
+  ["pointerup", "pointercancel", "pointerleave"].forEach(ev => el.addEventListener(ev, parar));
+  el.addEventListener("contextmenu", e => { if (pulsacionLarga) e.preventDefault(); });
+}
+function marcarPlant(id) {
+  if (selPlant.has(id)) selPlant.delete(id); else selPlant.add(id);
+  pintarPlan();
+}
+function salirSeleccion() { selPlant = null; pulsacionLarga = false; pintarPlan(); }
+function pintarSeleccion(visibles) {
+  const n = selPlant ? selPlant.size : 0;
+  document.body.classList.toggle("seleccionando", !!selPlant);
+  $("selPlantBarra").hidden = !selPlant;
+  $("selPlantAcciones").hidden = !selPlant;
+  $("selPlantEntrar").hidden = !!selPlant || !vivos("plantillas").length;
+  if (!selPlant) return;
+  $("selPlantN").textContent = n === 1 ? "1 seleccionada" : n + " seleccionadas";
+  $("selPlantTodas").textContent = visibles.length && visibles.every(p => selPlant.has(p.id)) ? "Quitar todas" : "Seleccionar todas";
+  $("selPlantTodas").onclick = () => { const todas = visibles.every(p => selPlant.has(p.id)); visibles.forEach(p => todas ? selPlant.delete(p.id) : selPlant.add(p.id)); pintarPlan(); };
+  $("selPlantAcciones").querySelectorAll("button").forEach(b => { b.disabled = !n; });
+}
+const plantillasSel = () => [...(selPlant || [])].map(id => db.plantillas[id]).filter(p => p && !p.borrado).sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
+$("selPlantEntrar").addEventListener("click", () => { selPlant = new Set(); pintarPlan(); });
+$("selPlantCancelar").addEventListener("click", salirSeleccion);
+// Añadir todas a un día de la semana (cada una como su propia sesión)
+$("selPlantDia").addEventListener("click", () => {
+  const ps = plantillasSel();
+  abrirMenu("Añadir " + ps.length + " plantillas", ps.map(p => p.nombre).join(", "), dias.map(d => ({ texto: NOMBRES[d.i] + " " + fmt(deIso(d.id)), accion: () => {
+    ps.forEach(p => pegarItems(d.id, p.items || [], p.nombre));
+    persistir();
+    salirSeleccion();
+    abrirDia(d.id);
+    setEstado(ps.length + " plantillas añadidas al " + NOMBRES[d.i]);
+  } })));
+});
+// Mesociclo: crear uno nuevo repartiéndolas por la semana, o añadirlas a un día de uno existente
+const REPARTO = [0, 2, 4, 1, 3, 5, 6];
+$("selPlantMeso").addEventListener("click", () => {
+  const ps = plantillasSel();
+  const nuevo = { texto: "Crear un mesociclo nuevo con ellas", accion: () => {
+    const id = nuevoId(), d = {};
+    ps.forEach((p, k) => { const dia = REPARTO[k % 7]; (d[dia] = d[dia] || []).push(p.id); });
+    cambiar("mesociclos", { id, nombre: "Mesociclo nuevo", inicio: lunesSiguiente(), semanas: 4, dias: d, progresion: 0, descarga: {}, notas: "", borrado: false });
+    salirSeleccion();
+    abrirMeso(id);
+    setEstado("Repartidas por la semana: ajusta los días, el nombre y las semanas, y pulsa «Guardar y rellenar calendario».");
+  } };
+  const existentes = vivos("mesociclos").sort((a, b) => (b.inicio || "").localeCompare(a.inicio || "")).map(m => ({ texto: "Añadir a «" + m.nombre + "»…", accion: () => {
+    abrirMenu("¿Qué día de «" + m.nombre + "»?", "Se añaden las " + ps.length + " plantillas a ese día de cada semana.", NOMBRES.map((nom, i) => ({ texto: nom, accion: () => {
+      const dias2 = JSON.parse(JSON.stringify(m.dias || {}));
+      dias2[i] = (dias2[i] || []).concat(ps.map(p => p.id));
+      cambiar("mesociclos", { ...m, dias: dias2 });
+      salirSeleccion();
+      abrirMeso(m.id);
+    } })));
+  } }));
+  abrirMenu("Mesociclo con " + ps.length + " plantillas", "", [nuevo].concat(existentes));
+});
+// Compartir juntas: un solo enlace o código con todas
+$("selPlantCompartir").addEventListener("click", () => {
+  const ps = plantillasSel();
+  compartir(ps.length === 1 ? ps[0].nombre : ps.length + " plantillas", [{ paquete: true, plantillas: ps.map(p => ({ nombre: p.nombre, items: paraCompartir(p.items || []) })) }], true);
+});
+// Eliminar: confirmación (es un borrado grande) y Deshacer
+$("selPlantBorrar").addEventListener("click", () => {
+  const ps = plantillasSel();
+  abrirMenu("Eliminar " + ps.length + (ps.length === 1 ? " plantilla" : " plantillas"), ps.map(p => p.nombre).join(", "), [{ texto: "Eliminar", peligro: true, confirmar: "Pulsa otra vez: se eliminan " + ps.length + (ps.length === 1 ? " plantilla" : " plantillas"), accion: () => {
+    ps.forEach(p => cambiar("plantillas", { ...p, borrado: true }, true));
+    persistir();
+    salirSeleccion();
+    avisoDeshacer(ps.length + (ps.length === 1 ? " plantilla eliminada" : " plantillas eliminadas"), ps.map(p => ["plantillas", p]));
+  } }]);
+});
+function guardarPaqueteCompartido(c) {
+  const x = c.items[0];
+  x.plantillas.forEach(p => cambiar("plantillas", { id: nuevoId(), nombre: nombreLibre(p.nombre), items: desdeCompartido(p.items), borrado: false }, true));
+  persistir();
+  verPestana("plan");
+  setEstado(x.plantillas.length + " plantillas guardadas");
+}
 
 // ---------- Plan: secciones desplegables con contador; se recuerda cuáles quedan abiertas ----------
 let seccionesPlan = { plantillas: true, mesociclos: true, ...(leer("plan-abiertas-v1") || {}) };
