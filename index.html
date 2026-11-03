@@ -90,9 +90,10 @@
   </div>
 </section>
 
-<button type="button" id="crono" class="crono" hidden aria-live="polite">
-  <span class="c-t"></span><span class="c-n"></span><span class="c-x">Toca para parar</span>
-</button>
+<div id="crono" class="crono" hidden aria-live="polite">
+  <span class="c-t"></span><span class="c-n"></span>
+  <div class="c-bot"><button type="button" id="cronoMas">+30 s</button><button type="button" id="cronoFin">Finalizar descanso</button></div>
+</div>
 
 <dialog id="selector" aria-label="Elegir ejercicio">
   <form method="dialog" class="d-cab">
@@ -115,6 +116,14 @@
         <button type="button" data-tipo="carrera" aria-pressed="false">Carrera</button>
         <button type="button" data-tipo="natacion" aria-pressed="false">Natación</button>
       </div>
+    </section>
+    <section id="detRmSec">
+      <h3>1RM de referencia</h3>
+      <div class="fila rm-fila"><input id="detRm" inputmode="decimal" placeholder="kg" aria-label="1RM de referencia en kg"><span id="detRmEst" class="menu-det"></span></div>
+    </section>
+    <section id="detBilboSec">
+      <h3>Bilbo</h3>
+      <div id="detBilbo"></div>
     </section>
     <section>
       <h3>Vídeo de la técnica</h3>
