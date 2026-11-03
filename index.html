@@ -41,7 +41,7 @@
 
 <section id="app" hidden>
   <header class="cabecera">
-    <h1>Entreno Semanal</h1>
+    <div class="titulo"><h1>Entreno Semanal</h1><button type="button" class="ayuda-btn" id="ayudaBtn" aria-label="Instrucciones de uso" title="Instrucciones de uso">?</button></div>
     <div class="tabs" role="tablist" aria-label="Vista">
       <button type="button" role="tab" id="tabSemana" aria-selected="true">Semana</button>
       <button type="button" role="tab" id="tabEjercicios" aria-selected="false">Ejercicios</button>
@@ -58,6 +58,10 @@
       <button type="button" class="nav-btn" id="hoyBtn" hidden>Hoy</button>
     </nav>
     <p class="meso-banda" id="mesoBanda" hidden></p>
+    <details class="resumen-sem" id="resumenSem" hidden>
+      <summary><span class="rs-t">Resumen de la semana</span><span class="rs-l" id="resumenLinea"></span></summary>
+      <div class="records" id="resumenCont"></div>
+    </details>
     <main class="semana" id="semana"></main>
   </div>
 
@@ -71,6 +75,11 @@
 
   <div id="vistaPlan" hidden>
     <section class="plan-sec">
+      <h3>Crear con IA</h3>
+      <p class="vacio-lista">Elige tu objetivo, copia el prompt, pégalo en ChatGPT, Claude u otra IA y pega aquí su respuesta: la app crea las plantillas (o el mesociclo) y los ejercicios que falten.</p>
+      <div class="botonera"><button type="button" class="anadir" id="iaAbrir">Crear con IA</button><button type="button" class="nav-btn" id="iaPegarAbrir">Pegar entrenamiento de IA</button></div>
+    </section>
+    <section class="plan-sec">
       <h3>Plantillas</h3>
       <div class="lista-tarjetas" id="listaPlantillas"></div>
     </section>
@@ -79,8 +88,23 @@
       <div class="lista-tarjetas" id="listaMesos"></div>
     </section>
     <section class="plan-sec">
+      <h3>Rutinas tipo</h3>
+      <p class="aviso-estim">Ejemplos generales para empezar, no un plan médico ni personalizado. Al usarlos se copian a tus plantillas y los cambias a tu gusto.</p>
+      <div class="lista-tarjetas" id="listaRutinas"></div>
+    </section>
+    <section class="plan-sec">
       <h3>Añadir algo compartido</h3>
       <div class="barra"><input id="codigoComp" placeholder="Pega el enlace o el código de 8 letras" autocomplete="off" autocapitalize="characters"><button type="button" class="nav-btn" id="abrirComp">Abrir</button></div>
+    </section>
+    <section class="plan-sec">
+      <h3>Copia de seguridad</h3>
+      <p class="vacio-lista">Descarga todos tus datos. La copia completa (JSON) sirve para restaurarlos; los CSV se abren con Excel o Numbers.</p>
+      <div class="botonera">
+        <button type="button" class="nav-btn" id="expJson">Copia completa (JSON)</button>
+        <button type="button" class="nav-btn" id="expCsv">Series (CSV)</button>
+        <button type="button" class="nav-btn" id="expDias">Días y notas (CSV)</button>
+        <label class="nav-btn">Restaurar copia…<input type="file" id="impJson" accept="application/json,.json" hidden></label>
+      </div>
     </section>
     <section class="plan-sec" id="bloqueUsuarios" hidden>
       <h3>Usuarios</h3>
@@ -215,6 +239,20 @@
     </div>
     <label class="campo">Progresión de peso por semana (kg) <input id="mesoProg" inputmode="decimal" placeholder="Ej.: 2,5 (déjalo vacío si no quieres)"></label>
     <section>
+      <h3>Semana de descarga</h3>
+      <label class="permiso"><input type="checkbox" id="mesoDescUltima"> La última semana es de descarga</label>
+      <div class="fila">
+        <label class="campo">Y además cada… semanas <input id="mesoDescCada" type="number" min="2" max="12" inputmode="numeric" placeholder="Ej.: 4 (vacío = no)"></label>
+        <label class="campo">Reducción (%) <input id="mesoDescPct" inputmode="decimal" placeholder="30"></label>
+      </div>
+      <label class="campo">Qué se reduce
+        <select id="mesoDescModo">
+          <option value="carga">Peso, % del RM y distancia</option>
+          <option value="series">Número de series</option>
+        </select>
+      </label>
+    </section>
+    <section>
       <h3>Plantillas de cada día</h3>
       <div id="mesoDias"></div>
     </section>
@@ -228,6 +266,154 @@
       <button type="button" class="enlace" id="mesoQuitar">Quitar sus series planificadas del calendario</button>
       <button type="button" class="peligro" id="mesoBorrar">Eliminar mesociclo</button>
     </div>
+  </div>
+</dialog>
+
+<dialog id="dlgRpe" aria-labelledby="rpeTit">
+  <form method="dialog" class="d-cab">
+    <h3 id="rpeTit" class="d-tit">Esfuerzo</h3>
+    <button class="cerrar" aria-label="Cerrar">✕</button>
+  </form>
+  <div class="d-cuerpo">
+    <section>
+      <h3>¿Cuánto te ha costado? (RPE)</h3>
+      <div class="rpe-escala" id="rpeEscala" role="group" aria-label="Esfuerzo del 1 al 10"></div>
+      <p class="menu-det nota" id="rpeTexto"></p>
+    </section>
+    <label class="campo">Sensaciones <textarea id="rpeNota" maxlength="300" placeholder="Piernas cargadas, dormí poco, muy bien…"></textarea></label>
+    <div class="d-botones">
+      <button type="button" class="nav-btn" id="rpeQuitar">Quitar</button>
+      <button type="button" class="anadir" id="rpeGuardar">Guardar</button>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="dlgIA" aria-label="Crear con IA">
+  <form method="dialog" class="d-cab">
+    <h3 class="d-tit">Crear con IA</h3>
+    <button class="cerrar" aria-label="Cerrar">✕</button>
+  </form>
+  <div class="d-cuerpo">
+    <div class="tabs seg" id="iaPasos" role="tablist" aria-label="Pasos">
+      <button type="button" role="tab" data-paso="prompt" aria-selected="true">1 · Prompt</button>
+      <button type="button" role="tab" data-paso="pegar" aria-selected="false">2 · Pegar respuesta</button>
+    </div>
+    <div id="iaPrompt" class="ia-paso">
+      <div class="fila">
+        <label class="campo">Objetivo
+          <select id="iaObjetivo">
+            <option value="fuerza">Fuerza</option>
+            <option value="hipertrofia">Hipertrofia</option>
+            <option value="5k">Carrera 5 km</option>
+            <option value="10k">Carrera 10 km</option>
+            <option value="combinado">Fuerza + carrera</option>
+          </select>
+        </label>
+        <label class="campo">Días por semana <input id="iaDias" type="number" min="1" max="7" value="3" inputmode="numeric"></label>
+      </div>
+      <div class="fila">
+        <label class="campo">Nivel
+          <select id="iaNivel"><option>principiante</option><option selected>intermedio</option><option>avanzado</option></select>
+        </label>
+        <label class="campo">Semanas <input id="iaSemanas" type="number" min="1" max="26" value="6" inputmode="numeric"></label>
+      </div>
+      <label class="campo">Material <input id="iaMaterial" placeholder="Gimnasio completo, mancuernas en casa, pista…" autocomplete="off"></label>
+      <label class="campo">Objetivo concreto <input id="iaMeta" placeholder="Bajar de 25 min en 5 km, subir mi sentadilla…" autocomplete="off"></label>
+      <label class="campo">Limitaciones <input id="iaLimites" placeholder="Molestias de rodilla, 45 min por sesión…" autocomplete="off"></label>
+      <label class="campo">Prompt para la IA <textarea id="iaTexto" readonly rows="7"></textarea></label>
+      <div class="d-botones"><span class="menu-det nota" id="iaCopiarAviso" role="status"></span><button type="button" class="anadir" id="iaCopiar">Copiar prompt</button></div>
+      <p class="aviso-estim">Las rutinas que propone una IA son sugerencias generales, no un plan médico ni personalizado. Revísalas y adáptalas a cómo te encuentres.</p>
+    </div>
+    <div id="iaPegar" class="ia-paso" hidden>
+      <label class="campo">Respuesta de la IA <textarea id="iaRespuesta" rows="9" placeholder="Pega aquí la respuesta completa de la IA (empieza por «RUTINA:»)"></textarea></label>
+      <p class="aviso" id="iaError" role="status"></p>
+      <div class="d-botones"><button type="button" class="anadir" id="iaRevisar">Revisar</button></div>
+    </div>
+    <div id="iaVistaCaja" class="ia-paso" hidden>
+      <h3 id="iaVistaTit" class="ia-tit"></h3>
+      <div id="iaVista" class="ia-vista"></div>
+      <div class="fila" id="iaMesoOp" hidden>
+        <label class="campo">Empieza la semana del <input id="iaInicio" type="date"></label>
+        <label class="campo">Semanas <input id="iaMesoSem" type="number" min="1" max="26" inputmode="numeric"></label>
+      </div>
+      <p class="menu-det nota" id="iaAvisoDias" role="status"></p>
+      <div class="d-botones">
+        <button type="button" class="nav-btn" id="iaPlantillas">Usar como plantillas</button>
+        <button type="button" class="anadir" id="iaMeso" hidden>Crear mesociclo</button>
+      </div>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="dlgAyuda" aria-label="Instrucciones de uso">
+  <form method="dialog" class="d-cab">
+    <h3 class="d-tit">Instrucciones de uso</h3>
+    <button class="cerrar" aria-label="Cerrar">✕</button>
+  </form>
+  <div class="d-cuerpo ayuda">
+    <p>Toca cada apartado para verlo. Puedes volver aquí cuando quieras con el botón <b>?</b> de arriba.</p>
+    <details><summary>La semana y el texto del día</summary>
+      <p>Cada día tiene un espacio para escribir lo que quieras. Se guarda solo. El botón <b>N</b> pone el texto en negrita.</p>
+      <p>Cambia de semana con las flechas ‹ ›. <b>Hoy</b> te devuelve a la semana actual.</p>
+    </details>
+    <details><summary>Añadir ejercicios y series</summary>
+      <p>Pulsa <b>+ Ejercicio</b> en un día, busca el ejercicio o escribe uno nuevo. Arriba puedes filtrar por Fuerza, Carrera o Natación.</p>
+      <p><b>Fuerza:</b> kg × repeticiones. El botón <b>kg</b> cambia a <b>%</b> del 1RM (pon tu 1RM en la ficha del ejercicio).</p>
+      <p><b>Carrera y natación:</b> metros y tiempo. El botón <b>m</b> cambia a <b>min</b> si prefieres apuntar solo el tiempo.</p>
+      <p>El selector <b>×1, ×2…</b> añade varias series iguales de golpe. Toca el nombre del ejercicio para ver su vídeo, récords, gráfica e historial.</p>
+    </details>
+    <details><summary>Cómo escribir tiempos y descansos</summary>
+      <p><b>Tiempo:</b> 3,40 o 3:40 son 3 min 40 s; un número solo son minutos (40 = 40 min); 1:02:30 es 1 h 2 min 30 s.</p>
+      <p><b>Descanso:</b> 2 = 2 minutos; 90 = 90 segundos (hasta 15 se entiende como minutos); 1,30 = 1 min 30 s.</p>
+      <p><b>Recuperación en metros:</b> escribe 300 m (por ejemplo, trotando entre series).</p>
+    </details>
+    <details><summary>Series planificadas</summary>
+      <p>Las series que añades en días futuros (o que vienen de plantillas y mesociclos) quedan <b>planificadas</b>, en gris y con un círculo.</p>
+      <p>Toca el círculo para marcarla como hecha tal cual. Si hiciste otra cosa, toca la serie, corrige los datos y guárdala. También puedes corregir después una serie ya hecha tocándola.</p>
+    </details>
+    <details><summary>Bloques ×N</summary>
+      <p><b>+ Bloque</b> crea uno o varios tramos que se repiten, por ejemplo 1000 m + recuperación 300 m ×4, o Press banca + Remo ×4. Se muestran ronda a ronda.</p>
+    </details>
+    <details><summary>Plantillas, copiar y pegar</summary>
+      <p>En el menú <b>⋯</b> de cada día puedes copiar el día, pegar lo último copiado, añadir una plantilla, guardar los ejercicios como plantilla o compartirlos con un amigo.</p>
+      <p>Si los ejercicios tienen nombre de sesión (por ejemplo «Pierna»), su menú ⋯ copia, guarda o comparte solo esa sesión. Puedes tener varias sesiones el mismo día.</p>
+    </details>
+    <details><summary>Mesociclos y semana de descarga</summary>
+      <p>En <b>Plan → Mesociclos</b> repartes tus plantillas por los días de la semana durante varias semanas. Puedes sumar kilos cada semana.</p>
+      <p>La <b>semana de descarga</b> (la última, o cada N semanas) baja un 30 % el peso y la distancia, o el número de series (lo eliges tú). En la semana aparece marcada como «Descarga».</p>
+      <p>Pulsa <b>Guardar y rellenar calendario</b> para que aparezcan las series planificadas.</p>
+    </details>
+    <details><summary>Crear con IA y rutinas tipo</summary>
+      <p>En <b>Plan → Crear con IA</b> eliges objetivo, días, nivel, material y limitaciones. Copia el prompt, pégalo en ChatGPT, Claude u otra IA y pega su respuesta en el paso 2.</p>
+      <p>La app te muestra una vista previa y lo guarda como plantillas o como mesociclo. Crea los ejercicios que falten. Si algo no encaja, te dice qué línea falla.</p>
+      <p>En <b>Rutinas tipo</b> tienes algunos ejemplos listos. Todo se copia a tus plantillas y lo puedes editar como cualquier otra.</p>
+      <p>Son sugerencias generales, no un plan médico ni personalizado.</p>
+    </details>
+    <details><summary>Marcas y ritmos recomendados</summary>
+      <p>La pestaña <b>Marcas</b> estima tu forma en carrera (VDOT), tus marcas previstas y tus ritmos de entrenamiento, con tus sesiones completas de las últimas semanas.</p>
+      <p>Las series de carrera planificadas muestran un objetivo que se ajusta según cómo te van saliendo. Si tus últimos días tienen esfuerzo alto, el objetivo se suaviza un poco. Son estimaciones orientativas.</p>
+    </details>
+    <details><summary>Esfuerzo (RPE) y resumen semanal</summary>
+      <p>Debajo de cada día entrenado, <b>+ Esfuerzo y sensaciones</b> guarda cuánto te costó (1 muy suave, 10 máximo) y una nota corta. Se ve en el día y en el historial de cada ejercicio.</p>
+      <p>Arriba de la semana, <b>Resumen de la semana</b> muestra km, kilos levantados (peso × repeticiones), series hechas frente a planificadas, récords y esfuerzo medio, comparados con la semana anterior.</p>
+    </details>
+    <details><summary>Compartir con amigos</summary>
+      <p>Desde el menú ⋯ de un día, una sesión o una plantilla, <b>Compartir con un amigo</b> crea un enlace o un código de 8 letras. Tu amigo lo abre o lo pega en <b>Plan → Añadir algo compartido</b>.</p>
+    </details>
+    <details><summary>Copia de seguridad</summary>
+      <p>En <b>Plan → Copia de seguridad</b> descargas todos tus datos: la copia completa (JSON) sirve para restaurar; los CSV se abren con Excel o Numbers.</p>
+      <p><b>Restaurar copia</b> recupera lo que falte sin borrar nada de lo que tienes.</p>
+    </details>
+    <details><summary>Sin conexión</summary>
+      <p>Todo se guarda primero en el dispositivo y se sincroniza con tu cuenta en cuanto hay conexión. Puedes usar la app sin internet; abajo verás si hay cambios pendientes de subir.</p>
+    </details>
+    <details><summary>Instalar en el iPhone</summary>
+      <p>Abre la app en <b>Safari</b>, pulsa <b>Compartir</b> (el cuadrado con la flecha) y elige <b>Añadir a pantalla de inicio</b>. Se abrirá a pantalla completa como una app más.</p>
+    </details>
+    <details id="ayudaAdmin" hidden><summary>Administración (solo tú)</summary>
+      <p>En <b>Plan → Usuarios</b> apruebas las cuentas nuevas (te llega un correo cuando alguien se registra) o les quitas el acceso.</p>
+      <p>Con <b>Puede editar el catálogo común</b> das permiso a alguien para editar los ejercicios compartidos. El 1RM y los entrenamientos de cada uno siguen siendo privados.</p>
+    </details>
   </div>
 </dialog>
 
