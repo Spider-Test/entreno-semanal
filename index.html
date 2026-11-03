@@ -132,7 +132,15 @@
         <label class="campo">Botones − y + de peso (kg) <input id="ajPaso" inputmode="decimal" placeholder="2,5"></label>
       </div>
       <label class="campo">Al importar, una vuelta más lenta que este ritmo (min/km) es recuperación <input id="ajRitmoRec" inputmode="decimal" placeholder="8:00"></label>
-      <label class="campo">Frecuencia cardíaca máxima (ppm; si la dejas vacía, la mayor de tus archivos FIT) <input id="ajFcMax" inputmode="numeric" pattern="[0-9]*"></label>
+      <label class="campo">Cómo se calcula tu FC máxima
+        <select id="ajFcModo"><option value="auto">Automática (con tus archivos FIT y TCX)</option><option value="edad">Por tu edad (Tanaka)</option><option value="manual">La pongo a mano</option></select>
+      </label>
+      <label class="campo" id="ajFcMaxL" hidden>FC máxima (ppm) <input id="ajFcMax" inputmode="numeric" pattern="[0-9]*"></label>
+      <p class="menu-det nota" id="ajFcInfo"></p>
+      <div class="fila">
+        <label class="campo">Edad (para estimar la FC máxima sin datos) <input id="ajEdad" inputmode="numeric" pattern="[0-9]*"></label>
+        <label class="campo">FC en reposo (opcional, zonas por reserva) <input id="ajFcReposo" inputmode="numeric" pattern="[0-9]*"></label>
+      </div>
       <label class="campo">Series importadas con mucho desnivel (pendiente media de más del 4 %) <select id="ajDesnivel"><option value="excluir">No cuentan para las marcas por distancia</option><option value="contar">Cuentan, con su ritmo ajustado</option></select></label>
     </section>
     <section class="plan-sec" data-sec="sugerencias" id="bloqueSug" hidden>
@@ -147,7 +155,7 @@
   </div>
 
   <div id="vistaMarcas" hidden>
-    <p class="aviso-estim">Estimaciones orientativas de carrera calculadas con tus entrenamientos completos (fórmulas de Daniels y Riegel). No sustituyen a una prueba real ni a un entrenador.</p>
+    <p class="aviso-estim">Tus récords de fuerza (por zonas del cuerpo), carrera y piscina. Las estimaciones de carrera son orientativas, calculadas con tus entrenamientos completos (fórmulas de Daniels y Riegel). No sustituyen a una prueba real ni a un entrenador.</p>
     <div id="marcasCont"></div>
   </div>
 
@@ -340,26 +348,54 @@
       <button type="button" role="tab" data-paso="pegar" aria-selected="false">2 · Pegar respuesta</button>
     </div>
     <div id="iaPrompt" class="ia-paso">
-      <div class="fila">
-        <label class="campo">Objetivo
-          <select id="iaObjetivo">
-            <option value="fuerza">Fuerza</option>
-            <option value="hipertrofia">Hipertrofia</option>
-            <option value="5k">Carrera 5 km</option>
-            <option value="10k">Carrera 10 km</option>
-            <option value="combinado">Fuerza + carrera</option>
-          </select>
-        </label>
-        <label class="campo">Días por semana <input id="iaDias" type="number" min="1" max="7" value="3" inputmode="numeric"></label>
-      </div>
-      <div class="fila">
-        <label class="campo">Nivel
-          <select id="iaNivel"><option>principiante</option><option selected>intermedio</option><option>avanzado</option></select>
-        </label>
+      <label class="campo">¿Qué quieres?
+        <select id="iaModo"><option value="plan">Plan de varias semanas o mesociclo</option><option value="sesion">Entrenamiento suelto (una sesión)</option></select>
+      </label>
+      <div id="iaCamposPlan">
+        <div class="fila">
+          <label class="campo">Objetivo
+            <select id="iaObjetivo">
+              <option value="fuerza">Fuerza</option>
+              <option value="hipertrofia">Hipertrofia</option>
+              <option value="5k">Carrera 5 km</option>
+              <option value="10k">Carrera 10 km</option>
+              <option value="media">Media maratón (21,1 km)</option>
+              <option value="maraton">Maratón (42,2 km)</option>
+              <option value="combinado">Fuerza + carrera</option>
+            </select>
+          </label>
+          <label class="campo">Días por semana <input id="iaDias" type="number" min="1" max="7" value="3" inputmode="numeric"></label>
+        </div>
+        <div class="fila" id="iaCamposCarrera" hidden>
+          <label class="campo">Marca objetivo (opcional) <input id="iaMarca" placeholder="1:45:00" autocomplete="off"></label>
+          <label class="campo">Fecha de la carrera (opcional) <input id="iaFechaCarrera" type="date"></label>
+        </div>
         <label class="campo">Semanas <input id="iaSemanas" type="number" min="1" max="26" value="6" inputmode="numeric"></label>
+        <label class="campo">Objetivo concreto <input id="iaMeta" placeholder="Bajar de 25 min en 5 km, subir mi sentadilla…" autocomplete="off"></label>
       </div>
+      <div id="iaCamposSesion" hidden>
+        <div class="fila">
+          <label class="campo">Tipo de sesión
+            <select id="iaSesTipo">
+              <option value="pierna">Pierna</option><option value="torso">Torso</option><option value="pecho">Pecho</option><option value="espalda">Espalda</option>
+              <option value="hombro">Hombro y brazos</option><option value="completo">Cuerpo completo</option><option value="empuje">Empuje</option><option value="tiron">Tirón</option>
+              <option value="series">Carrera: series</option><option value="umbral">Carrera: umbral</option><option value="rodaje">Carrera: rodaje</option><option value="tirada">Carrera: tirada larga</option>
+              <option value="natacion">Natación</option><option value="combinado">Combinado (fuerza + carrera)</option><option value="otro">Otro…</option>
+            </select>
+          </label>
+          <label class="campo">Duración
+            <select id="iaDuracion"><option>30</option><option>45</option><option selected>60</option><option>90</option></select>
+          </label>
+        </div>
+        <label class="campo" id="iaSesOtroL" hidden>¿Qué sesión? <input id="iaSesOtro" placeholder="Core y movilidad, cuestas, técnica de crol…" autocomplete="off"></label>
+        <label class="campo">Intensidad
+          <select id="iaIntensidad"><option>suave (RPE 5-6)</option><option selected>moderada (RPE 7)</option><option>dura (RPE 8-9)</option></select>
+        </label>
+      </div>
+      <label class="campo">Nivel
+        <select id="iaNivel"><option>principiante</option><option selected>intermedio</option><option>avanzado</option></select>
+      </label>
       <label class="campo">Material <input id="iaMaterial" placeholder="Gimnasio completo, mancuernas en casa, pista…" autocomplete="off"></label>
-      <label class="campo">Objetivo concreto <input id="iaMeta" placeholder="Bajar de 25 min en 5 km, subir mi sentadilla…" autocomplete="off"></label>
       <label class="campo">Limitaciones <input id="iaLimites" placeholder="Molestias de rodilla, 45 min por sesión…" autocomplete="off"></label>
       <label class="campo">Prompt para la IA <textarea id="iaTexto" readonly rows="7"></textarea></label>
       <div class="d-botones"><span class="menu-det nota" id="iaCopiarAviso" role="status"></span><button type="button" class="anadir" id="iaCopiar">Copiar prompt</button></div>
@@ -382,6 +418,13 @@
         <button type="button" class="nav-btn" id="iaPlantillas">Usar como plantillas</button>
         <button type="button" class="anadir" id="iaMeso" hidden>Crear mesociclo</button>
       </div>
+      <div id="iaDiaOp" hidden>
+        <div class="fila">
+          <label class="campo">Añadir al día <input id="iaDiaFecha" type="date"></label>
+          <label class="campo chk"><input type="checkbox" id="iaDiaPlantilla"> Guardarla también como plantilla</label>
+        </div>
+        <div class="d-botones"><button type="button" class="anadir" id="iaAnadirDia">Añadir al día</button></div>
+      </div>
     </div>
   </div>
 </dialog>
@@ -393,7 +436,11 @@
   </form>
   <div class="d-cuerpo ayuda">
     <p>Toca cada apartado para verlo. Puedes volver aquí cuando quieras con el botón <b>?</b> de arriba. ¿Echas algo en falta o algo no va bien? Envíanos una sugerencia:</p>
-    <details class="novedades" open><summary>Novedades · versión 41</summary>
+    <details class="novedades" open><summary>Novedades · versión 45</summary>
+      <p><b>Pulsaciones</b>, arriba en Marcas: tu FC máxima en grande y de dónde sale (con un botón para ir a esa actividad), la FC en reposo, tus zonas, el tiempo en cada una y la evolución de tu pico de FC; «Editar» para elegir automática, por edad o a mano. Cada carrera importada muestra su FC media y máxima junto al total. Arreglado: Ajustes no mostraba la FC máxima tras importar.</p>
+      <p><b>Marcas por apartados:</b> Fuerza (récord y 1RM estimado de cada ejercicio, separados en pierna, torso, brazos y core), Carrera y Piscina (mejores marcas en 50–1500 m), cada uno desplegable. · Plan → Ajustes: elige si la FC máxima es automática, por tu edad o a mano.</p>
+      <p><b>Pulsaciones:</b> la FC máxima se calcula sola con el pico mantenido (10 s) de tus FIT y TCX de los últimos 6 meses, sin picos falsos, y te dice de dónde sale; sin datos, por tu edad. <b>Zonas Z1–Z5</b> con el tiempo en cada una en cada carrera importada y en Marcas (con FC en reposo, por reserva). La <b>forma</b> tiene en cuenta el tipo de recuperación, el % de FC máxima de cada serie (si no fuiste a tope, extrapola) y la deriva cardiaca, y Marcas explica el «Por qué».</p>
+      <p><b>Crear con IA:</b> ahora también un <b>entrenamiento suelto</b> (tipo de sesión, duración, intensidad…) que se añade directamente a un día o se guarda como plantilla, y planes para <b>media maratón y maratón</b> con marca objetivo, fecha de carrera, tus marcas previstas y tapering. · El botón <b>?</b> avisa con un punto cuando hay novedades que no has visto.</p>
       <p><b>Agrupar en bloque:</b> mantén pulsada una serie, elige varias y agrúpalas en un bloque ×N (propone el patrón que se repite); «Desagrupar» en el ⋯ del bloque. Al importar, marca vueltas y agrúpalas a mano antes de guardar.</p>
       <p><b>Archivos FIT</b> de COROS y Garmin: la app usa las vueltas tal como las marcó el reloj (serie, recuperación, descanso, calentamiento, vuelta a la calma), el nombre del entrenamiento y sus objetivos de ritmo, el desnivel del barómetro, y las <b>pulsaciones</b> y la cadencia de cada vuelta. En los rodajes con pulsaciones, la forma (VDOT) se estima con tu FC: un rodaje suave ya no la rebaja. Pon tu FC máxima en Plan → Ajustes (si no, se usa la mayor registrada).</p>
       <p><b>Desnivel en las carreras importadas</b> (GPX, TCX y CSV de COROS, Strava o Garmin): cada serie guarda lo que sube y baja («+18 m / −5 m») y su <b>ritmo ajustado por pendiente</b> («3:58/km (aj. 3:44/km)»). La forma (VDOT), las marcas, las predicciones y los objetivos usan el ritmo ajustado. Las series con pendiente media de más del 4 % quedan fuera de las marcas por distancia (cámbialo en Plan → Ajustes).</p>
@@ -477,12 +524,18 @@
     <details><summary>Crear con IA y rutinas tipo</summary>
       <p>En <b>Plan → Crear con IA</b> eliges objetivo, días, nivel, material y limitaciones. Copia el prompt, pégalo en ChatGPT, Claude u otra IA y pega su respuesta en el paso 2.</p>
       <p>La app te muestra una vista previa y lo guarda como plantillas o como mesociclo. Crea los ejercicios que falten. Si algo no encaja, te dice qué línea falla.</p>
+      <p><b>Entrenamiento suelto:</b> en «¿Qué quieres?» elige «Entrenamiento suelto», el tipo de sesión (pierna, torso, series, umbral, tirada larga, natación, «Otro»…), la duración y la intensidad. Tus molestias activas y tus ritmos van en el prompt. Al pegar la respuesta, elige el día y pulsa <b>Añadir al día</b> (y, si quieres, guárdala también como plantilla).</p>
+      <p><b>Media maratón y maratón:</b> además de 5 y 10 km. Puedes poner tu marca objetivo y la fecha de la carrera (las semanas se cuentan hasta ella). El prompt incluye tus marcas previstas de Marcas (VDOT y Riegel) y pide descarga y tapering antes de la carrera. Las tiradas largas pueden llevar ritmos distintos por tramos.</p>
       <p>En <b>Rutinas tipo</b> tienes algunos ejemplos listos. Todo se copia a tus plantillas y lo puedes editar como cualquier otra.</p>
       <p>Son sugerencias generales, no un plan médico ni personalizado.</p>
     </details>
     <details><summary>Importar carreras</summary>
       <p>En <b>Plan → Importar carreras</b> subes un archivo GPX o TCX del reloj o de Strava, el CSV de actividades de Strava o Garmin, o el <b>CSV de vueltas de COROS</b> (en la app de COROS, la actividad → exportar vueltas). Cada carrera se guarda en su fecha con distancia y tiempo, y alimenta Marcas y ritmos.</p>
       <p><b>Archivos FIT (lo más completo):</b> en la app de COROS, abre la actividad → compartir (arriba) → <b>Exportar archivo .fit</b>; en COROS Training Hub (web), la actividad → Exportar → FIT. En Garmin Connect (web), la actividad → ⚙ → <b>Exportar original</b> (descarga un .zip: descomprímelo y elige el .fit). Del FIT se toman la fecha y la hora, cada vuelta con su tipo según el reloj (sin adivinar por el ritmo), el nombre del entrenamiento programado y sus objetivos, el desnivel del barómetro, y las pulsaciones media y máxima y la cadencia.</p>
+      <p><b>Dónde ver tus pulsaciones:</b> en <b>Marcas → Pulsaciones</b> (el primer apartado): FC máxima, de dónde sale (y un botón para ir a esa actividad), FC en reposo, zonas Z1–Z5 con sus pulsaciones, el tiempo en cada zona de las últimas 4 semanas y la gráfica de tu pico de FC en cada actividad. Con <b>Editar</b> eliges cómo se calcula y pones tu edad o tu FC en reposo. En el día, cada carrera importada muestra su FC media y máxima debajo del total, y cada serie la suya.</p>
+      <p><b>FC máxima automática:</b> se calcula con el pico mantenido (media de 10 segundos) de tus archivos FIT y TCX de los últimos 6 meses, descartando los primeros minutos, los saltos bruscos y los valores imposibles. Plan → Ajustes y Marcas te dicen de dónde sale («168 ppm · Series 1000 m del 2 nov»). En <b>Plan → Ajustes → Cómo se calcula tu FC máxima</b> eliges: <b>automática</b> (con tus archivos; mientras no haya, por tu edad), <b>por tu edad</b> (fórmula de Tanaka: 208 − 0,7 × edad) o <b>a mano</b>. Debajo ves lo que da cada opción y cuál se usa. Si un archivo supera la que usas, te avisa. La FC en reposo (opcional) hace que las zonas se calculen sobre tu reserva.</p>
+      <p><b>Zonas Z1–Z5:</b> 50–60, 60–70, 70–80, 80–90 y 90–100 % de tu FC máxima (o de tu reserva, si pones la FC en reposo: método Karvonen). Cada carrera importada con pulso muestra el tiempo en cada zona debajo de su total, y Marcas, el de las últimas 4 semanas.</p>
+      <p><b>Cómo se calcula la forma:</b> nunca con una serie suelta, sino con la sesión entera: número de series, volumen, duración y tipo de recuperación (trotando descansa menos que parado), caída de ritmo entre series y desnivel (ritmo ajustado). Con pulsaciones, además, el % de tu FC máxima en cada serie (si llegaste al 88 %, no fuiste a tope y se extrapola tu ritmo máximo) y la deriva cardiaca (si el pulso sube mucho con el mismo ritmo, estabas cerca del límite). En Marcas, «Por qué» enseña los factores de la sesión que más pesa.</p>
       <p><b>Pulsaciones:</b> en los rodajes continuos con FC, la forma se calcula con la parte de tu VO₂máx que usaste según tu % de FC máxima (fórmula de Londeree): así un rodaje suave no rebaja tu forma. Pon tu <b>FC máxima</b> en Plan → Ajustes; si la dejas vacía se usa la mayor registrada en tus archivos del último año (más prudente si nunca llegaste a tu máximo).</p>
       <p><b>Desnivel:</b> si el archivo trae altitud (GPX y TCX punto a punto, o la subida y bajada de cada vuelta en el CSV de COROS, Strava o Garmin), cada serie guarda su desnivel y un <b>ritmo ajustado por pendiente</b>: el ritmo equivalente en llano según el coste energético de correr en cuesta (modelo de Minetti, 2002). La altitud se suaviza para quitar el ruido del GPS. Subir hace el ritmo ajustado más rápido que el real y bajar, más lento. La forma, las marcas, las predicciones y los objetivos usan el ajustado; lo apuntado a mano y los archivos sin altitud, el real.</p>
       <p>Una serie con pendiente media de más del 4 % se marca «con desnivel» y no cuenta para las marcas por distancia. En <b>Plan → Ajustes</b> puedes hacer que cuente con su ritmo ajustado.</p>
@@ -491,7 +544,7 @@
       <p>Si una carrera ya está en tu calendario, la app lo detecta y no la duplica. Los rodajes con vuelta automática cada km se guardan como una sola serie.</p>
     </details>
     <details><summary>Marcas y ritmos recomendados</summary>
-      <p>La pestaña <b>Marcas</b> estima tu forma en carrera (VDOT), tus marcas previstas y tus ritmos de entrenamiento, con tus sesiones completas de las últimas semanas.</p>
+      <p>La pestaña <b>Marcas</b> tiene tres apartados desplegables. <b>Fuerza:</b> el récord y el 1RM estimado de cada ejercicio, separados en pierna, torso, brazos y core según las zonas que trabaja (las de su ficha); toca uno para ver su gráfica e historial. <b>Carrera:</b> tu forma (VDOT), tus marcas previstas, tus ritmos de entrenamiento, tus pulsaciones y tus mejores marcas. <b>Piscina:</b> tus mejores marcas en 50, 100, 200, 400, 800 y 1500 m y su evolución.</p>
       <p>Las series de carrera planificadas muestran un objetivo que se ajusta según cómo te van saliendo. Si tus últimos días tienen esfuerzo alto, el objetivo se suaviza un poco. Son estimaciones orientativas.</p>
     </details>
     <details><summary>Esfuerzo (RPE) y resumen semanal</summary>

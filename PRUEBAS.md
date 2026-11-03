@@ -93,6 +93,21 @@ Apunta en cada versión: fecha, versión, dispositivo (iPhone / Mac / Android) y
 - [ ] FIT de COROS (o el de prueba «5x1000 cuestas»): fecha y hora del archivo, vueltas clasificadas por el reloj (calentamiento, serie, recuperación, vuelta a la calma), bloque ×5, objetivos «obj. 3:50–4:00/km», ♥ media/máxima, pasos/min y desnivel por vuelta en la vista previa y en cada serie.
 - [ ] Marcas: un rodaje con FC sube (o mantiene) el VDOT y la nota dice «estimado con tus pulsaciones»; cambiar la FC máxima en Plan → Ajustes lo recalcula.
 
+## 11b. Crear con IA
+- [ ] «Entrenamiento suelto»: tipo, duración e intensidad cambian el prompt; pegar una sesión de ejemplo → vista previa → «Añadir al día» (con «guardarla también como plantilla»): aparece en el día con el nombre de la sesión y en Plantillas.
+- [ ] Objetivo «Maratón» con marca y fecha: el prompt cuenta las semanas hasta la carrera, incluye las marcas previstas y pide tapering; pegar un plan de maratón de ejemplo con SEMANA 1…N y una tirada larga por tramos («1x8km @5:20/km + 1x6km @4:50/km») y crear el mesociclo.
+
+## 11c. Aviso de novedades
+- [ ] Con una versión nueva, el «?» lleva un punto (y pulso suave; sin animación con «Reducir movimiento»). Al pulsarlo se abren las Novedades y el punto desaparece; en otro dispositivo con la misma cuenta tampoco sale.
+
+- [ ] Pulsaciones: sin datos y con edad 40 → FC máx 180 «provisional por tu edad»; tras importar un FIT con pulso → «pico mantenido · <serie> del <fecha>» en Ajustes y Marcas; ponerla a mano más baja que el pico → aviso «has llegado a …».
+- [ ] Zonas: debajo del total de la carrera importada sale la barra Z1–Z5 con tiempos; Marcas → Pulsaciones muestra la tabla de zonas y el reparto de 4 semanas; con FC en reposo cambian los límites.
+- [ ] Forma: Marcas → «Por qué» lista series, volumen, descanso efectivo (trotando al 60 %), desnivel, % de FC máxima, deriva cardiaca y caída de ritmo.
+
+- [ ] Marcas: tres apartados desplegables (Fuerza, Carrera, Piscina) que recuerdan si estaban abiertos; Fuerza separa Pierna, Torso, Brazos y Core con récord, 1RM y fecha, y al tocar un ejercicio abre su ficha; Piscina muestra las marcas de natación.
+
+- [ ] Marcas → Pulsaciones (arriba): FC máxima en grande con su origen, «Ver la actividad del …» abre ese día, FC en reposo, zonas, tiempo por zona y gráfica del pico; «Editar» cambia entre automática, por edad y a mano. Tras importar un FIT, Plan → Ajustes muestra la FC máxima (no «sin datos»). El total de una carrera importada muestra «♥ media … · máx … ppm».
+
 ## 12. Sugerencias
 - [ ] Enviar una sugerencia de prueba desde «Enviar sugerencia».
 - [ ] (Administrador) Plan → Sugerencias: aparece; marcarla como leída; borrarla y deshacer.

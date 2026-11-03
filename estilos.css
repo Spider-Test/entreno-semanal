@@ -778,7 +778,9 @@ dialog.pantalla[open] { display: flex; flex-direction: column; }
 }
 /* Ventanas y hojas */
 dialog:not(.pantalla) { background: var(--vidrio-brillo), var(--vidrio-denso); border: 1px solid var(--vidrio-luz); box-shadow: 0 24px 60px rgba(0, 0, 0, 0.3), inset 0 1px 0 var(--vidrio-luz); }
-dialog:not(.pantalla) .d-cab { background: transparent; border-bottom-color: color-mix(in srgb, var(--line) 70%, transparent); }
+/* La cabecera fija del diálogo es opaca: si fuera transparente, el texto se vería por debajo al desplazarlo */
+dialog:not(.pantalla) .d-cab { background: var(--card); border-radius: 16px 16px 0 0; border-bottom-color: color-mix(in srgb, var(--line) 70%, transparent); }
+dialog details, dialog .plan-sec { scroll-margin-top: 64px; }
 dialog::backdrop { background: rgba(0, 0, 0, 0.35); }
 .toast { background: color-mix(in srgb, var(--toast-bg) 82%, transparent); border: 1px solid rgba(255, 255, 255, 0.18); }
 .toast.pr { background: color-mix(in srgb, var(--gold) 88%, transparent); }
@@ -911,3 +913,25 @@ body.sel-series .series li.sel { background: var(--accent-soft); border-radius: 
 body.sel-series .series li.sel::before { background: var(--accent); border-color: var(--accent); }
 .imp-marca { margin-right: 4px; width: 18px; height: 18px; vertical-align: middle; }
 .imp-agrupar { margin-top: 8px; gap: 8px; flex-wrap: wrap; }
+
+/* Novedades sin ver: punto en el «?» y un pulso suave (sin animación si se pide menos movimiento) */
+.ayuda-btn { position: relative; }
+.ayuda-btn.nuevo::after { content: ""; position: absolute; top: -2px; right: -2px; width: 10px; height: 10px; border-radius: 50%; background: var(--gold); border: 2px solid var(--card); }
+.ayuda-btn.nuevo { animation: pulso-nov 2.4s ease-in-out infinite; }
+@keyframes pulso-nov { 0%, 100% { box-shadow: 0 0 0 0 rgba(212, 160, 23, 0.45); } 50% { box-shadow: 0 0 0 7px rgba(212, 160, 23, 0); } }
+@media (prefers-reduced-motion: reduce) { .ayuda-btn.nuevo { animation: none; } }
+#iaDiaOp { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 10px; }
+.campo.chk { flex-direction: row; align-items: center; gap: 8px; }
+
+/* Zonas de pulso Z1–Z5 */
+.zonas-fc { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; }
+.zf-barra { display: flex; height: 8px; border-radius: 4px; overflow: hidden; background: var(--line); }
+.zf-1 { background: #9ca3af; } .zf-2 { background: #3b82f6; } .zf-3 { background: #22c55e; } .zf-4 { background: #f59e0b; } .zf-5 { background: #ef4444; }
+.zf-texto { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.por-que { font-size: 13px; }
+
+/* Marcas: apartados desplegables con sus secciones dentro */
+.marcas-sec { margin-bottom: 12px; }
+.marcas-sec .plan-sec { box-shadow: none; padding-left: 0; padding-right: 0; background: none; }
+.marcas-sec.t-carrera h3 { color: var(--carrera, var(--fg)); }
+.marcas-sec.t-natacion h3 { color: var(--natacion, var(--fg)); }
