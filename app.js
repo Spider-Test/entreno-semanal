@@ -43,10 +43,10 @@ let perfil = leer("perfil-v1");                 // {aprobado, es_admin, email}
 let usuarios = [];                              // solo para el administrador
 let db = leer("datos-v2") || { entrenos: leer("entrenos-v1") || {} };
 Object.keys(TABLAS).forEach(t => { db[t] = db[t] || {}; });
-let cursores = leer("cursores-v2") || {};       // última marca de servidor leída por tabla
+let cursores = leer("cursores-v3") || {};       // última marca de servidor leída por tabla (v3: relee todo al añadir campos)
 let enEspera = leer("bloques-v1") || {};        // fecha -> ejercicios añadidos que aún no tienen series
 let porta = leer("portapapeles-v1");            // lo último copiado: {nombre, html, items}
-const guardarLocal = () => { escribir("datos-v2", db); escribir("cursores-v2", cursores); };
+const guardarLocal = () => { escribir("datos-v2", db); escribir("cursores-v3", cursores); };
 const guardarEspera = () => escribir("bloques-v1", enEspera);
 
 const estado = $("estado");
@@ -302,7 +302,9 @@ function cambiar(tabla, fila, enLote) {
 function mezclar(tabla, f) {
   const k = f[TABLAS[tabla].clave], local = db[tabla][k];
   const tr = Date.parse(f.actualizado), tl = local ? Date.parse(local.actualizado) : 0;
-  if (local && ((local.sucio && tr <= tl) || (!local.sucio && tr === tl))) return false;
+  // Misma marca y sin cambios locales: solo se copia si el servidor trae algún campo distinto (p. ej. una columna nueva)
+  const igual = () => TABLAS[tabla].campos.every(c => c === "actualizado" || JSON.stringify(local[c] ?? null) === JSON.stringify(f[c] ?? null));
+  if (local && ((local.sucio && tr <= tl) || (!local.sucio && tr === tl && igual()))) return false;
   const fila = {};
   TABLAS[tabla].campos.forEach(c => { fila[c] = f[c]; });
   fila.actualizado = new Date(tr).toISOString();
