@@ -897,3 +897,8 @@ html.ampliado label, html.ampliado summary, html.ampliado .tarjeta, html.ampliad
 /* Importar: fecha editable cuando el archivo no la trae (CSV de vueltas) */
 .imp-fecha { display: flex; align-items: center; gap: 8px; margin: 6px 0; font-size: 14px; font-weight: 600; }
 .imp-fecha input { padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--fg); font-size: 16px; }
+
+/* Desnivel de las carreras importadas */
+.series .desnivel { flex-basis: 100%; font-size: 0.8em; color: var(--muted); font-variant-numeric: tabular-nums; }
+.series .desnivel.fuerte { color: var(--gold); font-weight: 600; }
+#ajDesnivel { width: 100%; padding: 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--fg); font-size: 15px; }

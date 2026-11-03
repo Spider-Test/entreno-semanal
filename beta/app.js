@@ -37,7 +37,7 @@ const TABLAS = {
   ciclos: { clave: "id", conflicto: "id", campos: ["id", "ejercicio_id", "numero", "rm_inicio", "peso_inicial", "incremento", "reps_reset", "importadas", "cerrado", "borrado", "actualizado"] },
   plantillas: { clave: "id", conflicto: "id", campos: ["id", "nombre", "items", "borrado", "actualizado"] },
   mesociclos: { clave: "id", conflicto: "id", campos: ["id", "nombre", "inicio", "semanas", "dias", "progresion", "descarga", "notas", "borrado", "actualizado"] },
-  series: { clave: "id", conflicto: "id", campos: ["id", "fecha", "ejercicio_id", "orden", "peso", "reps", "distancia", "tiempo", "descanso", "hecha", "grupo", "meso_id", "bloque_id", "ronda", "rec_dist", "pct", "ciclo_id", "calentamiento", "borrado", "actualizado"] },
+  series: { clave: "id", conflicto: "id", campos: ["id", "fecha", "ejercicio_id", "orden", "peso", "reps", "distancia", "tiempo", "descanso", "hecha", "grupo", "meso_id", "bloque_id", "ronda", "rec_dist", "pct", "ciclo_id", "calentamiento", "desnivel_pos", "desnivel_neg", "ritmo_ajustado", "borrado", "actualizado"] },
   entrenos: { clave: "fecha", conflicto: "user_id,fecha", campos: ["fecha", "html", "texto", "rpe", "sensacion", "actualizado"] },
   molestias: { clave: "id", conflicto: "id", campos: ["id", "zona", "descripcion", "inicio", "estado", "borrado", "actualizado"] }
 };
@@ -161,6 +161,35 @@ const distDeNombre = nombre => { const m = norm(nombre).match(/(\d+(?:[.,]\d+)?)
 const ritmoSeg = (s, tipo) => n0(s.tiempo) / (n0(s.distancia) / TIPOS[tipo].porMetros);
 const ritmo = (s, tipo) => fmtTiempo(ritmoSeg(s, tipo)) + TIPOS[tipo].sufijo;
 const conMarca = s => n0(s.tiempo) > 0 && n0(s.distancia) > 0;
+// ---------- Desnivel de las carreras importadas: ritmo ajustado por pendiente (coste energético de Minetti et al., 2002) ----------
+const costeMinetti = i => { const g = Math.max(-0.45, Math.min(0.45, i)); return 155.4 * g ** 5 - 30.4 * g ** 4 - 43.3 * g ** 3 + 46.3 * g ** 2 + 19.5 * g + 3.6; };
+const factorPendiente = i => costeMinetti(i) / 3.6;   // cuánto «cuesta» un metro con esa pendiente frente a uno en llano
+// Sin perfil punto a punto (CSV): la subida y la bajada de la vuelta, repartidas con la misma pendiente
+function factorVuelta(d, sube, baja) {
+  if (!(d > 0) || !(sube + baja > 0)) return 1;
+  const g = (sube + baja) / d;
+  return sube / (sube + baja) * factorPendiente(g) + baja / (sube + baja) * factorPendiente(-g);
+}
+// Con perfil (GPX/TCX): altitud suavizada con media móvil de 5 puntos (quita el ruido del GPS o del barómetro) y tramos de al menos 20 m
+function perfilDesnivel(puntos) {
+  const p = puntos.filter(x => isFinite(x.ele) && isFinite(x.d));
+  if (p.length < 3) return null;
+  const el = p.map((x, i) => { const v = p.slice(Math.max(0, i - 2), i + 3); return v.reduce((a, y) => a + y.ele, 0) / v.length; });
+  let sube = 0, baja = 0, eq = 0, i0 = 0;
+  for (let i = 1; i < p.length; i++) {
+    const dd = p[i].d - p[i0].d;
+    if (dd < 20 && i < p.length - 1) continue;
+    if (dd > 0) { const dh = el[i] - el[i0]; if (dh > 0) sube += dh; else baja -= dh; eq += dd * factorPendiente(dh / dd); }
+    i0 = i;
+  }
+  const total = p[p.length - 1].d - p[0].d;
+  return total > 0 ? { subida: sube, bajada: baja, factor: eq / total } : null;
+}
+// Tiempo «en llano» de una serie importada con altitud (si no tiene, el real): es el que usan la forma, las marcas y los objetivos
+const tiempoLlano = s => n0(s.ritmo_ajustado) > 0 && n0(s.distancia) > 0 ? n0(s.ritmo_ajustado) * n0(s.distancia) / 1000 : n0(s.tiempo);
+const conDesnivel = s => n0(s.distancia) > 0 && (n0(s.desnivel_pos) + n0(s.desnivel_neg)) / n0(s.distancia) > 0.04;   // pendiente media > 4 %
+const fueraDeMarcas = s => conDesnivel(s) && ajustes().desnivelMarcas !== "contar";
+const textoDesnivel = s => n0(s.desnivel_pos) + n0(s.desnivel_neg) > 0 ? "+" + Math.round(n0(s.desnivel_pos)) + " m / −" + Math.round(n0(s.desnivel_neg)) + " m" + (conDesnivel(s) ? " · con desnivel" : "") : "";
 // Bilbo planificado: el peso sale del ciclo activo; %RM planificado: los kg salen del 1RM de referencia
 const pesoMostrado = s => !hecha(s) && s.ciclo_id === "auto" ? pesoBilbo(s.ejercicio_id)
   : !hecha(s) && n0(s.pct) > 0 ? kgDePct(s.ejercicio_id, s.pct) || n0(s.peso) : n0(s.peso);
@@ -169,7 +198,7 @@ function serieTexto(s) {
   if (esDistancia(tipo)) {
     // Por tiempo (sin metros): solo la duración, p. ej. «40 min»
     if (!(n0(s.distancia) > 0)) return n0(s.tiempo) > 0 ? fmtDuracion(s.tiempo) : "—";
-    return fmtDist(s.distancia) + (n0(s.tiempo) > 0 ? " · " + fmtTiempo(s.tiempo) + " · " + ritmo(s, tipo) : "");
+    return fmtDist(s.distancia) + (n0(s.tiempo) > 0 ? " · " + fmtTiempo(s.tiempo) + " · " + ritmo(s, tipo) + (n0(s.ritmo_ajustado) > 0 ? " (aj. " + fmtTiempo(s.ritmo_ajustado) + "/km)" : "") : "");
   }
   const kg = pesoMostrado(s), reps = n0(s.reps) > 0 ? n0(s.reps) : "máx";
   return (s.ciclo_id ? "Bilbo · " : "") + (n0(s.pct) > 0 ? num(s.pct) + " % · " : "") + (kg > 0 ? num(kg) + " kg × " + reps : reps + " reps");
@@ -200,10 +229,10 @@ function prsDe(lista, tipo) {
   const prs = new Set();
   if (esDistancia(tipo)) {
     const mejor = {};
-    lista.filter(conMarca).forEach(s => {
-      const d = n0(s.distancia);
-      if (mejor[d] !== undefined && n0(s.tiempo) < mejor[d]) prs.add(s.id);
-      mejor[d] = Math.min(mejor[d] ?? Infinity, n0(s.tiempo));
+    lista.filter(s => conMarca(s) && !fueraDeMarcas(s)).forEach(s => {
+      const d = n0(s.distancia), t = tiempoLlano(s);
+      if (mejor[d] !== undefined && t < mejor[d]) prs.add(s.id);
+      mejor[d] = Math.min(mejor[d] ?? Infinity, t);
     });
     return prs;
   }
@@ -1050,6 +1079,7 @@ function bloque(dia, id, series, grupo) {
     } else marca.replaceWith(botonHecha(s, s.calentamiento ? "C" : String(numero), s.calentamiento ? "serie de calentamiento" : "serie " + numero));
     li.querySelector(".sv-p").textContent = (s.calentamiento ? "Calent. · " : "") + serieTexto(s);
     if (descTexto(s)) { const d = document.createElement("span"); d.className = "desc"; d.textContent = descTexto(s); li.querySelector(".sv").appendChild(d); }
+    if (dist && textoDesnivel(s)) { const d = document.createElement("span"); d.className = "desnivel" + (conDesnivel(s) ? " fuerte" : ""); d.textContent = textoDesnivel(s); li.querySelector(".sv").appendChild(d); }
     if (!dist && usaBarra(id) && textoDiscos(pesoMostrado(s))) { const d = document.createElement("span"); d.className = "discos"; d.textContent = textoDiscos(pesoMostrado(s)); li.querySelector(".sv").appendChild(d); }
     if (planificada && tipo === "carrera") { const o = objetivoSerie(s); if (o) { const ob = document.createElement("span"); ob.className = "objetivo"; ob.textContent = textoObjetivo(o); li.querySelector(".sv").appendChild(ob); } }
     li.querySelector(".sv").setAttribute("aria-label", (planificada ? "Completar" : "Editar") + " serie " + numero + ": " + serieTexto(s));
@@ -1968,12 +1998,12 @@ function recuperacionMedia(ses, v) {
 function vdotSesion(ses) {
   const reps = ses.trabajo.filter(s => hecha(s) && n0(s.tiempo) > 0);
   if (!reps.length) return null;
-  const metros = reps.reduce((x, s) => x + n0(s.distancia), 0), seg = reps.reduce((x, s) => x + n0(s.tiempo), 0);
+  const metros = reps.reduce((x, s) => x + n0(s.distancia), 0), seg = reps.reduce((x, s) => x + tiempoLlano(s), 0);
   if (reps.length === 1 && metros < 3000) return null;   // una serie corta suelta no dice nada de la forma
   const v = metros / (seg / 60), recMedia = recuperacionMedia({ trabajo: reps, trotes: ses.trotes.filter(hecha) }, v);
   let vdot = vo2(v) / fraccion(duracionEquivalente(seg, seg / reps.length, recMedia) / 60), caida = 0;
   if (reps.length >= 3) {
-    const k = Math.max(1, Math.floor(reps.length / 3)), r = s => n0(s.tiempo) / n0(s.distancia);
+    const k = Math.max(1, Math.floor(reps.length / 3)), r = s => tiempoLlano(s) / n0(s.distancia);
     caida = reps.slice(-k).reduce((x, s) => x + r(s), 0) / reps.slice(0, k).reduce((x, s) => x + r(s), 0) - 1;
     vdot *= 1 + Math.max(0, 0.03 - Math.max(0, caida));   // si no hubo caída, no fue al límite
   }
@@ -2031,7 +2061,7 @@ function objetivoSerie(s, extra) {
   const hechas = ses.trabajo.filter(x => hecha(x) && n0(x.tiempo) > 0 && x.id !== s.id);
   if (hechas.length && !hecha(s)) {
     let suma = 0, pesos = 0;
-    hechas.forEach((x, i) => { suma += (i + 1) * n0(x.tiempo) / tiempoObj(x); pesos += i + 1; });
+    hechas.forEach((x, i) => { suma += (i + 1) * tiempoLlano(x) / tiempoObj(x); pesos += i + 1; });
     const corr = Math.max(-0.03, Math.min(0.05, 0.5 * (suma / pesos - 1)));
     tiempo *= 1 + corr;
     ajustado = Math.abs(corr) > 0.005;
@@ -2042,12 +2072,12 @@ const textoObjetivo = o => !o ? "" : (o.suave ? "obj. suave ~" + fmtTiempo(o.rit
   : "obj. " + fmtTiempo(o.tiempo) + " · " + fmtTiempo(o.ritmo) + "/km" + (o.ajustado ? " · ajustado a cómo vas" : "")) + (o.fatiga ? " · más suave por tu esfuerzo" : "");
 // Mejores marcas por distancia: exactas o, dentro de una serie algo más larga, a su ritmo medio
 function marcasDe(tipo) {
-  const lista = seriesVivas().filter(s => hecha(s) && !s.calentamiento && tipoDe(s.ejercicio_id) === tipo && n0(s.distancia) > 0 && n0(s.tiempo) > 0);
+  const lista = seriesVivas().filter(s => hecha(s) && !s.calentamiento && tipoDe(s.ejercicio_id) === tipo && n0(s.distancia) > 0 && n0(s.tiempo) > 0 && !fueraDeMarcas(s));
   return DIST_MARCAS.map(d => {
     let mejor = null;
     const evol = {};
     lista.filter(s => n0(s.distancia) >= d && n0(s.distancia) <= d * 3).forEach(s => {
-      const exacta = n0(s.distancia) === d, t = exacta ? n0(s.tiempo) : n0(s.tiempo) * d / n0(s.distancia);
+      const exacta = n0(s.distancia) === d, t = exacta ? tiempoLlano(s) : tiempoLlano(s) * d / n0(s.distancia);
       if (!mejor || t < mejor.t) mejor = { t, fecha: s.fecha, exacta };
       if (!evol[s.fecha] || t < evol[s.fecha]) evol[s.fecha] = t;
     });
@@ -3838,7 +3868,7 @@ $("enSalir").addEventListener("click", salirEntreno);
 $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); abrirRpe(d); });
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
-const VERSION_APP = "v38" + (BETA ? " beta" : "");
+const VERSION_APP = "v39" + (BETA ? " beta" : "");
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";
@@ -3960,18 +3990,27 @@ const distGeo = (a, b) => {
 const textoDe = (el, tag) => ((el.getElementsByTagName(tag)[0] || {}).textContent || "").trim();
 function leerGPX(doc) {
   return [...doc.getElementsByTagName("trk")].map(trk => {
-    const pts = [...trk.getElementsByTagName("trkpt")].map(p => ({ lat: +p.getAttribute("lat"), lon: +p.getAttribute("lon"), t: Date.parse(textoDe(p, "time")) }))
+    const altura = p => { const e = p.getElementsByTagName("ele")[0]; return e ? parseFloat(e.textContent) : NaN; };
+    const pts = [...trk.getElementsByTagName("trkpt")].map(p => ({ lat: +p.getAttribute("lat"), lon: +p.getAttribute("lon"), t: Date.parse(textoDe(p, "time")), ele: altura(p) }))
       .filter(p => !isNaN(p.lat) && !isNaN(p.lon) && !isNaN(p.t));
     if (pts.length < 2) return null;
     let d = 0;
-    for (let i = 1; i < pts.length; i++) d += distGeo(pts[i - 1], pts[i]);
-    return { inicio: pts[0].t, nombre: textoDe(trk, "name"), deporte: textoDe(trk, "type"), vueltas: [{ distancia: d, tiempo: (pts[pts.length - 1].t - pts[0].t) / 1000 }] };
+    pts[0].d = 0;
+    for (let i = 1; i < pts.length; i++) { d += distGeo(pts[i - 1], pts[i]); pts[i].d = d; }
+    return { inicio: pts[0].t, nombre: textoDe(trk, "name"), deporte: textoDe(trk, "type"), vueltas: [{ distancia: d, tiempo: (pts[pts.length - 1].t - pts[0].t) / 1000, ...(perfilDesnivel(pts) || {}) }] };
   }).filter(Boolean);
 }
 function leerTCX(doc) {
   return [...doc.getElementsByTagName("Activity")].map(a => {
     const laps = [...a.getElementsByTagName("Lap")];
-    const vueltas = laps.map(l => ({ distancia: +textoDe(l, "DistanceMeters") || 0, tiempo: +textoDe(l, "TotalTimeSeconds") || 0 }));
+    const vueltas = laps.map(l => {
+      // Altitud de cada punto de la vuelta (si el reloj la guarda), con su distancia acumulada
+      const pts = [...l.getElementsByTagName("Trackpoint")].map(tp => {
+        const a = tp.getElementsByTagName("AltitudeMeters")[0], dm = tp.getElementsByTagName("DistanceMeters")[0];
+        return { ele: a ? parseFloat(a.textContent) : NaN, d: dm ? parseFloat(dm.textContent) : NaN };
+      });
+      return { distancia: +textoDe(l, "DistanceMeters") || 0, tiempo: +textoDe(l, "TotalTimeSeconds") || 0, ...(perfilDesnivel(pts) || {}) };
+    });
     if (!vueltas.length) return null;
     return { inicio: Date.parse(textoDe(a, "Id") || laps[0].getAttribute("StartTime")), nombre: textoDe(a, "Notes"), deporte: a.getAttribute("Sport") || "", vueltas };
   }).filter(Boolean);
@@ -4017,12 +4056,20 @@ function leerCSVActividades(texto, archivo) {
   const iF = col("activity date", "date", "fecha", "fecha de la actividad", "start time", "hora de inicio"), iT = col("activity type", "tipo de actividad", "type", "tipo");
   const iD = col("distance", "distancia"), iM = col("moving time", "tiempo en movimiento"), iE = col("elapsed time", "tiempo transcurrido", "time", "tiempo");
   const iN = col("activity name", "title", "titulo", "nombre de la actividad", "nombre");
+  const iS = col("elevation gain", "ascenso total", "desnivel positivo"), iB = col("elevation loss", "descenso total", "desnivel negativo");
   if (iF < 0 || iD < 0 || (iM < 0 && iE < 0)) throw new Error("No reconozco las columnas del CSV (hacen falta fecha, distancia y tiempo).");
   return filas.slice(1).map(f => {
     const tt = String((iM >= 0 && f[iM]) || (iE >= 0 && f[iE]) || "").trim(), tiempo = /:/.test(tt) ? leerTiempo(tt.replace(/\.\d+$/, "")) : parseFloat(tt.replace(",", "."));
     let d = parseFloat(String(f[iD] || "").replace(/\s/g, "").replace(",", "."));
     if (d > 0 && d < 300) d *= 1000;   // en km
-    return { inicio: leerFechaCSV(f[iF]), nombre: iN >= 0 ? (f[iN] || "").trim() : "", deporte: iT >= 0 ? f[iT] || "" : "", vueltas: [{ distancia: d || 0, tiempo: tiempo || 0 }] };
+    const v = { distancia: d || 0, tiempo: tiempo || 0 };
+    if (iS >= 0 && parseFloat(f[iS]) >= 0) {
+      // Si solo trae la subida, la bajada se toma igual (casi todas las carreras vuelven al punto de salida)
+      v.subida = parseFloat(f[iS]) || 0;
+      v.bajada = iB >= 0 && parseFloat(f[iB]) >= 0 ? parseFloat(f[iB]) : v.subida;
+      v.factor = factorVuelta(v.distancia, v.subida, v.bajada);
+    }
+    return { inicio: leerFechaCSV(f[iF]), nombre: iN >= 0 ? (f[iN] || "").trim() : "", deporte: iT >= 0 ? f[iT] || "" : "", vueltas: [v] };
   }).filter(a => !isNaN(a.inicio) && a.vueltas[0].distancia > 0 && a.vueltas[0].tiempo > 0);
 }
 // CSV de las vueltas de UNA actividad (app de COROS: «Split», «Time», «Moving Time», «GetDistance», «Elevation Gain»…): no trae la fecha,
@@ -4040,6 +4087,7 @@ function leerCSVVueltas(filas, cab, col, archivo) {
     const v = { distancia: d || 0, tiempo: (iM >= 0 && seg(f[iM])) || seg(f[iE]) };
     if (iS >= 0) v.subida = parseFloat(f[iS]) || 0;
     if (iB >= 0) v.bajada = parseFloat(f[iB]) || 0;
+    if (iS >= 0 || iB >= 0) v.factor = factorVuelta(v.distancia, v.subida || 0, v.bajada || 0);
     return v;
   }).filter(v => v.tiempo > 0);
   if (!vueltas.length) return [];
@@ -4052,7 +4100,7 @@ function leerCSVVueltas(filas, cab, col, archivo) {
 // las lentas y largas del principio y del final, calentamiento y vuelta a la calma
 function clasificarVueltas(vueltas) {
   const lim = ritmoRecImport();
-  const v = vueltas.map(x => ({ distancia: x.distancia, tiempo: x.tiempo, ritmo: x.distancia > 0 ? x.tiempo / (x.distancia / 1000) : Infinity }));
+  const v = vueltas.map(x => ({ distancia: x.distancia, tiempo: x.tiempo, subida: x.subida, bajada: x.bajada, factor: x.factor, ritmo: x.distancia > 0 ? x.tiempo / (x.distancia / 1000) : Infinity }));
   v.forEach(x => { x.clase = x.distancia < 50 || x.tiempo <= 0 || x.ritmo > 1800 ? "parado" : x.ritmo > lim ? "rec" : "serie"; });
   const rapidas = v.filter(x => x.clase === "serie").map(x => x.ritmo).sort((a, b) => a - b);
   if (!rapidas.length) return { continuo: true, vueltas: v };
@@ -4133,7 +4181,7 @@ function pintarImportar() {
         if (!fi.value) return;
         const d = new Date(a.inicio), n = deIso(fi.value);
         n.setHours(d.getHours(), d.getMinutes());
-        importadas[k] = prepararActividad({ inicio: n.getTime(), nombre: a.nombre, deporte: a.deporte, fechaDudosa: true, vueltas: a.vueltas.map(v => ({ distancia: v.distancia, tiempo: v.tiempo })) });
+        importadas[k] = prepararActividad({ inicio: n.getTime(), nombre: a.nombre, deporte: a.deporte, fechaDudosa: true, vueltas: a.vueltas.map(v => ({ distancia: v.distancia, tiempo: v.tiempo, subida: v.subida, bajada: v.bajada, factor: v.factor })) });
         pintarImportar();
       });
       caja.appendChild(fl);
@@ -4157,7 +4205,9 @@ function pintarImportar() {
         fila.className = "imp-v c-" + v.clase;
         fila.innerHTML = '<span class="imp-n"></span><span class="imp-d"></span><select></select>';
         fila.querySelector(".imp-n").textContent = i + 1;
-        fila.querySelector(".imp-d").textContent = fmtDist(v.distancia) + " · " + fmtTiempo(v.tiempo) + (isFinite(v.ritmo) && v.distancia >= 50 ? " · " + fmtTiempo(v.ritmo) + "/km" : "");
+        const aj = v.factor && v.distancia >= 50 && isFinite(v.ritmo) ? v.ritmo / v.factor : 0;
+        fila.querySelector(".imp-d").textContent = fmtDist(v.distancia) + " · " + fmtTiempo(v.tiempo) + (isFinite(v.ritmo) && v.distancia >= 50 ? " · " + fmtTiempo(v.ritmo) + "/km" : "") +
+          (aj && Math.abs(aj - v.ritmo) >= 1 ? " (aj. " + fmtTiempo(aj) + ")" : "") + (n0(v.subida) + n0(v.bajada) > 0 ? " · +" + Math.round(n0(v.subida)) + " m / −" + Math.round(n0(v.bajada)) + " m" : "");
         const sel = fila.querySelector("select");
         Object.keys(CLASES_VUELTA).forEach(c => { const o = document.createElement("option"); o.value = c; o.textContent = CLASES_VUELTA[c]; sel.appendChild(o); });
         sel.value = v.clase;
@@ -4192,15 +4242,22 @@ function guardarActividad(a) {
   const filas = [];
   const fila = (ej, extra) => { const f = { id: nuevoId(), fecha: a.fecha, ejercicio_id: ej, orden: orden++, peso: 0, reps: 0, distancia: 0, tiempo: 0, descanso: 0, rec_dist: 0, pct: 0,
     ciclo_id: "", calentamiento: false, hecha: true, grupo: a.grupo, meso_id: "", bloque_id: "", ronda: 0, borrado: false, ...extra }; filas.push(f); return f; };
-  if (a.modo === "rodaje") fila(idPorNombre("Rodaje", "carrera"), { distancia: Math.round(a.total.d), tiempo: Math.round(a.total.t) });
+  // Desnivel y ritmo ajustado por pendiente, solo si el archivo traía altitud
+  const conAltura = a.vueltas.some(v => v.factor);
+  const desnivel = (vs, d, t) => {
+    if (!conAltura || !(d > 0) || !(t > 0)) return {};
+    const eq = vs.reduce((x, v) => x + v.distancia * (v.factor || 1), 0), dv = vs.reduce((x, v) => x + v.distancia, 0);
+    return { desnivel_pos: Math.round(vs.reduce((x, v) => x + n0(v.subida), 0)), desnivel_neg: Math.round(vs.reduce((x, v) => x + n0(v.bajada), 0)), ritmo_ajustado: eq > 0 ? Math.round(t / (d * eq / dv / 1000)) : 0 };
+  };
+  if (a.modo === "rodaje") fila(idPorNombre("Rodaje", "carrera"), { distancia: Math.round(a.total.d), tiempo: Math.round(a.total.t), ...desnivel(a.vueltas, a.total.d, a.total.t) });
   else {
     const p = patronSeries(a.vueltas), idSerie = idPorNombre(p.nombre, "carrera"), bloque = a.bloque && p.regular ? nuevoId() : "";
     let ultima = null, ronda = 0;
     a.vueltas.forEach(v => {
       const d = Math.round(v.distancia), t = Math.round(v.tiempo);
-      if (v.clase === "serie") ultima = fila(idSerie, { distancia: d, tiempo: t, bloque_id: bloque, ronda: bloque ? ++ronda : 0 });
+      if (v.clase === "serie") ultima = fila(idSerie, { distancia: d, tiempo: t, bloque_id: bloque, ronda: bloque ? ++ronda : 0, ...desnivel([v], d, t) });
       else if ((v.clase === "rec" || v.clase === "parado") && ultima) { ultima.descanso += t; if (v.clase === "rec") ultima.rec_dist += d; }
-      else if (v.clase === "calent" || v.clase === "calma") { fila(idPorNombre(v.clase === "calent" ? "Calentamiento carrera" : "Vuelta a la calma", "carrera"), { distancia: d, tiempo: t, calentamiento: true }); ultima = null; }
+      else if (v.clase === "calent" || v.clase === "calma") { fila(idPorNombre(v.clase === "calent" ? "Calentamiento carrera" : "Vuelta a la calma", "carrera"), { distancia: d, tiempo: t, calentamiento: true, ...desnivel([v], d, t) }); ultima = null; }
     });
   }
   filas.forEach(f => cambiar("series", f, true));
@@ -4221,6 +4278,15 @@ $("impAbrir").addEventListener("click", () => {
   $("impAviso").textContent = "";
   pintarBotonImport();
   $("dlgImport").showModal();
+});
+// Ajuste: las series con mucho desnivel cuentan o no para las marcas por distancia
+$("ajDesnivel").value = ajustes().desnivelMarcas === "contar" ? "contar" : "excluir";
+$("ajDesnivel").addEventListener("change", () => {
+  const a = leer("ajustes-v1") || {};
+  if ($("ajDesnivel").value === "contar") a.desnivelMarcas = "contar"; else delete a.desnivelMarcas;
+  escribir("ajustes-v1", a);
+  versionDatos++;   // las marcas y los récords se recalculan
+  setEstado("Ajuste guardado en este dispositivo");
 });
 // Ajuste: ritmo a partir del cual una vuelta es recuperación
 $("ajRitmoRec").value = ajustes().ritmoRec ? fmtTiempo(ajustes().ritmoRec) : "";
