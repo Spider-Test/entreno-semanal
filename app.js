@@ -12,6 +12,14 @@ const TIPOS = {
   carrera: { nombre: "Carrera", porMetros: 1000, sufijo: "/km" },
   natacion: { nombre: "Natación", porMetros: 100, sufijo: "/100 m" }
 };
+// Ejercicios habituales que se proponen al buscar; al elegirlos se crean con su tipo
+const SUGERIDOS = [
+  ["Crol", "natacion"], ["Espalda", "natacion"], ["Braza", "natacion"], ["Mariposa", "natacion"], ["Estilos", "natacion"],
+  ["Crol técnica", "natacion"], ["Patada crol con tabla", "natacion"], ["Patada espalda", "natacion"], ["Patada braza", "natacion"],
+  ["Crol con pull buoy", "natacion"], ["Crol con palas", "natacion"], ["Remada (sculling)", "natacion"], ["Calentamiento natación", "natacion"], ["Vuelta a la calma natación", "natacion"],
+  ["Series", "carrera"], ["Rodaje", "carrera"], ["Fartlek", "carrera"], ["Cuestas", "carrera"], ["Tirada larga", "carrera"], ["Trote de recuperación", "carrera"], ["Calentamiento carrera", "carrera"],
+  ["Press banca", "fuerza"], ["Sentadilla", "fuerza"], ["Peso muerto", "fuerza"], ["Press militar", "fuerza"], ["Dominadas", "fuerza"], ["Remo con barra", "fuerza"], ["Hip thrust", "fuerza"], ["Zancadas", "fuerza"]
+];
 const $ = id => document.getElementById(id);
 
 // ---------- Almacenamiento local (funciona sin conexión) ----------
@@ -338,62 +346,6 @@ async function sincronizar() {
   }
 }
 
-// ---------- Temporizador de descanso ----------
-let crono = null, audio = null;
-function pitar(enSegundos) {
-  try {
-    audio = audio || new (window.AudioContext || window.webkitAudioContext)();
-    if (audio.state === "suspended") audio.resume();
-    const t = audio.currentTime + enSegundos;
-    return [0, 0.3, 0.6].map(d => {
-      const o = audio.createOscillator(), g = audio.createGain();
-      o.frequency.value = 880;
-      g.gain.setValueAtTime(0.0001, t + d);
-      g.gain.exponentialRampToValueAtTime(0.35, t + d + 0.02);
-      g.gain.exponentialRampToValueAtTime(0.0001, t + d + 0.2);
-      o.connect(g).connect(audio.destination);
-      o.start(t + d); o.stop(t + d + 0.22);
-      return o;
-    });
-  } catch { return []; }
-}
-function pararCrono() {
-  if (crono) crono.sonidos.forEach(o => { try { o.stop(); } catch {} });
-  crono = null;
-  $("crono").hidden = true;
-}
-function iniciarCrono(segundos, nombre) {
-  pararCrono();
-  crono = { fin: Date.now() + segundos * 1000, nombre, sonidos: pitar(segundos), avisado: false };
-  tic();
-}
-function tic() {
-  if (!crono) return;
-  const quedan = Math.ceil((crono.fin - Date.now()) / 1000), el = $("crono");
-  el.hidden = false;
-  el.querySelector(".c-n").textContent = crono.nombre;
-  $("cronoFin").textContent = quedan > 0 ? "Finalizar descanso" : "Cerrar";
-  if (quedan > 0) {
-    el.classList.remove("listo");
-    el.querySelector(".c-t").textContent = "Descanso " + fmtTiempo(quedan);
-  } else {
-    el.classList.add("listo");
-    el.querySelector(".c-t").textContent = "¡A por la siguiente!";
-    if (!crono.avisado) { crono.avisado = true; if (navigator.vibrate) navigator.vibrate([200, 100, 200]); }
-    if (quedan < -10) pararCrono();
-  }
-}
-setInterval(tic, 500);
-$("cronoFin").addEventListener("click", pararCrono);
-$("cronoMas").addEventListener("click", () => {
-  if (!crono) return;
-  crono.sonidos.forEach(o => { try { o.stop(); } catch {} });
-  crono.fin = Math.max(crono.fin, Date.now()) + 30000;
-  crono.avisado = false;
-  crono.sonidos = pitar((crono.fin - Date.now()) / 1000);
-  tic();
-});
-
 // ---------- Ventanas pequeñas: menú de opciones y pedir un nombre ----------
 function abrirMenu(titulo, detalle, opciones) {
   $("menuTit").textContent = titulo;
@@ -627,6 +579,7 @@ function menuDia(dia) {
     porta && { texto: "Pegar «" + porta.nombre + "»", accion: () => pegar(dia) },
     { texto: "Añadir plantilla…", accion: () => elegirPlantilla("Añadir plantilla al " + titulo, p => aplicarPlantilla(dia, p)) },
     series.length && { texto: "Guardar ejercicios como plantilla…", accion: () => guardarPlantilla(series[0].grupo || "Entrenamiento", series) },
+    series.length && { texto: "Compartir con un amigo…", accion: () => compartir(series[0].grupo || titulo, itemsDe(series)) },
     series.length && { texto: "Vaciar ejercicios del día", peligro: true, confirmar: "Pulsa otra vez: se borran " + series.length + " series", accion: () => {
       series.forEach(s => cambiar("series", { ...s, borrado: true }, true)); delete enEspera[dia.id]; guardarEspera(); persistir(); pintarDia(dia);
     } }
@@ -637,6 +590,7 @@ function menuGrupo(dia, grupo) {
   abrirMenu(grupo, resumenItems(itemsDe(series)), [
     { texto: "Copiar sesión", accion: () => copiar(grupo, "", series) },
     { texto: "Guardar como plantilla…", accion: () => guardarPlantilla(grupo, series) },
+    { texto: "Compartir con un amigo…", accion: () => compartir(grupo, itemsDe(series)) },
     { texto: "Cambiar nombre de la sesión…", accion: async () => {
       const n = await pedirNombre("Nombre de la sesión", grupo);
       if (!n) return;
@@ -646,6 +600,56 @@ function menuGrupo(dia, grupo) {
       series.forEach(s => cambiar("series", { ...s, borrado: true }, true)); persistir(); pintarDia(dia);
     } }
   ]);
+}
+
+// ---------- Compartir con amigos: un código (o enlace) que otro usuario añade a su calendario ----------
+const URL_APP = "https://spider-test.github.io/entreno-semanal/";
+const nuevoCodigo = () => Array.from(crypto.getRandomValues(new Uint8Array(8)), b => "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"[b % 32]).join("");
+// Los ejercicios viajan por nombre y tipo, porque cada usuario tiene los suyos
+const paraCompartir = items => items.map(it => it.bloque
+  ? { bloque: true, tramos: (it.tramos || []).map(t => ({ ejercicio: nombreEj(t.ejercicio_id), tipo: tipoDe(t.ejercicio_id), series: t.series })) }
+  : { ejercicio: nombreEj(it.ejercicio_id), tipo: tipoDe(it.ejercicio_id), series: it.series });
+function idPorNombre(nombre, tipo) {
+  const e = vivos("ejercicios").find(x => compacto(x.nombre) === compacto(nombre));
+  return e ? e.id : crearEjercicio(nombre, tipo);
+}
+const desdeCompartido = items => items.map(it => it.bloque
+  ? { bloque: true, tramos: it.tramos.map(t => ({ ejercicio_id: idPorNombre(t.ejercicio, t.tipo), series: t.series })) }
+  : { ejercicio_id: idPorNombre(it.ejercicio, it.tipo), series: it.series });
+function copiarTexto(t) {
+  (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(() => setEstado("Copiado: " + t), () => setEstado("Código: " + t));
+}
+async function compartir(nombre, items) {
+  const codigo = nuevoCodigo();
+  try {
+    const r = await api("/rest/v1/compartidos", { method: "POST", headers: { Prefer: "return=minimal" },
+      body: JSON.stringify({ codigo, user_id: sesion.user_id, autor: sesion.email || "", nombre, items: paraCompartir(items) }) });
+    if (!r.ok) throw new Error();
+  } catch { setEstado("No se ha podido compartir. Necesitas conexión.", true); return; }
+  const enlace = URL_APP + "#c=" + codigo;
+  abrirMenu("Compartir «" + nombre + "»", "Código " + codigo + ". Tu amigo puede abrir el enlace o pegar el código en Plan → Añadir algo compartido.", [
+    navigator.share && { texto: "Enviar…", mantener: true, accion: () => navigator.share({ title: nombre, text: "Entrenamiento «" + nombre + "» para Entreno Semanal (código " + codigo + ")", url: enlace }).catch(() => {}) },
+    { texto: "Copiar enlace", mantener: true, accion: () => copiarTexto(enlace) },
+    { texto: "Copiar código", mantener: true, accion: () => copiarTexto(codigo) }
+  ]);
+}
+async function abrirCompartido(texto) {
+  const m = (texto || "").toUpperCase().match(/([A-Z2-9]{8})\s*$/);
+  if (!m) { setEstado("Ese código no es válido: son 8 letras y números.", true); return; }
+  let c = null;
+  try {
+    const r = await api("/rest/v1/rpc/ver_compartido", { method: "POST", body: JSON.stringify({ p_codigo: m[1] }) });
+    if (r.ok) c = await r.json();
+  } catch { setEstado("Necesitas conexión para abrir algo compartido.", true); return; }
+  if (!c) { setEstado("No hay nada compartido con el código " + m[1] + ".", true); return; }
+  const lunes = lunesVista();
+  const nombres = c.items.map(it => it.bloque ? "(" + it.tramos.map(t => t.ejercicio).join(" + ") + ")" : it.ejercicio).join(", ");
+  abrirMenu("«" + c.nombre + "»", "Compartido por " + (c.autor || "un amigo") + ": " + nombres + " · " + contarSeries(c.items) + " series. ¿Dónde lo añado?",
+    NOMBRES.map((n, i) => ({ texto: "Añadir al " + n + " " + fmt(sumarDias(lunes, i)), accion: () => {
+      pegarItems(iso(sumarDias(lunes, i)), desdeCompartido(c.items), c.nombre); persistir(); verPestana("semana");
+    } })).concat([{ texto: "Guardar como plantilla", accion: () => {
+      cambiar("plantillas", { id: nuevoId(), nombre: c.nombre, items: desdeCompartido(c.items), borrado: false }); pintarPlan(); setEstado("Plantilla «" + c.nombre + "» guardada");
+    } }]));
 }
 
 // ---------- Ejercicios de cada día ----------
@@ -719,6 +723,7 @@ function bloque(dia, id, series, grupo) {
           '<span class="por">×</span><input class="in-b" inputmode="numeric" pattern="[0-9]*" placeholder="reps" aria-label="Repeticiones" autocomplete="off" enterkeyhint="next">') +
       '</div>' + (dist ? '' : '<div class="ns-extra"><span class="calc"></span><label class="bilbo-op" hidden><input type="checkbox" class="es-bilbo"> <span></span></label></div>') +
       '<div class="ns-fila"><input class="in-c" inputmode="decimal" placeholder="⏱ descanso 1,30 o 300 m" aria-label="Descanso o recuperación después de la serie (tiempo o metros)" autocomplete="off" enterkeyhint="done">' +
+      '<select class="veces" aria-label="Cuántas series iguales añadir">' + [1, 2, 3, 4, 5, 6, 8, 10].map(n => '<option value="' + n + '">×' + n + '</option>').join("") + '</select>' +
       '<button class="anadir">+ Serie</button></div>' +
     '</form>';
   const nom = b.querySelector(".ej-nombre");
@@ -783,10 +788,7 @@ function bloque(dia, id, series, grupo) {
       b.querySelector(".series").before(a);
     }
   }
-  const terminar = s => {
-    if (n0(s.descanso) > 0) iniciarCrono(n0(s.descanso), ej.nombre);
-    pintarBloques(true);
-  };
+  const terminar = () => pintarBloques(true);
 
   const ol = b.querySelector(".series");
   let numero = 0;
@@ -857,7 +859,11 @@ function bloque(dia, id, series, grupo) {
       if (!(v >= 0) || (enPct && !fila.peso)) { fa.focus(); return; }
       if (!(fila.reps > 0)) { fb.focus(); return; }
     }
-    cambiar("series", fila);
+    // En días futuros se programa (queda planificada); hoy o antes se apunta como hecha
+    fila.hecha = dia.id <= iso(new Date());
+    const veces = editando ? 1 : parseInt(b.querySelector(".veces").value, 10) || 1;
+    for (let k = 0; k < veces; k++) cambiar("series", k ? { ...fila, id: nuevoId(), orden: fila.orden + k } : fila, true);
+    persistir();
     quitarEspera(dia.id, id);
     terminar(fila);
     const otra = dia.bloquesEl.querySelector('[data-ej="' + id + '"][data-grupo="' + CSS.escape(grupo) + '"] .anadir');
@@ -894,6 +900,7 @@ function tarjetaBloque(dia, bloqueId, series) {
       } },
       rondas.length > 1 && { texto: "Quitar la última ronda", accion: () => { ultima.forEach(s => cambiar("series", { ...s, borrado: true }, true)); persistir(); pintarDia(dia); } },
       { texto: "Copiar bloque", accion: () => copiar("Bloque ×" + rondas.length, "", series) },
+      { texto: "Compartir con un amigo…", accion: () => compartir("Bloque ×" + rondas.length + " · " + primera.map(s => nombreEj(s.ejercicio_id)).join(" + "), itemsDe(series)) },
       { texto: "Quitar bloque", peligro: true, confirmar: "Pulsa otra vez: se borran " + series.length + " series", accion: () => {
         series.forEach(s => cambiar("series", { ...s, borrado: true }, true)); persistir(); pintarDia(dia);
       } }
@@ -918,7 +925,7 @@ function tarjetaBloque(dia, bloqueId, series) {
     form.hidden = false;
     (dist && n0(s.distancia) > 0 ? fb : fa).focus();
   };
-  const terminar = s => { if (n0(s.descanso) > 0) iniciarCrono(n0(s.descanso), nombreEj(s.ejercicio_id)); pintarBloques(true); };
+  const terminar = () => pintarBloques(true);
 
   const cont = c.querySelector(".rondas");
   rondas.forEach(r => {
@@ -954,7 +961,7 @@ function tarjetaBloque(dia, bloqueId, series) {
     if (!editando) return;
     const rec = leerRecuperacion(fc.value);
     if (!rec) { fc.focus(); return; }
-    const fila = { ...editando, descanso: rec.descanso, rec_dist: rec.rec_dist, hecha: true };
+    const fila = { ...editando, descanso: rec.descanso, rec_dist: rec.rec_dist, hecha: dia.id <= iso(new Date()) };
     if (esDistancia(tipoDe(fila.ejercicio_id))) {
       fila.distancia = parseFloat(fa.value.replace(",", "."));
       fila.tiempo = leerTiempo(fb.value);
@@ -1086,15 +1093,17 @@ function pintarSelector() {
     b.addEventListener("click", () => elegir(crearEjercicio(sugerencia, "carrera")));
     lista.appendChild(b);
   }
-  if (q && !ejs.some(e => compacto(e.nombre) === compacto(q))) {
+  if (q && !ejs.some(e => compacto(e.nombre) === compacto(q)) && !SUGERIDOS.some(([n]) => compacto(n) === compacto(q))) {
     // Crear: el tipo que parece por el nombre va primero y resaltado
     const fila = document.createElement("div");
     fila.className = "crear-fila";
-    const t = document.createElement("span");
-    t.className = "cf-t";
-    t.textContent = "+ Crear «" + q + "» como:";
-    fila.appendChild(t);
     const sugerido = adivinarTipo(q);
+    const t = document.createElement("button");
+    t.type = "button";
+    t.className = "cf-t";
+    t.textContent = "+ Crear «" + q + "» (" + TIPOS[sugerido].nombre.toLowerCase() + ") · o elige el tipo:";
+    t.addEventListener("click", () => elegir(crearEjercicio(q, sugerido)));
+    fila.appendChild(t);
     [sugerido].concat(Object.keys(TIPOS).filter(k => k !== sugerido)).forEach(k => {
       const b = document.createElement("button");
       b.type = "button";
@@ -1114,6 +1123,23 @@ function pintarSelector() {
     b.addEventListener("click", () => elegir(e.id));
     lista.appendChild(b);
   });
+  const tengo = new Set(vivos("ejercicios").map(e => compacto(e.nombre)));
+  const sug = SUGERIDOS.filter(([n]) => !tengo.has(compacto(n)) && compacto(n).includes(compacto(q)));
+  if (sug.length) {
+    const h = document.createElement("p");
+    h.className = "sug-tit";
+    h.textContent = "Sugerencias";
+    lista.appendChild(h);
+    sug.forEach(([n, tipo]) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "opcion sugerida";
+      b.textContent = n;
+      b.appendChild(etiquetaTipo(tipo));
+      b.addEventListener("click", () => elegir(crearEjercicio(n, tipo)));
+      lista.appendChild(b);
+    });
+  }
   if (!lista.children.length) {
     const p = document.createElement("p");
     p.className = "vacio-lista";
@@ -1524,6 +1550,7 @@ function pintarPlan() {
 function menuPlantilla(p) {
   abrirMenu(p.nombre, resumenItems(p.items || []) + ": " + nombresItems(p.items || []), [
     { texto: "Añadir a un día de esta semana…", accion: () => abrirMenu("¿A qué día?", "", dias.map(d => ({ texto: NOMBRES[d.i] + " " + fmt(deIso(d.id)), accion: () => { aplicarPlantilla(d, p); verPestana("semana"); } }))) },
+    { texto: "Compartir con un amigo…", accion: () => compartir(p.nombre, p.items || []) },
     { texto: "Cambiar nombre…", accion: async () => { const n = await pedirNombre("Nombre de la plantilla", p.nombre); if (n) { cambiar("plantillas", { ...p, nombre: n }); pintarPlan(); } } },
     { texto: "Eliminar plantilla", peligro: true, accion: () => { cambiar("plantillas", { ...p, borrado: true }); pintarPlan(); } }
   ]);
@@ -1662,6 +1689,7 @@ $("mesoBorrar").addEventListener("click", () => {
   $("dlgMeso").close(); pintarPlan();
 });
 $("nuevoMeso").addEventListener("click", () => abrirMeso(null));
+$("abrirComp").addEventListener("click", () => abrirCompartido($("codigoComp").value));
 
 // ---------- Navegación ----------
 function irA(n) {
@@ -1765,6 +1793,12 @@ function mostrarApp() {
   verPestana(leer("pestana-v1") || "semana");
   setEstado("Sincronizando…");
   sincronizar();
+  // Enlace compartido por un amigo: #c=CODIGO
+  if (/^#c=/i.test(location.hash)) {
+    const h = location.hash;
+    history.replaceState(null, "", location.pathname);
+    setTimeout(() => abrirCompartido(h), 1200);
+  }
 }
 
 if (sesion) mostrarApp(); else $("login").hidden = false;

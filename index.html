@@ -77,6 +77,10 @@
       <div class="sec-cab"><h3>Mesociclos</h3><button type="button" class="nav-btn" id="nuevoMeso">+ Nuevo</button></div>
       <div class="lista-tarjetas" id="listaMesos"></div>
     </section>
+    <section class="plan-sec">
+      <h3>Añadir algo compartido</h3>
+      <div class="barra"><input id="codigoComp" placeholder="Pega el enlace o el código de 8 letras" autocomplete="off" autocapitalize="characters"><button type="button" class="nav-btn" id="abrirComp">Abrir</button></div>
+    </section>
     <section class="plan-sec" id="bloqueUsuarios" hidden>
       <h3>Usuarios</h3>
       <p class="vacio-lista">Las cuentas nuevas no pueden ver ni guardar nada hasta que las apruebes.</p>
@@ -89,11 +93,6 @@
     <button type="button" class="enlace" id="salirBtn">Cerrar sesión</button>
   </div>
 </section>
-
-<div id="crono" class="crono" hidden aria-live="polite">
-  <span class="c-t"></span><span class="c-n"></span>
-  <div class="c-bot"><button type="button" id="cronoMas">+30 s</button><button type="button" id="cronoFin">Finalizar descanso</button></div>
-</div>
 
 <dialog id="selector" aria-label="Elegir ejercicio">
   <form method="dialog" class="d-cab">
