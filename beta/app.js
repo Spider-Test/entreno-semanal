@@ -1904,7 +1904,8 @@ function totalesDistancia(series) {
     const d = n0(s.distancia), rec = n0(s.rec_dist);
     x.plan += d + rec;
     if (!hecha(s)) { x.pendientes++; return; }
-    x.hecho += d + rec; x.tiempo += n0(s.tiempo); x.rec += rec;
+    x.hecho += d + rec; x.rec += rec;
+    x.tiempo += n0(s.tiempo) + (rec > 0 ? n0(s.descanso) : 0);   // la recuperación en movimiento también es tiempo corriendo
     if (esCalentamiento(s)) x.calent += d; else x.efectivo += d;
   });
   return r;
@@ -3837,7 +3838,7 @@ $("enSalir").addEventListener("click", salirEntreno);
 $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); abrirRpe(d); });
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
-const VERSION_APP = "v37" + (BETA ? " beta" : "");
+const VERSION_APP = "v38" + (BETA ? " beta" : "");
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";
@@ -4007,10 +4008,12 @@ function leerFechaCSV(s) {
   const x = Date.parse(s);
   return isNaN(x) ? NaN : x;
 }
-function leerCSVActividades(texto) {
+function leerCSVActividades(texto, archivo) {
   const filas = filasCSV(texto);
   if (filas.length < 2) return [];
   const cab = filas[0].map(h => norm(h)), col = (...n) => cab.findIndex(h => n.includes(h));
+  const vueltasCSV = leerCSVVueltas(filas, cab, col, archivo);
+  if (vueltasCSV) return vueltasCSV;
   const iF = col("activity date", "date", "fecha", "fecha de la actividad", "start time", "hora de inicio"), iT = col("activity type", "tipo de actividad", "type", "tipo");
   const iD = col("distance", "distancia"), iM = col("moving time", "tiempo en movimiento"), iE = col("elapsed time", "tiempo transcurrido", "time", "tiempo");
   const iN = col("activity name", "title", "titulo", "nombre de la actividad", "nombre");
@@ -4021,6 +4024,29 @@ function leerCSVActividades(texto) {
     if (d > 0 && d < 300) d *= 1000;   // en km
     return { inicio: leerFechaCSV(f[iF]), nombre: iN >= 0 ? (f[iN] || "").trim() : "", deporte: iT >= 0 ? f[iT] || "" : "", vueltas: [{ distancia: d || 0, tiempo: tiempo || 0 }] };
   }).filter(a => !isNaN(a.inicio) && a.vueltas[0].distancia > 0 && a.vueltas[0].tiempo > 0);
+}
+// CSV de las vueltas de UNA actividad (app de COROS: «Split», «Time», «Moving Time», «GetDistance», «Elevation Gain»…): no trae la fecha,
+// así que sale del nombre del archivo (…20261103185611.csv) o de su fecha, y se puede corregir en la vista previa
+function leerCSVVueltas(filas, cab, col, archivo) {
+  const iV = col("split", "splits", "lap", "laps", "vuelta", "vueltas", "intervalo", "interval");
+  const iD = col("getdistance", "distance", "distancia"), iM = col("moving time", "tiempo en movimiento"), iE = col("time", "tiempo", "elapsed time", "tiempo transcurrido");
+  if (iV < 0 || iD < 0 || (iM < 0 && iE < 0) || col("activity date", "date", "fecha", "start time", "hora de inicio") >= 0) return null;
+  const iS = col("elevation gain", "elev gain", "ascenso", "ascenso total", "desnivel positivo", "ganancia de altura"), iB = col("elev loss", "elevation loss", "descenso", "descenso total", "desnivel negativo");
+  const seg = t => { const x = String(t || "").trim().replace(/\.\d+$/, ""); return /:/.test(x) ? leerTiempo(x) : parseFloat(x.replace(",", ".")) || 0; };
+  const vueltas = filas.slice(1).filter(f => f.length > iD && !/^(summary|resumen|total)/.test(norm(f[iV] || ""))).map(f => {
+    let d = parseFloat(String(f[iD] || "").replace(/\s/g, "").replace(",", "."));
+    if (d > 0 && d < 300) d *= 1000;   // en km
+    // Con tiempo en movimiento, ese (una pausa larga con el reloj en marcha no cuenta como ritmo)
+    const v = { distancia: d || 0, tiempo: (iM >= 0 && seg(f[iM])) || seg(f[iE]) };
+    if (iS >= 0) v.subida = parseFloat(f[iS]) || 0;
+    if (iB >= 0) v.bajada = parseFloat(f[iB]) || 0;
+    return v;
+  }).filter(v => v.tiempo > 0);
+  if (!vueltas.length) return [];
+  const nombre = (archivo && archivo.name) || "", m = nombre.match(/(20\d{2})(\d{2})(\d{2})(\d{2})?(\d{2})?/);
+  const inicio = m ? new Date(+m[1], m[2] - 1, +m[3], +(m[4] || 12), +(m[5] || 0)).getTime() : (archivo && archivo.lastModified) || Date.now();
+  const titulo = nombre.replace(/\.[a-z]+$/i, "").replace(/[\d_-]+/g, " ").replace(/([a-z])([A-Z])/g, "$1 $2").trim();
+  return [{ inicio, nombre: titulo, deporte: "", vueltas, fechaDudosa: true }];
 }
 // Clasifica las vueltas: las rápidas son series; más lentas que el límite, recuperación; sin avanzar, descanso parado;
 // las lentas y largas del principio y del final, calentamiento y vuelta a la calma
@@ -4068,7 +4094,7 @@ async function leerArchivosImport(archivos) {
     try {
       const texto = await f.text(), nombre = f.name.toLowerCase();
       let acts;
-      if (/\.csv$/.test(nombre) || !/^\s*</.test(texto)) acts = leerCSVActividades(texto);
+      if (/\.csv$/.test(nombre) || !/^\s*</.test(texto)) acts = leerCSVActividades(texto, f);
       else {
         const doc = new DOMParser().parseFromString(texto, "application/xml");
         if (doc.getElementsByTagName("parsererror").length) throw new Error("el archivo está dañado o no es GPX/TCX");
@@ -4096,6 +4122,23 @@ function pintarImportar() {
     cab.querySelector(".imp-t").textContent = NOMBRES[(new Date(a.inicio).getDay() + 6) % 7] + " " + fechaCorta(a.fecha) + " · " + a.hora + (a.nombre ? " · " + a.nombre : "") +
       " — " + fmtDist(a.total.d) + " en " + fmtTiempo(a.total.t) + " (" + fmtTiempo(a.total.t / (a.total.d / 1000)) + "/km)";
     caja.appendChild(cab);
+    if (a.fechaDudosa) {
+      const fl = document.createElement("label");
+      fl.className = "imp-fecha";
+      fl.innerHTML = 'Fecha de la carrera <input type="date">';
+      const fi = fl.querySelector("input");
+      fi.value = a.fecha;
+      fl.title = "El CSV de vueltas no trae la fecha: sale del nombre del archivo. Corrígela si no es esa.";
+      fi.addEventListener("change", () => {
+        if (!fi.value) return;
+        const d = new Date(a.inicio), n = deIso(fi.value);
+        n.setHours(d.getHours(), d.getMinutes());
+        importadas[k] = prepararActividad({ inicio: n.getTime(), nombre: a.nombre, deporte: a.deporte, fechaDudosa: true, vueltas: a.vueltas.map(v => ({ distancia: v.distancia, tiempo: v.tiempo })) });
+        pintarImportar();
+      });
+      caja.appendChild(fl);
+      caja.appendChild(nota("Este CSV no trae la fecha: sale del nombre del archivo. Corrígela si no es esa."));
+    }
     if (a.dup || a.otro) caja.appendChild(nota(a.dup ? "Parece que ya está en tu calendario: no se importará salvo que la marques." : "No parece una carrera (" + a.deporte + "): márcala si quieres importarla igualmente."));
     if (a.vueltas.length > 1) {
       const modo = document.createElement("select");
