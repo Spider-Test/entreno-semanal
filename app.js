@@ -699,7 +699,7 @@ function pintarDia(dia) {
 
 function etiquetaTipo(tipo) {
   const t = document.createElement("span");
-  t.className = "tipo-tag";
+  t.className = "tipo-tag t-" + tipo;
   t.textContent = TIPOS[tipo].nombre;
   return t;
 }
@@ -728,7 +728,7 @@ function bloque(dia, id, series, grupo) {
     '</form>';
   const nom = b.querySelector(".ej-nombre");
   nom.textContent = ej.nombre || "Sin nombre";
-  if (tipo !== "fuerza") nom.appendChild(etiquetaTipo(tipo));
+  nom.appendChild(etiquetaTipo(tipo));
   if (ej.video_url) { const v = document.createElement("span"); v.className = "ico"; v.textContent = "▶ vídeo"; nom.appendChild(v); }
   nom.setAttribute("aria-label", "Ver " + (ej.nombre || "ejercicio") + ": vídeo, récords e historial");
   nom.addEventListener("click", () => abrirDetalle(id));
@@ -1001,7 +1001,7 @@ function pintarTramos() {
       '<div class="ns-fila"><input class="in-a" autocomplete="off"><span class="por"></span><input class="in-b" autocomplete="off"></div>' +
       '<input class="in-c" inputmode="decimal" autocomplete="off" placeholder="⏱ recuperación después: 2,00 o 300 m" aria-label="Recuperación después de este tramo (tiempo o metros)">';
     fila.querySelector(".tr-n").textContent = (k + 1) + ". " + nombreEj(t.ejercicio_id);
-    if (tipoDe(t.ejercicio_id) !== "fuerza") fila.querySelector(".tr-n").appendChild(etiquetaTipo(tipoDe(t.ejercicio_id)));
+    fila.querySelector(".tr-n").appendChild(etiquetaTipo(tipoDe(t.ejercicio_id)));
     const [a, b, cc] = [".in-a", ".in-b", ".in-c"].map(x => fila.querySelector(x));
     a.placeholder = dist ? "metros" : "kg"; a.inputMode = dist ? "numeric" : "decimal"; a.setAttribute("aria-label", dist ? "Distancia en metros" : "Peso en kg");
     b.placeholder = dist ? "tiempo (opcional)" : "reps"; b.inputMode = dist ? "decimal" : "numeric"; b.setAttribute("aria-label", dist ? "Tiempo objetivo (opcional)" : "Repeticiones");
@@ -1055,6 +1055,20 @@ $("blqCrear").addEventListener("click", () => {
 
 // ---------- Elegir o crear ejercicio ----------
 let diaSelector = null, alElegirSel = null;
+// Tipo de entrenamiento elegido en el buscador ("" = todos): solo se ven y se crean ejercicios de ese tipo
+let tipoSel = leer("tipo-sel-v1") || "";
+function pintarFiltroTipo() {
+  $("selTipo").querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.tipo === tipoSel)));
+}
+$("selTipo").addEventListener("click", ev => {
+  const b = ev.target.closest("button[data-tipo]");
+  if (!b) return;
+  tipoSel = b.dataset.tipo;
+  escribir("tipo-sel-v1", tipoSel);
+  pintarFiltroTipo();
+  pintarSelector();
+  $("buscarEj").focus();
+});
 function crearEjercicio(nombre, tipo) {
   const id = nuevoId();
   cambiar("ejercicios", { id, nombre: nombre.trim(), tipo: TIPOS[tipo] ? tipo : "fuerza", video_url: "", notas: "", borrado: false });
@@ -1063,6 +1077,10 @@ function crearEjercicio(nombre, tipo) {
 function abrirSelector(dia, alElegir) {
   diaSelector = dia;
   alElegirSel = alElegir || null;
+  // Si el día ya tiene ejercicios de un solo tipo, el buscador se abre en ese tipo
+  const tiposDia = dia ? [...new Set(seriesDelDia(dia.id).map(s => s.ejercicio_id).concat(enEspera[dia.id] || []).map(tipoDe))] : [];
+  if (tiposDia.length === 1) tipoSel = tiposDia[0];
+  pintarFiltroTipo();
   $("buscarEj").value = "";
   pintarSelector();
   $("selector").showModal();
@@ -1081,11 +1099,11 @@ function elegir(id) {
 function pintarSelector() {
   const q = $("buscarEj").value.trim(), lista = $("listaEj");
   lista.textContent = "";
-  const ejs = ejerciciosOrdenados().filter(e => compacto(e.nombre).includes(compacto(q)));
+  const ejs = ejerciciosOrdenados().filter(e => compacto(e.nombre).includes(compacto(q)) && (!tipoSel || tipoDe(e.id) === tipoSel));
   // «300», «300m» o «series 300 m» propone directamente «Series 300 m» de carrera
   const md = q.match(/^(?:series\s*(?:de\s*)?)?(\d+(?:[.,]\d+)?)\s*(m|km|metros)?$/i);
   const sugerencia = md ? "Series " + md[1] + " " + (md[2] && md[2].toLowerCase() === "km" ? "km" : "m") : "";
-  if (sugerencia && !vivos("ejercicios").some(e => compacto(e.nombre) === compacto(sugerencia))) {
+  if (sugerencia && (!tipoSel || tipoSel === "carrera") && !vivos("ejercicios").some(e => compacto(e.nombre) === compacto(sugerencia))) {
     const b = document.createElement("button");
     b.type = "button";
     b.className = "opcion crear-dist";
@@ -1097,17 +1115,17 @@ function pintarSelector() {
     // Crear: el tipo que parece por el nombre va primero y resaltado
     const fila = document.createElement("div");
     fila.className = "crear-fila";
-    const sugerido = adivinarTipo(q);
+    const sugerido = tipoSel || adivinarTipo(q);
     const t = document.createElement("button");
     t.type = "button";
     t.className = "cf-t";
-    t.textContent = "+ Crear «" + q + "» (" + TIPOS[sugerido].nombre.toLowerCase() + ") · o elige el tipo:";
+    t.textContent = "+ Crear «" + q + "» (" + TIPOS[sugerido].nombre.toLowerCase() + ")" + (tipoSel ? "" : " · o elige el tipo:");
     t.addEventListener("click", () => elegir(crearEjercicio(q, sugerido)));
     fila.appendChild(t);
-    [sugerido].concat(Object.keys(TIPOS).filter(k => k !== sugerido)).forEach(k => {
+    (tipoSel ? [] : [sugerido].concat(Object.keys(TIPOS).filter(k => k !== sugerido))).forEach(k => {
       const b = document.createElement("button");
       b.type = "button";
-      b.className = "opcion-tipo" + (k === sugerido ? " sugerido" : "");
+      b.className = "opcion-tipo t-" + k + (k === sugerido ? " sugerido" : "");
       b.textContent = TIPOS[k].nombre;
       b.addEventListener("click", () => elegir(crearEjercicio(q, k)));
       fila.appendChild(b);
@@ -1119,12 +1137,12 @@ function pintarSelector() {
     b.type = "button";
     b.className = "opcion";
     b.textContent = e.nombre;
-    if (tipoDe(e.id) !== "fuerza") b.appendChild(etiquetaTipo(tipoDe(e.id)));
+    b.appendChild(etiquetaTipo(tipoDe(e.id)));
     b.addEventListener("click", () => elegir(e.id));
     lista.appendChild(b);
   });
   const tengo = new Set(vivos("ejercicios").map(e => compacto(e.nombre)));
-  const sug = SUGERIDOS.filter(([n]) => !tengo.has(compacto(n)) && compacto(n).includes(compacto(q)));
+  const sug = SUGERIDOS.filter(([n, tipo]) => !tengo.has(compacto(n)) && compacto(n).includes(compacto(q)) && (!tipoSel || tipo === tipoSel));
   if (sug.length) {
     const h = document.createElement("p");
     h.className = "sug-tit";

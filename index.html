@@ -99,6 +99,12 @@
     <input id="buscarEj" type="search" placeholder="Busca o escribe un ejercicio nuevo" aria-label="Ejercicio" autocomplete="off" enterkeyhint="go">
     <button class="cerrar" aria-label="Cerrar">✕</button>
   </form>
+  <div class="tabs filtro-tipo" id="selTipo" role="group" aria-label="Tipo de entrenamiento">
+    <button type="button" data-tipo="" aria-pressed="true">Todos</button>
+    <button type="button" data-tipo="fuerza" class="t-fuerza" aria-pressed="false">Fuerza</button>
+    <button type="button" data-tipo="carrera" class="t-carrera" aria-pressed="false">Carrera</button>
+    <button type="button" data-tipo="natacion" class="t-natacion" aria-pressed="false">Natación</button>
+  </div>
   <div id="listaEj"></div>
 </dialog>
 
