@@ -1,7 +1,7 @@
 // Guarda la app en el dispositivo para poder abrirla sin conexión.
 // Sube VERSION al cambiar cualquier archivo para que los dispositivos se actualicen.
-const VERSION = "entreno-v19";
-const ARCHIVOS = ["./", "./index.html", "./estilos.css", "./app.js", "./manifest.webmanifest", "./icono-180.png", "./icono-512.png"];
+const VERSION = "entreno-v20";
+const ARCHIVOS = ["./", "./index.html", "./estilos.css", "./app.js", "./manifest.webmanifest", "./icono-180.png", "./icono-512.png", "./icono-maskable-192.png", "./icono-maskable-512.png"];
 
 // GitHub Pages pide guardar los archivos 10 minutos: se piden siempre al servidor para no copiar una versión vieja
 self.addEventListener("install", e => {

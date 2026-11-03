@@ -1,14 +1,19 @@
 {
+  "id": "./",
   "name": "Entreno Semanal",
   "short_name": "Entreno",
+  "description": "Calendario semanal de entrenamientos: fuerza, carrera y natación.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
-  "background_color": "#eef1ee",
-  "theme_color": "#1d7a4f",
+  "orientation": "portrait",
+  "background_color": "#f1f3f2",
+  "theme_color": "#0f7a4c",
   "lang": "es",
   "icons": [
     { "src": "icono-180.png", "sizes": "180x180", "type": "image/png" },
-    { "src": "icono-512.png", "sizes": "512x512", "type": "image/png" }
+    { "src": "icono-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icono-maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "icono-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ]
 }

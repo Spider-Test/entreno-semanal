@@ -621,3 +621,6 @@ dialog.pantalla[open] { display: flex; flex-direction: column; }
 .sug:not(.leida) .sug-texto { font-weight: 600; }
 .sug.leida { opacity: 0.65; }
 .pie { flex-wrap: wrap; }
+
+/* Día plegado: el título del entreno en una línea */
+.dia-resumen.es-titulo { color: var(--fg); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

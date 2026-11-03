@@ -2839,10 +2839,14 @@ function pintarCabDia(dia) {
     dia.anillo.classList.toggle("completo", h === del.length);
     dia.anillo.setAttribute("aria-label", h + " de " + del.length + " series hechas");
   }
-  const sesiones = [...new Set(del.map(s => s.grupo || nombreEj(s.ejercicio_id)))];
-  const texto = aTexto(e.html || "").trim().split("\n")[0];
-  dia.resumenEl.textContent = [sesiones.slice(0, 2).join(" + ") + (sesiones.length > 2 ? "…" : ""), del.length ? h + "/" + del.length + " series" : "",
-    !del.length && texto ? texto.slice(0, 70) : "", n0(e.rpe) ? "esfuerzo " + e.rpe + "/10" : ""].filter(Boolean).join(" · ") || "Nada apuntado";
+  // Día plegado: su título (primera línea del texto o sus sesiones); si no hay ninguno, el resumen de series
+  const titulo = aTexto(e.html || "").split("\n").map(l => l.trim()).find(Boolean) || "";
+  const sesiones = [...new Set(del.map(s => s.grupo).filter(Boolean))];
+  const nombre = titulo || sesiones.join(" + ");
+  dia.resumenEl.classList.toggle("es-titulo", !!nombre);
+  dia.resumenEl.textContent = nombre ? nombre.slice(0, 140)
+    : [del.length ? h + "/" + del.length + " series" : "", n0(e.rpe) ? "esfuerzo " + e.rpe + "/10" : ""].filter(Boolean).join(" · ") || "Nada apuntado";
+  dia.resumenEl.title = nombre;
   dia.empezarEl.hidden = !del.length || h === del.length || !(dia.id === iso(new Date()) || dia.id === diaAbierto);
   dia.empezarEl.textContent = h ? "▶ Seguir entreno (" + h + "/" + del.length + ")" : "▶ Empezar entreno";
 }
@@ -3125,7 +3129,7 @@ $("enSalir").addEventListener("click", salirEntreno);
 $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); abrirRpe(d); });
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
-const VERSION_APP = "v19";
+const VERSION_APP = "v20";
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";
