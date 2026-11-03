@@ -3141,7 +3141,13 @@ function textoValor(v, tipo) {
 }
 const textoItemRutina = it => it.bloque
   ? "(" + it.tramos.map(t => t.ejercicio + " " + textoValor(t.series[0], t.tipo)).join(" + ") + ") ×" + it.tramos[0].series.length
-  : it.ejercicio + " " + it.series.length + "×" + textoValor(it.series[0], it.tipo) + (it.series.some(v => JSON.stringify(v) !== JSON.stringify(it.series[0])) ? " (con variaciones)" : "");
+  : it.ejercicio + " " + resumenSeriesRutina(it.series, it.tipo);
+// Series iguales seguidas se agrupan: «5×1000 m en 4:05»; tramos distintos se enumeran: «1×8 km en 42:40 + 1×6 km en 29:00»
+function resumenSeriesRutina(series, tipo) {
+  const grupos = [];
+  series.forEach(v => { const t = textoValor(v, tipo), u = grupos[grupos.length - 1]; if (u && u.t === t) u.n++; else grupos.push({ t, n: 1 }); });
+  return grupos.map(g => g.n + "×" + g.t).join(" + ");
+}
 const textoDias = dias => dias.map(d => NOMBRES[d].slice(0, 3)).join(", ");
 const lunesSiguiente = () => { const hoy = new Date(); return iso(hoy.getDay() === 1 ? lunesDe(hoy) : sumarDias(lunesDe(hoy), 7)); };
 const semanasRutina = r => r.semanas || (r.multi ? r.bloques.length : 4);
@@ -4243,7 +4249,7 @@ $("enSalir").addEventListener("click", salirEntreno);
 $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); abrirRpe(d); });
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
-const VERSION_APP = "v47" + (BETA ? " beta" : "");
+const VERSION_APP = "v48" + (BETA ? " beta" : "");
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";
