@@ -79,6 +79,8 @@ Apunta en cada versión: fecha, versión, dispositivo (iPhone / Mac / Android) y
 - [ ] Plan → Importar carreras → un GPX de prueba con vueltas: se crean las series y recuperaciones en su fecha.
 - [ ] Borrar lo importado si era una prueba.
 
+- [ ] CSV de vueltas de COROS (p. ej. …20261103185611.csv): sale el 3 nov 18:56 con fecha editable; calentamiento, 4 series y recuperaciones; cambiar la fecha y comprobar que se guarda en el día elegido.
+
 ## 12. Sugerencias
 - [ ] Enviar una sugerencia de prueba desde «Enviar sugerencia».
 - [ ] (Administrador) Plan → Sugerencias: aparece; marcarla como leída; borrarla y deshacer.

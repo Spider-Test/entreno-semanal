@@ -391,7 +391,8 @@
   </form>
   <div class="d-cuerpo ayuda">
     <p>Toca cada apartado para verlo. Puedes volver aquí cuando quieras con el botón <b>?</b> de arriba. ¿Echas algo en falta o algo no va bien? Envíanos una sugerencia:</p>
-    <details class="novedades" open><summary>Novedades · versión 37</summary>
+    <details class="novedades" open><summary>Novedades · versión 38</summary>
+      <p>Importar carreras lee el <b>CSV de vueltas de la app de COROS</b>: toma la fecha del nombre del archivo (puedes corregirla en la vista previa) y separa calentamiento, series y recuperaciones.</p>
       <p>Ejercicios con <b>×N y OK</b>: crea varias series iguales de golpe y el ejercicio queda plegado («60 kg × 8 · ×4»). Tocando su nombre editas todas las pendientes, el número de series o cambias el ejercicio manteniendo las series · <b>total de distancia</b> al final de cada sesión de carrera (km) y natación (metros), con tiempo, desglose y lo planificado aparte; también en el día plegado y al terminar el modo entreno.</p>
       <p>Más rápida con muchos datos: con un año de entrenos, la semana se pinta unas 8 veces más deprisa · en el ordenador, el día desplegado se ensancha para que cada serie quepa en una o dos líneas · en el modo entreno, el campo de tiempo de carrera muestra el objetivo de la serie · nueva versión de pruebas (beta) separada de la principal.</p>
       <p>Los ejercicios con series quedan limpios, como un bloque: «+ Serie» para añadir otra o toca una serie para editarla · arrastrar con el asa ≡ es fluido · en el móvil, el doble toque ya no hace zoom (el pellizco sí); si estás ampliado, el doble toque reduce el zoom (desde mucho zoom, puede hacer falta repetirlo) sin pulsar lo que haya debajo.</p>
@@ -473,7 +474,8 @@
       <p>Son sugerencias generales, no un plan médico ni personalizado.</p>
     </details>
     <details><summary>Importar carreras</summary>
-      <p>En <b>Plan → Importar carreras</b> subes un archivo GPX o TCX del reloj o de Strava, o el CSV de actividades de Strava o Garmin. Cada carrera se guarda en su fecha con distancia y tiempo, y alimenta Marcas y ritmos.</p>
+      <p>En <b>Plan → Importar carreras</b> subes un archivo GPX o TCX del reloj o de Strava, el CSV de actividades de Strava o Garmin, o el <b>CSV de vueltas de COROS</b> (en la app de COROS, la actividad → exportar vueltas). Cada carrera se guarda en su fecha con distancia y tiempo, y alimenta Marcas y ritmos.</p>
+      <p>El CSV de vueltas de COROS no trae la fecha: se toma del nombre del archivo (por ejemplo …20261103185611.csv es el 3 de noviembre a las 18:56) y puedes corregirla en la vista previa antes de importar. Se usa el tiempo en movimiento de cada vuelta.</p>
       <p>Si tiene vueltas (lap): las rápidas son <b>series</b>; las más lentas de 8:00/km son <b>recuperación</b> y se guardan como descanso de la serie anterior; las que casi no avanzan son <b>descanso parado</b>; las lentas y largas del principio y del final son <b>calentamiento</b> y <b>vuelta a la calma</b> (no cuentan para marcas). Puedes cambiar cada vuelta en la vista previa, y si las series son iguales, agruparlas como bloque ×N. El límite de 8:00 se cambia en Plan → Ajustes.</p>
       <p>Si una carrera ya está en tu calendario, la app lo detecta y no la duplica. Los rodajes con vuelta automática cada km se guardan como una sola serie.</p>
     </details>
@@ -540,7 +542,7 @@
     <button class="cerrar" aria-label="Cerrar">✕</button>
   </form>
   <div class="d-cuerpo">
-    <p class="menu-det nota">Elige uno o varios archivos: GPX o TCX exportados del reloj (Garmin, Coros, Suunto, Polar…) o de una actividad de Strava, o el CSV de actividades de Strava o Garmin Connect. Revisa cada vuelta antes de importar.</p>
+    <p class="menu-det nota">Elige uno o varios archivos: GPX o TCX exportados del reloj (Garmin, Coros, Suunto, Polar…) o de una actividad de Strava, el CSV de actividades de Strava o Garmin Connect, o el CSV de vueltas de una actividad de la app de COROS. Revisa cada vuelta antes de importar.</p>
     <div class="botonera"><label class="anadir imp-elegir">Elegir archivo…<input type="file" id="impArchivo" accept=".gpx,.tcx,.csv,.xml,application/gpx+xml,text/csv" multiple hidden></label></div>
     <p class="aviso" id="impAviso" role="status"></p>
     <div id="impLista" class="imp-lista"></div>
