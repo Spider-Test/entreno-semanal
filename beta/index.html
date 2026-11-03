@@ -1,0 +1,609 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Entreno Semanal</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Entreno">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#f1f3f2" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0c110e" media="(prefers-color-scheme: dark)">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icono-180.png">
+<link rel="icon" type="image/png" href="icono-180.png">
+<link rel="stylesheet" href="estilos.css">
+</head>
+<body>
+
+<section id="login" hidden>
+  <h1>Entreno Semanal</h1>
+  <p id="loginTexto">Entra con tu email y tu contraseña. Solo hace falta una vez en cada dispositivo.</p>
+  <form id="loginForm" novalidate>
+    <div>
+      <label>Email <input id="email" type="email" autocomplete="username" inputmode="email" required></label>
+      <label>Contraseña <input id="password" type="password" autocomplete="current-password" minlength="6" required></label>
+      <div id="loginError" role="alert"></div>
+      <button class="primario" id="loginBtn" type="submit">Entrar</button>
+      <button class="enlace" id="modoBtn" type="button">¿Primera vez? Crear cuenta</button>
+    </div>
+  </form>
+</section>
+
+<section id="pendiente" hidden>
+  <h1>Entreno Semanal</h1>
+  <p>Tu cuenta <b id="pendEmail"></b> está pendiente de aprobación. Cuando el administrador la apruebe, podrás usar la app.</p>
+  <button class="primario" id="pendReintentar" type="button">Comprobar de nuevo</button>
+  <p id="pendAviso" role="status"></p>
+  <button class="enlace" id="pendSalir" type="button">Cerrar sesión</button>
+</section>
+
+<section id="app" hidden>
+  <header class="cabecera">
+    <h1>Entreno Semanal</h1>
+    <button type="button" class="ayuda-btn" id="ayudaBtn" aria-label="Instrucciones de uso" title="Instrucciones de uso">?</button>
+  </header>
+  <nav class="tabbar" role="tablist" aria-label="Secciones">
+    <button type="button" role="tab" id="tabSemana" aria-selected="true"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg><span>Semana</span></button>
+    <button type="button" role="tab" id="tabEjercicios" aria-selected="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 7v10M17.5 7v10M3.5 9.5v5M20.5 9.5v5M6.5 12h11"/></svg><span>Ejercicios</span></button>
+    <button type="button" role="tab" id="tabMarcas" aria-selected="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19.5h16M7 16.5v-5M12 16.5V6.5M17 16.5v-8"/></svg><span>Marcas</span></button>
+    <button type="button" role="tab" id="tabPlan" aria-selected="false"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="4" width="14" height="17" rx="2.5"/><path d="M9 4.5V3h6v1.5M8.5 10h7M8.5 14h7M8.5 18h4"/></svg><span>Plan</span></button>
+  </nav>
+
+  <div id="vistaSemana">
+    <nav class="nav" id="navSemana" aria-label="Cambiar de semana">
+      <button type="button" class="nav-btn flecha" id="antBtn" aria-label="Semana anterior">‹</button>
+      <div class="semana-info"><span id="rango"></span><span id="relativa"></span></div>
+      <button type="button" class="nav-btn flecha" id="sigBtn" aria-label="Semana siguiente">›</button>
+      <button type="button" class="nav-btn" id="hoyBtn" hidden>Hoy</button>
+    </nav>
+    <div class="sem-barra" id="semBarra" hidden><span></span></div>
+    <nav class="dia-nav" id="diaNav" aria-label="Día" hidden>
+      <button type="button" class="nav-btn volver" id="volverSemana">‹ Semana</button>
+      <span class="dia-nav-t" id="diaNavTit"></span>
+      <button type="button" class="nav-btn flecha" id="diaAnt" aria-label="Día anterior">‹</button>
+      <button type="button" class="nav-btn flecha" id="diaSig" aria-label="Día siguiente">›</button>
+    </nav>
+    <p class="meso-banda" id="mesoBanda" hidden></p>
+    <details class="resumen-sem" id="resumenSem" hidden>
+      <summary><span class="rs-t">Resumen de la semana</span><span class="rs-l" id="resumenLinea"></span></summary>
+      <div class="records" id="resumenCont"></div>
+    </details>
+    <main class="semana" id="semana"></main>
+  </div>
+
+  <div id="vistaEjercicios" hidden>
+    <div class="barra">
+      <input id="filtroEj" type="search" placeholder="Buscar ejercicio" aria-label="Buscar ejercicio" autocomplete="off">
+      <button type="button" class="nav-btn" id="nuevoEj">+ Nuevo</button>
+    </div>
+    <div id="catalogo"></div>
+  </div>
+
+  <div id="vistaPlan" hidden>
+    <section class="plan-sec" data-sec="plantillas">
+      <h3>Plantillas</h3>
+      <div class="barra plant-barra"><input id="buscarPlantilla" type="search" placeholder="Buscar plantilla" aria-label="Buscar plantilla por nombre o ejercicio" autocomplete="off"><button type="button" class="nav-btn" id="selPlantEntrar">Seleccionar</button></div>
+      <div class="sel-barra" id="selPlantBarra" hidden><span id="selPlantN"></span><button type="button" class="enlace" id="selPlantTodas">Seleccionar todas</button><button type="button" class="nav-btn" id="selPlantCancelar">Cancelar</button></div>
+      <div class="lista-tarjetas" id="listaPlantillas"></div>
+    </section>
+    <section class="plan-sec" data-sec="mesociclos">
+      <div class="sec-cab"><h3>Mesociclos</h3><button type="button" class="nav-btn" id="nuevoMeso">+ Nuevo</button></div>
+      <div class="lista-tarjetas" id="listaMesos"></div>
+    </section>
+    <section class="plan-sec" data-sec="importar">
+      <h3>Importar carreras</h3>
+      <p class="vacio-lista">Trae tus carreras del reloj (archivo GPX o TCX) o de Strava y Garmin (CSV de actividades). Con vueltas, cada serie se guarda por separado y sus recuperaciones como descanso.</p>
+      <div class="botonera"><button type="button" class="anadir" id="impAbrir">Importar archivo…</button></div>
+    </section>
+    <section class="plan-sec" data-sec="molestias">
+      <div class="sec-cab"><h3>Molestias y lesiones</h3><button type="button" class="nav-btn" id="nuevaMolestia">+ Nueva</button></div>
+      <div class="lista-tarjetas" id="listaMolestias"></div>
+    </section>
+    <section class="plan-sec" data-sec="ia">
+      <h3>Crear con IA</h3>
+      <p class="vacio-lista">Elige tu objetivo, copia el prompt, pégalo en ChatGPT, Claude u otra IA y pega aquí su respuesta: la app crea las plantillas (o el mesociclo) y los ejercicios que falten.</p>
+      <div class="botonera"><button type="button" class="anadir" id="iaAbrir">Crear con IA</button><button type="button" class="nav-btn" id="iaPegarAbrir">Pegar entrenamiento de IA</button></div>
+    </section>
+    <section class="plan-sec" data-sec="rutinas">
+      <h3>Rutinas tipo</h3>
+      <p class="aviso-estim">Ejemplos generales para empezar, no un plan médico ni personalizado. Al usarlos se copian a tus plantillas y los cambias a tu gusto.</p>
+      <div class="lista-tarjetas" id="listaRutinas"></div>
+    </section>
+    <section class="plan-sec" data-sec="compartido">
+      <h3>Añadir algo compartido</h3>
+      <div class="barra"><input id="codigoComp" placeholder="Pega el enlace o el código de 8 letras" autocomplete="off" autocapitalize="characters"><button type="button" class="nav-btn" id="abrirComp">Abrir</button></div>
+    </section>
+    <section class="plan-sec" data-sec="copia">
+      <h3>Copia de seguridad</h3>
+      <p class="vacio-lista">Descarga todos tus datos. La copia completa (JSON) sirve para restaurarlos; los CSV se abren con Excel o Numbers.</p>
+      <div class="botonera">
+        <button type="button" class="nav-btn" id="expJson">Copia completa (JSON)</button>
+        <button type="button" class="nav-btn" id="expCsv">Series (CSV)</button>
+        <button type="button" class="nav-btn" id="expDias">Días y notas (CSV)</button>
+        <label class="nav-btn">Restaurar copia…<input type="file" id="impJson" accept="application/json,.json" hidden></label>
+      </div>
+    </section>
+    <section class="plan-sec" data-sec="ajustes">
+      <h3>Ajustes de este dispositivo</h3>
+      <div class="fila">
+        <label class="campo">Peso de la barra (kg) <input id="ajBarra" inputmode="decimal" placeholder="20"></label>
+        <label class="campo">Botones − y + de peso (kg) <input id="ajPaso" inputmode="decimal" placeholder="2,5"></label>
+      </div>
+      <label class="campo">Al importar, una vuelta más lenta que este ritmo (min/km) es recuperación <input id="ajRitmoRec" inputmode="decimal" placeholder="8:00"></label>
+    </section>
+    <section class="plan-sec" data-sec="sugerencias" id="bloqueSug" hidden>
+      <div class="sec-cab"><h3 id="sugTit">Sugerencias</h3><button type="button" class="nav-btn" id="sugRecargar">Actualizar</button></div>
+      <div id="listaSug"></div>
+    </section>
+    <section class="plan-sec" data-sec="usuarios" id="bloqueUsuarios" hidden>
+      <h3>Usuarios</h3>
+      <p class="vacio-lista">Las cuentas nuevas no pueden ver ni guardar nada hasta que las apruebes.</p>
+      <div id="listaUsuarios"></div>
+    </section>
+  </div>
+
+  <div id="vistaMarcas" hidden>
+    <p class="aviso-estim">Estimaciones orientativas de carrera calculadas con tus entrenamientos completos (fórmulas de Daniels y Riegel). No sustituyen a una prueba real ni a un entrenador.</p>
+    <div id="marcasCont"></div>
+  </div>
+
+  <div class="pie">
+    <span id="estado" role="status"></span>
+    <button type="button" class="enlace" id="sugPie">Enviar sugerencia</button>
+    <button type="button" class="enlace" id="salirBtn">Cerrar sesión</button>
+  </div>
+</section>
+
+<dialog id="selector" aria-label="Elegir ejercicio">
+  <form method="dialog" class="d-cab">
+    <input id="buscarEj" type="search" placeholder="Busca o escribe un ejercicio nuevo" aria-label="Ejercicio" autocomplete="off" enterkeyhint="go">
+    <button class="cerrar" aria-label="Cerrar">✕</button>
+  </form>
+  <div class="tabs filtro-tipo" id="selTipo" role="group" aria-label="Tipo de entrenamiento">
+    <button type="button" data-tipo="" aria-pressed="true">Todos</button>
+    <button type="button" data-tipo="fuerza" class="t-fuerza" aria-pressed="false">Fuerza</button>
+    <button type="button" data-tipo="carrera" class="t-carrera" aria-pressed="false">Carrera</button>
+    <button type="button" data-tipo="natacion" class="t-natacion" aria-pressed="false">Natación</button>
+  </div>
+  <div id="listaEj"></div>
+</dialog>
+
+<dialog id="detalle" aria-label="Ejercicio">
+  <form method="dialog" class="d-cab">
+    <input id="detNombre" aria-label="Nombre del ejercicio" autocomplete="off">
+    <button class="cerrar" aria-label="Cerrar" autofocus>✕</button>
+  </form>
+  <div class="d-cuerpo">
+    <p id="detAvisoComun" class="aviso-estim" hidden>Ejercicio del catálogo común: solo lo editan el administrador y quien él autorice. Tus series y tu 1RM son solo tuyos.</p>
+    <label id="detCompSec" class="permiso" hidden><input type="checkbox" id="detComp"> En el catálogo común (lo ven todos los usuarios aprobados)</label>
+    <section>
+      <h3>Tipo</h3>
+      <div class="tabs seg" id="detTipo" role="group" aria-label="Tipo de ejercicio">
+        <button type="button" data-tipo="fuerza" aria-pressed="false">Fuerza</button>
+        <button type="button" data-tipo="carrera" aria-pressed="false">Carrera</button>
+        <button type="button" data-tipo="natacion" aria-pressed="false">Natación</button>
+      </div>
+    </section>
+    <section id="detZonasSec">
+      <h3>Zonas que trabaja</h3>
+      <div class="md-chips" id="detZonas"></div>
+      <p class="menu-det nota" id="detZonasNota"></p>
+    </section>
+    <section id="detRmSec">
+      <h3>1RM de referencia</h3>
+      <div class="fila rm-fila"><input id="detRm" inputmode="decimal" placeholder="kg" aria-label="1RM de referencia en kg"><span id="detRmEst" class="menu-det"></span></div>
+      <label class="permiso"><input type="checkbox" id="detBarra"> Se hace con barra: mostrar los discos por lado</label>
+    </section>
+    <section id="detBilboSec">
+      <h3>Bilbo</h3>
+      <div id="detBilbo"></div>
+    </section>
+    <section>
+      <h3>Vídeo de la técnica</h3>
+      <div id="detEmbed"></div>
+      <div class="fila">
+        <input id="detVideo" type="url" inputmode="url" placeholder="Pega un enlace de YouTube, Instagram…" aria-label="Enlace del vídeo" autocomplete="off">
+        <a id="detBuscar" class="nav-btn" target="_blank" rel="noopener">Buscar en YouTube</a>
+      </div>
+      <textarea id="detNotas" placeholder="Notas de técnica: agarre, respiración, lo que no debes olvidar…" aria-label="Notas de técnica"></textarea>
+    </section>
+    <section>
+      <h3>Récords</h3>
+      <div class="records" id="detRecords"></div>
+      <ul class="marcas" id="detMarcas"></ul>
+    </section>
+    <section>
+      <h3 id="detGraficaTit">Progreso</h3>
+      <div id="detGrafica"></div>
+    </section>
+    <section>
+      <h3>Historial</h3>
+      <ol class="historial" id="detHistorial"></ol>
+    </section>
+    <button type="button" id="detBorrar" class="peligro">Eliminar ejercicio</button>
+  </div>
+</dialog>
+
+<dialog id="menu" aria-labelledby="menuTit">
+  <form method="dialog" class="d-cab">
+    <h3 id="menuTit" class="d-tit"></h3>
+    <button class="cerrar" aria-label="Cerrar" autofocus>✕</button>
+  </form>
+  <p id="menuDet" class="menu-det"></p>
+  <div id="menuOpciones" class="menu-op"></div>
+</dialog>
+
+<dialog id="dlgNombre" aria-labelledby="nomTit">
+  <form method="dialog" class="d-form">
+    <h3 id="nomTit"></h3>
+    <input id="nomInput" aria-label="Nombre" autocomplete="off" enterkeyhint="done">
+    <p id="nomAyuda" class="menu-det"></p>
+    <div class="d-botones">
+      <button value="" class="nav-btn" formnovalidate>Cancelar</button>
+      <button value="ok" class="anadir">Guardar</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="dlgBloque" aria-label="Nuevo bloque">
+  <form method="dialog" class="d-cab">
+    <h3 class="d-tit">Nuevo bloque</h3>
+    <button class="cerrar" aria-label="Cerrar">✕</button>
+  </form>
+  <div class="d-cuerpo">
+    <p class="menu-det" style="padding:0">Uno o varios tramos seguidos que se repiten. Ej.: 1000 m + rec. 300 m ×4, o Press banca + Remo ×4.</p>
+    <div id="blqTramos"></div>
+    <button type="button" class="add-ej" id="blqAnadir">+ Añadir tramo</button>
+    <label class="campo">Rondas (veces que se repite) <input id="blqRondas" type="number" min="1" max="50" inputmode="numeric"></label>
+    <p id="blqAviso" class="aviso" role="status"></p>
+    <div class="d-botones">
+      <button type="button" class="anadir" id="blqCrear">Crear bloque</button>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="dlgMeso" aria-label="Mesociclo">
+  <form method="dialog" class="d-cab">
+    <h3 class="d-tit">Mesociclo</h3>
+    <button class="cerrar" aria-label="Cerrar">✕</button>
+  </form>
+  <div class="d-cuerpo">
+    <label class="campo">Nombre <input id="mesoNombre" placeholder="Ej.: Fuerza · bloque 1" autocomplete="off"></label>
+    <div class="fila">
+      <label class="campo">Empieza la semana del <input id="mesoInicio" type="date"></label>
+      <label class="campo">Semanas <input id="mesoSemanas" type="number" min="1" max="26" inputmode="numeric"></label>
+    </div>
+    <label class="campo">Progresión de peso por semana (kg) <input id="mesoProg" inputmode="decimal" placeholder="Ej.: 2,5 (déjalo vacío si no quieres)"></label>
+    <section>
+      <h3>Semana de descarga</h3>
+      <label class="permiso"><input type="checkbox" id="mesoDescUltima"> La última semana es de descarga</label>
+      <div class="fila">
+        <label class="campo">Y además cada… semanas <input id="mesoDescCada" type="number" min="2" max="12" inputmode="numeric" placeholder="Ej.: 4 (vacío = no)"></label>
+        <label class="campo">Reducción (%) <input id="mesoDescPct" inputmode="decimal" placeholder="30"></label>
+      </div>
+      <label class="campo">Qué se reduce
+        <select id="mesoDescModo">
+          <option value="carga">Peso, % del RM y distancia</option>
+          <option value="series">Número de series</option>
+        </select>
+      </label>
+    </section>
+    <section>
+      <h3>Plantillas de cada día</h3>
+      <div id="mesoDias"></div>
+    </section>
+    <label class="campo">Notas <textarea id="mesoNotas" placeholder="Objetivo del bloque, RPE, semana de descarga…"></textarea></label>
+    <p id="mesoAviso" class="aviso" role="status"></p>
+    <div class="d-botones">
+      <button type="button" class="nav-btn" id="mesoGuardar">Guardar</button>
+      <button type="button" class="anadir" id="mesoAplicar">Guardar y rellenar calendario</button>
+    </div>
+    <div class="d-botones">
+      <button type="button" class="nav-btn" id="mesoCompartir">Compartir con un amigo…</button>
+      <button type="button" class="enlace" id="mesoQuitar">Quitar sus series planificadas del calendario</button>
+      <button type="button" class="peligro" id="mesoBorrar">Eliminar mesociclo</button>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="dlgRpe" aria-labelledby="rpeTit">
+  <form method="dialog" class="d-cab">
+    <h3 id="rpeTit" class="d-tit">Esfuerzo</h3>
+    <button class="cerrar" aria-label="Cerrar">✕</button>
+  </form>
+  <div class="d-cuerpo">
+    <section>
+      <h3>¿Cuánto te ha costado? (RPE)</h3>
+      <div class="rpe-escala" id="rpeEscala" role="group" aria-label="Esfuerzo del 1 al 10"></div>
+      <p class="menu-det nota" id="rpeTexto"></p>
+    </section>
+    <label class="campo">Sensaciones <textarea id="rpeNota" maxlength="300" placeholder="Piernas cargadas, dormí poco, muy bien…"></textarea></label>
+    <div class="d-botones">
+      <button type="button" class="nav-btn" id="rpeQuitar">Quitar</button>
+      <button type="button" class="anadir" id="rpeGuardar">Guardar</button>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="dlgIA" aria-label="Crear con IA">
+  <form method="dialog" class="d-cab">
+    <h3 class="d-tit">Crear con IA</h3>
+    <button class="cerrar" aria-label="Cerrar">✕</button>
+  </form>
+  <div class="d-cuerpo">
+    <div class="tabs seg" id="iaPasos" role="tablist" aria-label="Pasos">
+      <button type="button" role="tab" data-paso="prompt" aria-selected="true">1 · Prompt</button>
+      <button type="button" role="tab" data-paso="pegar" aria-selected="false">2 · Pegar respuesta</button>
+    </div>
+    <div id="iaPrompt" class="ia-paso">
+      <div class="fila">
+        <label class="campo">Objetivo
+          <select id="iaObjetivo">
+            <option value="fuerza">Fuerza</option>
+            <option value="hipertrofia">Hipertrofia</option>
+            <option value="5k">Carrera 5 km</option>
+            <option value="10k">Carrera 10 km</option>
+            <option value="combinado">Fuerza + carrera</option>
+          </select>
+        </label>
+        <label class="campo">Días por semana <input id="iaDias" type="number" min="1" max="7" value="3" inputmode="numeric"></label>
+      </div>
+      <div class="fila">
+        <label class="campo">Nivel
+          <select id="iaNivel"><option>principiante</option><option selected>intermedio</option><option>avanzado</option></select>
+        </label>
+        <label class="campo">Semanas <input id="iaSemanas" type="number" min="1" max="26" value="6" inputmode="numeric"></label>
+      </div>
+      <label class="campo">Material <input id="iaMaterial" placeholder="Gimnasio completo, mancuernas en casa, pista…" autocomplete="off"></label>
+      <label class="campo">Objetivo concreto <input id="iaMeta" placeholder="Bajar de 25 min en 5 km, subir mi sentadilla…" autocomplete="off"></label>
+      <label class="campo">Limitaciones <input id="iaLimites" placeholder="Molestias de rodilla, 45 min por sesión…" autocomplete="off"></label>
+      <label class="campo">Prompt para la IA <textarea id="iaTexto" readonly rows="7"></textarea></label>
+      <div class="d-botones"><span class="menu-det nota" id="iaCopiarAviso" role="status"></span><button type="button" class="anadir" id="iaCopiar">Copiar prompt</button></div>
+      <p class="aviso-estim">Las rutinas que propone una IA son sugerencias generales, no un plan médico ni personalizado. Revísalas y adáptalas a cómo te encuentres.</p>
+    </div>
+    <div id="iaPegar" class="ia-paso" hidden>
+      <label class="campo">Respuesta de la IA <textarea id="iaRespuesta" rows="9" placeholder="Pega aquí la respuesta completa de la IA (empieza por «RUTINA:»)"></textarea></label>
+      <p class="aviso" id="iaError" role="status"></p>
+      <div class="d-botones"><button type="button" class="anadir" id="iaRevisar">Revisar</button></div>
+    </div>
+    <div id="iaVistaCaja" class="ia-paso" hidden>
+      <h3 id="iaVistaTit" class="ia-tit"></h3>
+      <div id="iaVista" class="ia-vista"></div>
+      <div class="fila" id="iaMesoOp" hidden>
+        <label class="campo">Empieza la semana del <input id="iaInicio" type="date"></label>
+        <label class="campo">Semanas <input id="iaMesoSem" type="number" min="1" max="26" inputmode="numeric"></label>
+      </div>
+      <p class="menu-det nota" id="iaAvisoDias" role="status"></p>
+      <div class="d-botones">
+        <button type="button" class="nav-btn" id="iaPlantillas">Usar como plantillas</button>
+        <button type="button" class="anadir" id="iaMeso" hidden>Crear mesociclo</button>
+      </div>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="dlgAyuda" aria-label="Instrucciones de uso">
+  <form method="dialog" class="d-cab">
+    <h3 class="d-tit">Instrucciones de uso</h3>
+    <button class="cerrar" aria-label="Cerrar">✕</button>
+  </form>
+  <div class="d-cuerpo ayuda">
+    <p>Toca cada apartado para verlo. Puedes volver aquí cuando quieras con el botón <b>?</b> de arriba. ¿Echas algo en falta o algo no va bien? Envíanos una sugerencia:</p>
+    <details class="novedades" open><summary>Novedades · versión 36</summary>
+      <p>Más rápida con muchos datos: con un año de entrenos, la semana se pinta unas 8 veces más deprisa · en el ordenador, el día desplegado se ensancha para que cada serie quepa en una o dos líneas · en el modo entreno, el campo de tiempo de carrera muestra el objetivo de la serie · nueva versión de pruebas (beta) separada de la principal.</p>
+      <p>Los ejercicios con series quedan limpios, como un bloque: «+ Serie» para añadir otra o toca una serie para editarla · arrastrar con el asa ≡ es fluido · en el móvil, el doble toque ya no hace zoom (el pellizco sí); si estás ampliado, el doble toque reduce el zoom (desde mucho zoom, puede hacer falta repetirlo) sin pulsar lo que haya debajo.</p>
+      <p>Arreglado: ya se pueden mover los ejercicios que aún no tienen series (por ejemplo, subir un calentamiento por encima de los bloques) y pasar ejercicios a otra sesión del día.</p>
+      <p>Al abrir un desplegable que queda por debajo, la pantalla baja sola para que lo veas · el administrador puede borrar sugerencias · Ejercicios ordenados por tipo.</p>
+      <p>Desmarcar una serie hecha por error: toca su número o ✓, deslízala a la derecha o usa «↺ Marcar como pendiente» (también en el modo entreno) · arreglados los desplegables de Plan; en Plantillas, el buscador y «Seleccionar» se pliegan con la sección.</p>
+      <p>Selección múltiple de plantillas (mantén pulsada una): añadir a un día, a un mesociclo, compartir juntas o eliminar · diseño más compacto y estilo de cristal · importar carreras del reloj o de Strava · reordenar con el asa ≡.</p>
+    </details>
+    <button type="button" class="nav-btn sug-btn" id="sugAyuda">💬 Enviar una sugerencia o avisar de un fallo</button>
+    <details><summary>La semana y el texto del día</summary>
+      <p>En el móvil, las secciones están abajo: <b>Semana</b>, <b>Ejercicios</b>, <b>Marcas</b> y <b>Plan</b>. En el ordenador van arriba, centradas, y la semana se ve en 7 columnas.</p>
+      <p>Cada día es un <b>desplegable</b>: toca su título (▸/▾) para abrirlo o plegarlo. Plegado muestra el título del entreno (la primera línea de su texto o el nombre de sus sesiones). Por defecto solo hoy está abierto, y la app recuerda los que abras o cierres.</p>
+      <p>El botón <b>⤢</b> abre ese día solo, a pantalla completa. Pasa al día anterior o siguiente con ‹ › o deslizando a los lados, y vuelve con <b>‹ Semana</b>.</p>
+      <p>Cada día tiene un espacio para escribir lo que quieras. Se guarda solo. Mientras escribes aparece el botón <b>N</b> de negrita.</p>
+      <p>Cambia de semana con las flechas ‹ ›; <b>Hoy</b> te devuelve a la semana actual. El anillo de cada día y la barra bajo las fechas muestran cuántas series llevas hechas de las planificadas.</p>
+    </details>
+    <details><summary>Añadir ejercicios y series</summary>
+      <p>Pulsa <b>+ Ejercicio</b> en un día, busca el ejercicio o escribe uno nuevo. Arriba puedes filtrar por Fuerza, Carrera o Natación.</p>
+      <p><b>Fuerza:</b> kg × repeticiones. El botón <b>kg</b> cambia a <b>%</b> del 1RM (pon tu 1RM en la ficha del ejercicio).</p>
+      <p><b>Carrera y natación:</b> metros y tiempo. El botón <b>m</b> cambia a <b>min</b> si prefieres apuntar solo el tiempo.</p>
+      <p>Los botones <b>−</b> y <b>+</b> suben o bajan el peso, las repeticiones, los metros (100 m) o el tiempo (5 s). En <b>Plan → Ajustes</b> eliges cuántos kilos sube cada toque (2,5 por defecto) y el peso de la barra; se guardan en cada dispositivo.</p>
+      <p>Cuando un ejercicio ya tiene series, queda limpio como un bloque: solo se ven sus series y su progreso. Pulsa <b>+ Serie</b> para añadir otra (sale rellenada con la última) o toca una serie para editarla; al guardar, el formulario se vuelve a plegar.</p>
+      <p>El selector <b>×1, ×2…</b> añade varias series iguales de golpe. Toca el nombre del ejercicio para ver su vídeo, récords, gráfica e historial.</p>
+    </details>
+    <details><summary>Catálogo de ejercicios</summary>
+      <p>El catálogo se divide en <b>Fuerza</b>, <b>Carrera</b> y <b>Natación</b>, cada una desplegable con su número de ejercicios; la app recuerda cuáles dejas abiertas. Al buscar, se abren las que tienen resultados y se ocultan las vacías.</p>
+      <p>En <b>Ejercicios</b> está el catálogo. Los marcados como <b>común</b> los ven todos los usuarios; los editan el administrador y quien él autorice, y solo el administrador puede borrarlos. Los que creas tú son privados.</p>
+      <p>Tu 1RM, tus series y tus entrenamientos son siempre tuyos: nadie más los ve.</p>
+    </details>
+    <details><summary>Cómo escribir tiempos y descansos</summary>
+      <p><b>Tiempo:</b> 3,40 o 3:40 son 3 min 40 s; un número solo son minutos (40 = 40 min); 1:02:30 es 1 h 2 min 30 s.</p>
+      <p><b>Descanso:</b> 2 = 2 minutos; 90 = 90 segundos (hasta 15 se entiende como minutos); 1,30 = 1 min 30 s.</p>
+      <p><b>Recuperación en metros:</b> escribe 300 m (por ejemplo, trotando entre series).</p>
+    </details>
+    <details><summary>Series planificadas</summary>
+      <p>Las series que añades en días futuros (o que vienen de plantillas y mesociclos) quedan <b>planificadas</b>, en gris y con un círculo.</p>
+      <p>Toca el círculo para marcarla como hecha tal cual. Si hiciste otra cosa, toca la serie, corrige los datos y guárdala. También puedes corregir después una serie ya hecha tocándola.</p>
+      <p>En el móvil también puedes <b>deslizar</b> una serie: a la derecha la marca hecha y a la izquierda la borra. Durante 5 segundos aparece abajo <b>Deshacer</b>. Si consigues un récord, te lo celebra.</p>
+      <p>¿Marcaste una serie por error? Toca su número (o el ✓ en los bloques), desliza la serie hecha a la derecha, o tócala y elige <b>↺ Marcar como pendiente</b>. Vuelve a planificada y deja de contar para récords, volumen y marcas. En el modo entreno tienes el mismo botón (vuelve con <b>‹ Anterior</b> si ya pasaste a la siguiente).</p>
+    </details>
+    <details><summary>Modo entreno</summary>
+      <p>En el día de hoy (o en un día abierto) pulsa <b>Empezar entreno</b>: verás en grande cada serie, con los discos que van por lado y el ritmo objetivo en carrera.</p>
+      <p>Ajusta lo que hiciste y pulsa <b>Hecha</b>: pasa a la siguiente (respetando los bloques ronda a ronda) y empieza la cuenta atrás del descanso, que puedes saltar o alargar. Al acabar suena y vibra si el móvil lo permite.</p>
+      <p>En carrera, el campo de tiempo muestra como ejemplo el objetivo de esa serie; escribe tu tiempo real (3:52 o 3,52).</p>
+      <p>El temporizador solo existe dentro de este modo; fuera de él nunca salta nada.</p>
+    </details>
+    <details><summary>Bloques ×N</summary>
+      <p><b>+ Bloque</b> crea uno o varios tramos que se repiten, por ejemplo 1000 m + recuperación 300 m ×4, o Press banca + Remo ×4. Se muestran ronda a ronda.</p>
+    </details>
+    <details><summary>Cambiar el orden</summary>
+      <p>Arrastra el asa <b>≡</b> para mover una serie dentro de su ejercicio, un ejercicio o bloque dentro de su sesión, o una sesión entera dentro del día (por ejemplo, subir un calentamiento que añadiste al final). Mientras arrastras ves el resultado; el asa no interfiere con deslizar ni con el desplazamiento.</p>
+      <p>Los ejercicios que aún no tienen series también se mueven, y al añadirles la primera serie se quedan donde los pusiste. Con <b>Mover a otra sesión…</b> (menú ⋯) pasas un ejercicio o bloque a otra sesión del día o a «Sin sesión».</p>
+      <p>También puedes usar <b>Subir</b> y <b>Bajar</b> en el menú ⋯ de cada ejercicio, bloque o sesión, o las flechas del teclado sobre el asa. Durante 5 segundos aparece <b>Deshacer</b>. El nuevo orden se usa también en el modo entreno y al guardar como plantilla.</p>
+    </details>
+    <details><summary>Plantillas, copiar y pegar</summary>
+      <p>En el menú <b>⋯</b> de cada día puedes copiar el día, pegar lo último copiado, añadir una plantilla, guardar los ejercicios como plantilla o compartirlos con un amigo.</p>
+      <p>Si los ejercicios tienen nombre de sesión (por ejemplo «Pierna»), su menú ⋯ copia, guarda o comparte solo esa sesión. Puedes tener varias sesiones el mismo día.</p>
+    </details>
+    <details><summary>Discos y calentamiento</summary>
+      <p>En los ejercicios con barra verás qué discos van <b>por lado</b> (barra de 20 kg; se cambia en Plan → Ajustes). En la ficha del ejercicio puedes marcar si se hace con barra.</p>
+      <p>Hoy, antes de la primera serie de un ejercicio con peso, la app te propone un <b>calentamiento</b> (barra × 10, 50 % × 5, 70 % × 3, 85 % × 1). <b>Añadir</b> lo pone delante como series de calentamiento, que no cuentan para récords ni volumen; <b>No</b> deja de proponerlo ese día.</p>
+    </details>
+    <details><summary>Molestias y lesiones</summary>
+      <p>En <b>Plan → Molestias y lesiones</b> apuntas la zona, qué notas y desde cuándo, y la marcas como resuelta cuando pase.</p>
+      <p>Los ejercicios que trabajan esa zona muestran un aviso ⚠ (en la ficha de cada ejercicio puedes ajustar sus zonas) y «Crear con IA» la tiene en cuenta. No sustituye la opinión de un profesional.</p>
+    </details>
+    <details><summary>Mesociclos y semana de descarga</summary>
+      <p>Las secciones de <b>Plan</b> se abren y cierran tocando su título (con su contador); la app recuerda cuáles dejas abiertas. En <b>Plantillas</b> tienes un buscador por nombre o por ejercicio.</p>
+      <p>Para trabajar con varias plantillas a la vez, <b>mantén pulsada</b> una (o pulsa <b>Seleccionar</b>) y marca las que quieras, también entre los resultados del buscador. Abajo aparecen las acciones: <b>Añadir a un día</b> (cada una como su sesión), <b>Mesociclo</b> (crear uno repartiéndolas por la semana o añadirlas a uno existente), <b>Compartir</b> (un solo enlace con todas) y <b>Eliminar</b> (con confirmación y Deshacer).</p>
+      <p>En <b>Plan → Mesociclos</b> repartes tus plantillas por los días de la semana durante varias semanas. Puedes sumar kilos cada semana.</p>
+      <p>La <b>semana de descarga</b> (la última, o cada N semanas) baja un 30 % el peso y la distancia, o el número de series (lo eliges tú). En la semana aparece marcada como «Descarga».</p>
+      <p>Pulsa <b>Guardar y rellenar calendario</b> para que aparezcan las series planificadas.</p>
+    </details>
+    <details><summary>Crear con IA y rutinas tipo</summary>
+      <p>En <b>Plan → Crear con IA</b> eliges objetivo, días, nivel, material y limitaciones. Copia el prompt, pégalo en ChatGPT, Claude u otra IA y pega su respuesta en el paso 2.</p>
+      <p>La app te muestra una vista previa y lo guarda como plantillas o como mesociclo. Crea los ejercicios que falten. Si algo no encaja, te dice qué línea falla.</p>
+      <p>En <b>Rutinas tipo</b> tienes algunos ejemplos listos. Todo se copia a tus plantillas y lo puedes editar como cualquier otra.</p>
+      <p>Son sugerencias generales, no un plan médico ni personalizado.</p>
+    </details>
+    <details><summary>Importar carreras</summary>
+      <p>En <b>Plan → Importar carreras</b> subes un archivo GPX o TCX del reloj o de Strava, o el CSV de actividades de Strava o Garmin. Cada carrera se guarda en su fecha con distancia y tiempo, y alimenta Marcas y ritmos.</p>
+      <p>Si tiene vueltas (lap): las rápidas son <b>series</b>; las más lentas de 8:00/km son <b>recuperación</b> y se guardan como descanso de la serie anterior; las que casi no avanzan son <b>descanso parado</b>; las lentas y largas del principio y del final son <b>calentamiento</b> y <b>vuelta a la calma</b> (no cuentan para marcas). Puedes cambiar cada vuelta en la vista previa, y si las series son iguales, agruparlas como bloque ×N. El límite de 8:00 se cambia en Plan → Ajustes.</p>
+      <p>Si una carrera ya está en tu calendario, la app lo detecta y no la duplica. Los rodajes con vuelta automática cada km se guardan como una sola serie.</p>
+    </details>
+    <details><summary>Marcas y ritmos recomendados</summary>
+      <p>La pestaña <b>Marcas</b> estima tu forma en carrera (VDOT), tus marcas previstas y tus ritmos de entrenamiento, con tus sesiones completas de las últimas semanas.</p>
+      <p>Las series de carrera planificadas muestran un objetivo que se ajusta según cómo te van saliendo. Si tus últimos días tienen esfuerzo alto, el objetivo se suaviza un poco. Son estimaciones orientativas.</p>
+    </details>
+    <details><summary>Esfuerzo (RPE) y resumen semanal</summary>
+      <p>Debajo de cada día entrenado, <b>+ Esfuerzo y sensaciones</b> guarda cuánto te costó (1 muy suave, 10 máximo) y una nota corta. Se ve en el día y en el historial de cada ejercicio.</p>
+      <p>Arriba de la semana, <b>Resumen de la semana</b> muestra km, kilos levantados (peso × repeticiones), series hechas frente a planificadas, récords y esfuerzo medio, comparados con la semana anterior.</p>
+    </details>
+    <details><summary>Compartir con amigos</summary>
+      <p>Desde el menú ⋯ de un día, una sesión o una plantilla, <b>Compartir con un amigo</b> crea un enlace o un código de 8 letras. Tu amigo lo abre o lo pega en <b>Plan → Añadir algo compartido</b>.</p>
+      <p>Un <b>mesociclo</b> entero se comparte desde su editor: tu amigo ve una vista previa y lo guarda con todas sus plantillas.</p>
+    </details>
+    <details><summary>Copia de seguridad</summary>
+      <p>En <b>Plan → Copia de seguridad</b> descargas todos tus datos: la copia completa (JSON) sirve para restaurar; los CSV se abren con Excel o Numbers.</p>
+      <p><b>Restaurar copia</b> recupera lo que falte sin borrar nada de lo que tienes.</p>
+    </details>
+    <details><summary>Sin conexión</summary>
+      <p>Todo se guarda primero en el dispositivo y se sincroniza con tu cuenta en cuanto hay conexión. Puedes usar la app sin internet; abajo verás si hay cambios pendientes de subir.</p>
+    </details>
+    <details><summary>Versión de pruebas (beta)</summary>
+      <p>Las novedades se prueban antes en <b>spider-test.github.io/entreno-semanal/beta/</b>, que lleva la etiqueta BETA junto al título. Usa tu misma cuenta y tus mismos datos (lo que cambies allí se ve también aquí), pero guarda su propia copia en el dispositivo, así que la primera vez hay que entrar con el email y la contraseña.</p>
+      <p>Si algo falla en la beta, avísanos con «Enviar sugerencia» desde la propia beta: la sugerencia indica que venía de ella.</p>
+    </details>
+    <details><summary>Instalar en el iPhone</summary>
+      <p>Abre la app en <b>Safari</b>, pulsa <b>Compartir</b> (el cuadrado con la flecha) y elige <b>Añadir a pantalla de inicio</b>. Se abrirá a pantalla completa como una app más.</p>
+    </details>
+    <details><summary>Instalar en Android</summary>
+      <p>Abre la app en <b>Chrome</b>. Si aparece el aviso <b>Instalar app</b>, acéptalo; si no, pulsa el menú <b>⋮</b> de arriba a la derecha y elige <b>Instalar app</b> (o <b>Añadir a pantalla de inicio</b>).</p>
+      <p>Quedará con su icono entre tus aplicaciones y se abrirá a pantalla completa, también sin conexión.</p>
+    </details>
+    <details id="ayudaAdmin" hidden><summary>Administración (solo tú)</summary>
+      <p>En <b>Plan → Usuarios</b> apruebas las cuentas nuevas (te llega un correo cuando alguien se registra) o les quitas el acceso.</p>
+      <p>En <b>Plan → Sugerencias</b> lees las sugerencias, las marcas como leídas y las borras con ✕ (o todas las leídas de una vez), con Deshacer durante 5 segundos.</p>
+      <p>Con <b>Puede editar el catálogo común</b> das permiso a alguien para editar los ejercicios compartidos. El 1RM y los entrenamientos de cada uno siguen siendo privados.</p>
+    </details>
+  </div>
+</dialog>
+
+<dialog id="dlgMolestia" aria-label="Molestia o lesión">
+  <form method="dialog" class="d-cab">
+    <h3 class="d-tit">Molestia o lesión</h3>
+    <button class="cerrar" aria-label="Cerrar">✕</button>
+  </form>
+  <div class="d-cuerpo">
+    <label class="campo">Zona <select id="molZona"></select></label>
+    <label class="campo">Qué notas <textarea id="molDesc" rows="3" maxlength="500" placeholder="Dolor al bajar escaleras, tirón al correr…"></textarea></label>
+    <label class="campo">Desde <input type="date" id="molInicio"></label>
+    <div class="tabs seg" id="molEstado" role="group" aria-label="Estado">
+      <button type="button" data-estado="activa" aria-pressed="true">Activa</button>
+      <button type="button" data-estado="resuelta" aria-pressed="false">Resuelta</button>
+    </div>
+    <p class="menu-det nota">No sustituye la opinión de un profesional: si el dolor no mejora, consulta con tu médico o fisioterapeuta.</p>
+    <div class="d-botones"><button type="button" class="peligro" id="molBorrar">Eliminar</button><button type="button" class="anadir" id="molGuardar">Guardar</button></div>
+  </div>
+</dialog>
+
+<dialog id="dlgImport" aria-label="Importar carreras">
+  <form method="dialog" class="d-cab">
+    <h3 class="d-tit">Importar carreras</h3>
+    <button class="cerrar" aria-label="Cerrar">✕</button>
+  </form>
+  <div class="d-cuerpo">
+    <p class="menu-det nota">Elige uno o varios archivos: GPX o TCX exportados del reloj (Garmin, Coros, Suunto, Polar…) o de una actividad de Strava, o el CSV de actividades de Strava o Garmin Connect. Revisa cada vuelta antes de importar.</p>
+    <div class="botonera"><label class="anadir imp-elegir">Elegir archivo…<input type="file" id="impArchivo" accept=".gpx,.tcx,.csv,.xml,application/gpx+xml,text/csv" multiple hidden></label></div>
+    <p class="aviso" id="impAviso" role="status"></p>
+    <div id="impLista" class="imp-lista"></div>
+    <div class="d-botones"><button type="button" class="anadir" id="impGuardar" hidden>Importar</button></div>
+  </div>
+</dialog>
+
+<dialog id="dlgSug" aria-label="Enviar sugerencia">
+  <form method="dialog" class="d-cab">
+    <h3 class="d-tit">Enviar sugerencia</h3>
+    <button class="cerrar" aria-label="Cerrar">✕</button>
+  </form>
+  <div class="d-cuerpo">
+    <div class="tabs seg" id="sugTipo" role="group" aria-label="Tipo">
+      <button type="button" data-tipo="idea" aria-pressed="true">Idea</button>
+      <button type="button" data-tipo="fallo" aria-pressed="false">Fallo</button>
+      <button type="button" data-tipo="otro" aria-pressed="false">Otro</button>
+    </div>
+    <label class="campo">Cuéntanos <textarea id="sugTexto" rows="6" maxlength="2000" placeholder="Qué echas en falta, qué no funciona o qué cambiarías…"></textarea></label>
+    <p class="menu-det nota">Se envía con tu email, la fecha, la versión de la app y tu navegador, para poder responderte y reproducir el fallo.</p>
+    <p class="aviso" id="sugAviso" role="status"></p>
+    <div class="d-botones"><button type="button" class="anadir" id="sugEnviar">Enviar</button></div>
+  </div>
+</dialog>
+
+<dialog id="dlgEntreno" class="pantalla" aria-label="Modo entreno">
+  <div class="en-cab">
+    <button type="button" class="nav-btn" id="enSalir">Salir</button>
+    <div class="en-prog"><span id="enProg"></span><span class="en-barra"><span id="enBarra"></span></span></div>
+  </div>
+  <div class="en-cuerpo">
+    <p class="en-grupo" id="enGrupo"></p>
+    <h2 class="en-ej" id="enEj"></h2>
+    <p class="en-serie" id="enSerie"></p>
+    <p class="en-valor" id="enValor"></p>
+    <p class="en-extra" id="enExtra"></p>
+    <div class="calent-sug" id="enCalent" hidden><span class="cs-t" id="enCalentT"></span><span class="cs-b"><button type="button" class="nav-btn" id="enCalentNo">No</button><button type="button" class="anadir" id="enCalentSi">Añadir</button></span></div>
+    <div class="en-campos">
+      <label class="en-campo"><span id="enEtA"></span><span class="paso"><button type="button" class="menos" aria-label="Menos">−</button><input id="enA" autocomplete="off"><button type="button" class="mas" aria-label="Más">+</button></span></label>
+      <label class="en-campo"><span id="enEtB"></span><span class="paso"><button type="button" class="menos" aria-label="Menos">−</button><input id="enB" autocomplete="off"><button type="button" class="mas" aria-label="Más">+</button></span></label>
+    </div>
+    <p class="aviso" id="enAviso" role="status"></p>
+    <button type="button" class="primario en-hecha" id="enHecha">✓ Hecha</button>
+    <button type="button" class="nav-btn en-desmarcar" id="enDesmarcar" hidden>↺ Marcar como pendiente</button>
+    <div class="en-descanso" id="enDescanso" hidden>
+      <span class="en-d-t" id="enDescTit">Descanso</span>
+      <span class="en-d-n" id="enReloj">0:00</span>
+      <div class="en-d-b"><button type="button" class="nav-btn" id="enMenos">−15 s</button><button type="button" class="nav-btn" id="enSaltarD">Saltar</button><button type="button" class="nav-btn" id="enMas">+15 s</button></div>
+    </div>
+    <div class="en-fin" id="enFin" hidden>
+      <p class="en-valor">¡Entreno completado!</p>
+      <button type="button" class="primario" id="enRpe">Apuntar esfuerzo y sensaciones</button>
+    </div>
+  </div>
+  <div class="en-pie"><button type="button" class="nav-btn" id="enAnt">‹ Anterior</button><button type="button" class="nav-btn" id="enSig">Siguiente ›</button></div>
+</dialog>
+
+<div class="sel-acciones" id="selPlantAcciones" hidden>
+  <button type="button" id="selPlantDia">Añadir a un día</button>
+  <button type="button" id="selPlantMeso">Mesociclo</button>
+  <button type="button" id="selPlantCompartir">Compartir</button>
+  <button type="button" id="selPlantBorrar" class="peligro-op">Eliminar</button>
+</div>
+<div class="toast" id="toast" role="status" hidden><span id="toastTxt"></span><button type="button" id="toastBtn">Deshacer</button></div>
+<div class="fiesta" id="fiesta" aria-hidden="true"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
