@@ -438,7 +438,8 @@
   </form>
   <div class="d-cuerpo ayuda">
     <p>Toca cada apartado para verlo. Puedes volver aquí cuando quieras con el botón <b>?</b> de arriba. ¿Echas algo en falta o algo no va bien? Envíanos una sugerencia:</p>
-    <details class="novedades" open><summary>Novedades · versión 49</summary>
+    <details class="novedades" open><summary>Novedades · versión 50</summary>
+      <p><b>Mis carreras</b> (Marcas → Carrera): apunta tus carreras populares o competiciones con tiempo oficial y de chip, puesto general y por categoría, desnivel, FC, enlace y sensaciones, o márcalas desde el día (⋯ del ejercicio → «Marcar como carrera»). Lista por distancia con tu PB, evolución, previsto frente a real, y las próximas como objetivo con cuenta atrás y «Preparar con IA». Las carreras cuentan como marcas reales y pesan más en tu forma.</p>
       <p>Marcas → Carrera: predicción de <b>1 km y 2 km</b> (según tu forma y por Riegel, con ritmo por km) junto a 5 km, media y maratón, y una columna <b>Real</b> con tu mejor marca para comparar. Los 2000 m entran en tus mejores marcas, y Crear con IA tiene objetivos de 1 y 2 km.</p>
       <p>Crear con IA: la vista previa enseña cada tramo de una tirada larga («1×8 km en 42:40 + 1×6 km en 29:00») en vez de «2×8 km (con variaciones)».</p>
       <p>Arreglado: Crear con IA ya acepta ejercicios de fuerza por tiempo (bici de calentamiento, movilidad, plancha: «1x5min», «3x45s»), que antes daban error al pegar la respuesta.</p>
@@ -551,7 +552,7 @@
       <p>Si una carrera ya está en tu calendario, la app lo detecta y no la duplica. Los rodajes con vuelta automática cada km se guardan como una sola serie.</p>
     </details>
     <details><summary>Marcas y ritmos recomendados</summary>
-      <p>La pestaña <b>Marcas</b> tiene tres apartados desplegables. <b>Fuerza:</b> el récord y el 1RM estimado de cada ejercicio, separados en pierna, torso, brazos y core según las zonas que trabaja (las de su ficha); toca uno para ver su gráfica e historial. <b>Carrera:</b> tu forma (VDOT), tus marcas previstas en 1 km, 2 km, 5 km, 10 km, media y maratón (según tu forma y por Riegel, con su ritmo y tu marca real al lado para comparar), tus ritmos de entrenamiento, tus pulsaciones y tus mejores marcas. <b>Piscina:</b> tus mejores marcas en 50, 100, 200, 400, 800 y 1500 m y su evolución.</p>
+      <p>La pestaña <b>Marcas</b> tiene tres apartados desplegables. <b>Fuerza:</b> el récord y el 1RM estimado de cada ejercicio, separados en pierna, torso, brazos y core según las zonas que trabaja (las de su ficha); toca uno para ver su gráfica e historial. <b>Carrera:</b> «Mis carreras» (tus competiciones: «+ Carrera» o, desde el día, ⋯ del ejercicio → «Marcar como carrera»; por distancia con tu PB ★, evolución y lo que la app preveía antes de cada una; las futuras salen como objetivo con cuenta atrás y «Preparar con IA»; cuentan como tus marcas reales y pesan un 50 % más en la forma), tu forma (VDOT), tus marcas previstas en 1 km, 2 km, 5 km, 10 km, media y maratón (según tu forma y por Riegel, con su ritmo y tu marca real al lado para comparar), tus ritmos de entrenamiento, tus pulsaciones y tus mejores marcas. <b>Piscina:</b> tus mejores marcas en 50, 100, 200, 400, 800 y 1500 m y su evolución.</p>
       <p>Las series de carrera planificadas muestran un objetivo que se ajusta según cómo te van saliendo. Si tus últimos días tienen esfuerzo alto, el objetivo se suaviza un poco. Son estimaciones orientativas.</p>
     </details>
     <details><summary>Esfuerzo (RPE) y resumen semanal</summary>
@@ -604,6 +605,49 @@
     </div>
     <p class="menu-det nota">No sustituye la opinión de un profesional: si el dolor no mejora, consulta con tu médico o fisioterapeuta.</p>
     <div class="d-botones"><button type="button" class="peligro" id="molBorrar">Eliminar</button><button type="button" class="anadir" id="molGuardar">Guardar</button></div>
+  </div>
+</dialog>
+
+<dialog id="dlgCarrera" aria-label="Carrera">
+  <form method="dialog" class="d-cab">
+    <h3 class="d-tit">Carrera</h3>
+    <button class="cerrar" aria-label="Cerrar">✕</button>
+  </form>
+  <div class="d-cuerpo">
+    <label class="campo">Nombre <input id="carNombre" placeholder="San Silvestre Vallecana" autocomplete="off"></label>
+    <div class="fila">
+      <label class="campo">Fecha <input type="date" id="carFecha"></label>
+      <label class="campo">Lugar <input id="carLugar" placeholder="Madrid" autocomplete="off"></label>
+    </div>
+    <div class="fila">
+      <label class="campo">Distancia
+        <select id="carDist"><option value="2000">2 km</option><option value="5000">5 km</option><option value="10000" selected>10 km</option><option value="21097">Media maratón (21,1 km)</option><option value="42195">Maratón (42,2 km)</option><option value="otra">Otra…</option></select>
+      </label>
+      <label class="campo" id="carOtraL" hidden>Kilómetros <input id="carOtra" inputmode="decimal" placeholder="7,5" autocomplete="off"></label>
+    </div>
+    <div class="fila">
+      <label class="campo" id="carTiempoL">Tiempo oficial <input id="carTiempo" inputmode="decimal" placeholder="41:30" autocomplete="off"></label>
+      <label class="campo">Tiempo de chip <input id="carChip" inputmode="decimal" placeholder="40:52" autocomplete="off"></label>
+    </div>
+    <div id="carResultado">
+      <div class="fila">
+        <label class="campo">Puesto general <input id="carPos" inputmode="numeric" pattern="[0-9]*"></label>
+        <label class="campo">de <input id="carTotal" inputmode="numeric" pattern="[0-9]*"></label>
+      </div>
+      <div class="fila">
+        <label class="campo">Categoría <input id="carCat" placeholder="M35" autocomplete="off"></label>
+        <label class="campo">Puesto <input id="carPosCat" inputmode="numeric" pattern="[0-9]*"></label>
+        <label class="campo">de <input id="carTotalCat" inputmode="numeric" pattern="[0-9]*"></label>
+      </div>
+      <div class="fila">
+        <label class="campo">Desnivel + (m) <input id="carDesnivel" inputmode="numeric" pattern="[0-9]*"></label>
+        <label class="campo">FC media <input id="carFc" inputmode="numeric" pattern="[0-9]*"></label>
+      </div>
+    </div>
+    <label class="campo">Enlace a los resultados <input id="carEnlace" type="url" placeholder="https://…" autocomplete="off"></label>
+    <label class="campo">Notas y sensaciones <textarea id="carNotas" rows="3" maxlength="1000"></textarea></label>
+    <p class="aviso" id="carAviso" role="status"></p>
+    <div class="d-botones"><button type="button" class="peligro" id="carBorrar">Eliminar</button><button type="button" class="nav-btn" id="carIA" hidden>Preparar con IA</button><button type="button" class="anadir" id="carGuardar">Guardar</button></div>
   </div>
 </dialog>
 

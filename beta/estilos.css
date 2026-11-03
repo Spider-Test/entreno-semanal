@@ -935,3 +935,6 @@ body.sel-series .series li.sel::before { background: var(--accent); border-color
 .marcas-sec .plan-sec { box-shadow: none; padding-left: 0; padding-right: 0; background: none; }
 .marcas-sec.t-carrera h3 { color: var(--carrera, var(--fg)); }
 .marcas-sec.t-natacion h3 { color: var(--natacion, var(--fg)); }
+
+/* Mis carreras */
+.carrera-prox { border-left: 3px solid var(--gold); margin-bottom: 8px; }

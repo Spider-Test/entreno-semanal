@@ -39,9 +39,10 @@ const TABLAS = {
   mesociclos: { clave: "id", conflicto: "id", campos: ["id", "nombre", "inicio", "semanas", "dias", "progresion", "descarga", "notas", "borrado", "actualizado"] },
   series: { clave: "id", conflicto: "id", campos: ["id", "fecha", "ejercicio_id", "orden", "peso", "reps", "distancia", "tiempo", "descanso", "hecha", "grupo", "meso_id", "bloque_id", "ronda", "rec_dist", "pct", "ciclo_id", "calentamiento", "desnivel_pos", "desnivel_neg", "ritmo_ajustado", "fc_media", "fc_max", "cadencia", "fc_pico", "fc_hist", "borrado", "actualizado"] },
   entrenos: { clave: "fecha", conflicto: "user_id,fecha", campos: ["fecha", "html", "texto", "rpe", "sensacion", "actualizado"] },
-  molestias: { clave: "id", conflicto: "id", campos: ["id", "zona", "descripcion", "inicio", "estado", "borrado", "actualizado"] }
+  molestias: { clave: "id", conflicto: "id", campos: ["id", "zona", "descripcion", "inicio", "estado", "borrado", "actualizado"] },
+  carreras: { clave: "id", conflicto: "id", campos: ["id", "nombre", "fecha", "lugar", "distancia", "tiempo", "chip", "pos_general", "total_general", "categoria", "pos_categoria", "total_categoria", "desnivel_pos", "fc_media", "notas", "enlace", "previsto", "borrado", "actualizado"] }
 };
-const DEFECTOS = { fc_hist: [], tipo: "fuerza", hecha: true, grupo: "", meso_id: "", bloque_id: "", ciclo_id: "", importadas: [], cerrado: false, compartido: false, items: [], dias: {}, descarga: {}, zonas: [], calentamiento: false, inicio: null, zona: "", descripcion: "", estado: "activa", nombre: "", video_url: "", notas: "", html: "", texto: "", sensacion: "", borrado: false };
+const DEFECTOS = { fecha: null, lugar: "", categoria: "", enlace: "", fc_hist: [], tipo: "fuerza", hecha: true, grupo: "", meso_id: "", bloque_id: "", ciclo_id: "", importadas: [], cerrado: false, compartido: false, items: [], dias: {}, descarga: {}, zonas: [], calentamiento: false, inicio: null, zona: "", descripcion: "", estado: "activa", nombre: "", video_url: "", notas: "", html: "", texto: "", sensacion: "", borrado: false };
 let sesion = leer("sesion-v1");                 // {access_token, refresh_token, expires_at, user_id, email}
 let perfil = leer("perfil-v1");                 // {aprobado, es_admin, email}
 let usuarios = [];                              // solo para el administrador
@@ -930,6 +931,7 @@ function pintarDia(dia) {
         !espera && otrasSesiones.length && { texto: "Mover a otra sesión…", accion: () => abrirMenu("¿A qué sesión?", "", otrasSesiones.map(x => ({
           texto: x || "Sin sesión", accion: () => moverASesion(seriesDeItem(dia.id, g.nombre, clave), x) }))) },
         { texto: "Ver ficha del ejercicio", accion: () => abrirDetalle(clave) },
+        !espera && tipoDe(clave) === "carrera" && { texto: "Marcar como carrera (competición)…", accion: () => marcarComoCarrera(dia, seriesDeItem(dia.id, g.nombre, clave), g.nombre || nombre) },
         { texto: "Eliminar ejercicio" + (espera ? "" : " y sus series"), peligro: true, confirmar: espera ? "Pulsa otra vez para quitarlo" : "Pulsa otra vez: se borran " + seriesDeItem(dia.id, g.nombre, clave).length + " series", accion: () => {
           // Quita el ejercicio de esta sesión con todas sus series (hechas incluidas); se puede deshacer
           const del = espera ? [] : seriesDeItem(dia.id, g.nombre, clave);
@@ -2197,6 +2199,10 @@ function vdotSesion(ses) {
   }
   return { vdot, reps: reps.length, metros, seg, recMedia, caida, deriva, conFc, factores };
 }
+// ---------- Mis carreras (competiciones): marcas oficiales que pesan más en la forma ----------
+const tiempoCarrera = c => n0(c.chip) || n0(c.tiempo);   // el de chip es el que corriste tú; si no, el oficial
+const carrerasHechas = () => vivos("carreras").filter(c => c.fecha && c.fecha <= iso(new Date()) && tiempoCarrera(c) > 0 && n0(c.distancia) > 0);
+const carrerasProximas = () => vivos("carreras").filter(c => c.fecha && c.fecha > iso(new Date())).sort((a, b) => a.fecha.localeCompare(b.fecha));
 // Forma: media ponderada de las mejores sesiones de las últimas 12 semanas; lo reciente pesa más (vida media 6 semanas)
 function calcularForma() {
   const hoy = new Date();
@@ -2206,7 +2212,13 @@ function calcularForma() {
     if (!r || r.vdot < 20 || r.vdot > 90 || dias > 84) return null;
     const peso = Math.pow(0.5, dias / 42);
     return { ...r, fecha, peso, puntos: r.vdot - 3 * (1 - peso) };
-  }).filter(Boolean).sort((x, y) => y.puntos - x.puntos).filter((s, i, todas) => s.puntos >= todas[0].puntos - 3).slice(0, 3);   // un día suave no rebaja la forma
+  }).filter(Boolean).concat(carrerasHechas().map(c => {
+    // Una carrera oficial es un esfuerzo máximo real: su VDOT es directo y pesa un 50 % más
+    const dias = Math.max(0, (hoy - deIso(c.fecha)) / 864e5), vdot = vdotDe(n0(c.distancia), tiempoCarrera(c));
+    if (dias > 84 || vdot < 20 || vdot > 90) return null;
+    const peso = Math.pow(0.5, dias / 42) * 1.5;
+    return { vdot, fecha: c.fecha, peso, puntos: vdot - 3 * (1 - Math.min(1, peso)), reps: 1, metros: n0(c.distancia), seg: tiempoCarrera(c), recMedia: 0, caida: 0, carrera: c.nombre, factores: ["carrera oficial «" + c.nombre + "»: " + nombreDist(n0(c.distancia)) + " en " + fmtTiempo(tiempoCarrera(c)) + " (marca real, pesa un 50 % más)"] };
+  }).filter(Boolean)).sort((x, y) => y.puntos - x.puntos).filter((s, i, todas) => s.puntos >= todas[0].puntos - 3).slice(0, 3);   // un día suave no rebaja la forma
   if (!lista.length) return null;
   const pesos = lista.reduce((x, s) => x + s.peso, 0);
   return { ...lista[0], vdot: lista.reduce((x, s) => x + s.puntos * s.peso, 0) / pesos, sesiones: lista.length };
@@ -2260,7 +2272,8 @@ const textoObjetivo = o => !o ? "" : (o.suave ? "obj. suave ~" + fmtTiempo(o.rit
   : "obj. " + fmtTiempo(o.tiempo) + " · " + fmtTiempo(o.ritmo) + "/km" + (o.ajustado ? " · ajustado a cómo vas" : "")) + (o.fatiga ? " · más suave por tu esfuerzo" : "");
 // Mejores marcas por distancia: exactas o, dentro de una serie algo más larga, a su ritmo medio
 function marcasDe(tipo) {
-  const lista = seriesVivas().filter(s => hecha(s) && !s.calentamiento && tipoDe(s.ejercicio_id) === tipo && n0(s.distancia) > 0 && n0(s.tiempo) > 0 && !fueraDeMarcas(s));
+  const lista = seriesVivas().filter(s => hecha(s) && !s.calentamiento && tipoDe(s.ejercicio_id) === tipo && n0(s.distancia) > 0 && n0(s.tiempo) > 0 && !fueraDeMarcas(s))
+    .concat(tipo === "carrera" ? carrerasHechas().map(c => ({ fecha: c.fecha, distancia: n0(c.distancia), tiempo: tiempoCarrera(c), carrera: true })) : []);   // las carreras oficiales son marcas reales
   return (tipo === "natacion" ? DIST_NADO : DIST_MARCAS).map(d => {
     let mejor = null;
     const evol = {};
@@ -2398,6 +2411,135 @@ function editarPulso() {
     { texto: "FC en reposo: " + (n0(a.fcReposo) ? n0(a.fcReposo) + " ppm" : "—") + "…", accion: async () => guardar({ fcReposo: await numero("FC en reposo (ppm)", n0(a.fcReposo), 30, 100) }) }
   ]);
 }
+// Mis carreras: próximas (objetivo y cuenta atrás) y hechas por distancia, con la mejor (PB), su evolución y previsto frente a real
+const DIST_CARRERA = [[2000, "2 km"], [5000, "5 km"], [10000, "10 km"], [21097, "Media maratón (21,1 km)"], [42195, "Maratón (42,2 km)"]];
+let distCarreraGraf = 0;
+function seccionCarreras() {
+  const s = seccionMarcas("Mis carreras");
+  const cab = s.querySelector("h3");
+  const nueva = document.createElement("button");
+  nueva.type = "button"; nueva.className = "nav-btn"; nueva.textContent = "+ Carrera";
+  nueva.addEventListener("click", () => abrirCarrera());
+  const fila = document.createElement("div");
+  fila.className = "sec-cab";
+  cab.before(fila);
+  fila.append(cab, nueva);
+  const prox = carrerasProximas(), hechas = carrerasHechas();
+  if (!prox.length && !hechas.length) { s.appendChild(nota("Apunta tus carreras (populares o competiciones) con su tiempo y tu posición, o las próximas como objetivo. También desde una carrera importada: ⋯ del ejercicio → «Marcar como carrera». Cuentan como tus marcas reales y pesan más en tu forma.")); return s; }
+  const f = rendimiento().forma;
+  prox.forEach(c => {
+    const dias = Math.round((deIso(c.fecha) - deIso(iso(new Date()))) / 864e5);
+    const t = tarjeta("🎯 " + c.nombre, [nombreDist(n0(c.distancia)) + " · " + fechaCorta(c.fecha) + " · faltan " + dias + (dias === 1 ? " día" : " días") + (c.lugar ? " · " + c.lugar : ""),
+      [n0(c.tiempo) ? "objetivo " + fmtTiempo(n0(c.tiempo)) : "", f ? "previsto ahora " + fmtTiempo(tiempoPrevisto(f.vdot, n0(c.distancia))) : ""].filter(Boolean).join(" · ")], () => abrirCarrera(c.id));
+    t.classList.add("carrera-prox");
+    s.appendChild(t);
+  });
+  // Hechas, por distancia (las «otras» juntas), cada año de más reciente a más antigua
+  const grupos = {};
+  hechas.forEach(c => { const d = DIST_CARRERA.find(([m]) => Math.abs(n0(c.distancia) - m) <= m * 0.02); (grupos[d ? d[1] : "Otras distancias"] = grupos[d ? d[1] : "Otras distancias"] || []).push(c); });
+  Object.keys(grupos).forEach(nom => {
+    const lista = grupos[nom].sort((a, b) => b.fecha.localeCompare(a.fecha)), otras = nom === "Otras distancias";
+    const pb = otras ? null : lista.reduce((m, c) => !m || tiempoCarrera(c) < tiempoCarrera(m) ? c : m, null);
+    const h = document.createElement("p");
+    h.className = "bc-t"; h.textContent = nom + " · " + lista.length;
+    s.appendChild(h);
+    s.appendChild(tablaSimple(["Fecha", "Carrera", "Tiempo", "Ritmo", "Puesto", "Previsto"], lista.map(c => ({
+      celdas: [fechaCorta(c.fecha), (c === pb ? "★ " : "") + c.nombre + (otras ? " (" + fmtDist(n0(c.distancia)) + ")" : ""), fmtTiempo(tiempoCarrera(c)), fmtTiempo(tiempoCarrera(c) / n0(c.distancia) * 1000) + "/km",
+        n0(c.pos_general) ? n0(c.pos_general) + (n0(c.total_general) ? "/" + n0(c.total_general) : "") + (n0(c.pos_categoria) ? " · " + (c.categoria || "cat.") + " " + n0(c.pos_categoria) + (n0(c.total_categoria) ? "/" + n0(c.total_categoria) : "") : "") : "—",
+        n0(c.previsto) ? fmtTiempo(n0(c.previsto)) + " (" + (tiempoCarrera(c) <= n0(c.previsto) ? "−" : "+") + fmtTiempo(Math.abs(tiempoCarrera(c) - n0(c.previsto))) + ")" : "—"],
+      activa: c === pb, alPulsar: () => abrirCarrera(c.id)
+    }))));
+    if (!otras && lista.length >= 2 && (!distCarreraGraf || distCarreraGraf === nom)) {
+      distCarreraGraf = nom;
+      const g = document.createElement("div");
+      g.innerHTML = grafica(lista.slice().reverse().map(c => ({ f: c.fecha, v: tiempoCarrera(c) })), v => fmtTiempo(v));
+      s.appendChild(g);
+    }
+  });
+  distCarreraGraf = 0;
+  s.appendChild(nota("★ tu mejor marca (PB) en cada distancia. «Previsto»: lo que la app predecía antes de la carrera, y cuánto mejoraste (−) o te quedaste (+). Toca una carrera para editarla."));
+  return s;
+}
+let carEdit = null;
+function abrirCarrera(id, base) {
+  const c = id ? db.carreras[id] : null;
+  carEdit = c ? { ...c } : { id: nuevoId(), nombre: "", fecha: iso(new Date()), lugar: "", distancia: 10000, tiempo: 0, chip: 0, pos_general: 0, total_general: 0, categoria: "", pos_categoria: 0, total_categoria: 0, desnivel_pos: 0, fc_media: 0, notas: "", enlace: "", previsto: 0, borrado: false, nueva: true, ...(base || {}) };
+  const e = carEdit, dist = DIST_CARRERA.find(([m]) => m === n0(e.distancia));
+  $("carNombre").value = e.nombre; $("carFecha").value = e.fecha || ""; $("carLugar").value = e.lugar || "";
+  $("carDist").value = dist ? String(dist[0]) : "otra"; $("carOtra").value = dist ? "" : num(n0(e.distancia) / 1000);
+  $("carTiempo").value = n0(e.tiempo) ? fmtTiempo(n0(e.tiempo)) : ""; $("carChip").value = n0(e.chip) ? fmtTiempo(n0(e.chip)) : "";
+  $("carPos").value = n0(e.pos_general) || ""; $("carTotal").value = n0(e.total_general) || "";
+  $("carCat").value = e.categoria || ""; $("carPosCat").value = n0(e.pos_categoria) || ""; $("carTotalCat").value = n0(e.total_categoria) || "";
+  $("carDesnivel").value = n0(e.desnivel_pos) || ""; $("carFc").value = n0(e.fc_media) || "";
+  $("carEnlace").value = e.enlace || ""; $("carNotas").value = e.notas || "";
+  $("carBorrar").hidden = !!e.nueva; $("carBorrar").classList.remove("confirmar"); $("carBorrar").textContent = "Eliminar";
+  $("carAviso").textContent = "";
+  pintarCamposCarrera();
+  $("dlgCarrera").showModal();
+}
+function pintarCamposCarrera() {
+  const futura = $("carFecha").value > iso(new Date());
+  $("carOtraL").hidden = $("carDist").value !== "otra";
+  $("carTiempoL").firstChild.textContent = futura ? "Tiempo objetivo " : "Tiempo oficial ";
+  $("carResultado").hidden = futura;
+  $("carIA").hidden = !futura;
+}
+["carFecha", "carDist"].forEach(id => $(id).addEventListener("change", pintarCamposCarrera));
+function leerCarrera() {
+  const e = carEdit, dist = $("carDist").value === "otra" ? parseFloat($("carOtra").value.replace(",", ".")) * 1000 : +$("carDist").value;
+  const t = leerTiempo($("carTiempo").value), chip = leerTiempo($("carChip").value), entero = id => parseInt($(id).value, 10) || 0;
+  if (!$("carNombre").value.trim()) { $("carAviso").textContent = "Pon el nombre de la carrera."; $("carNombre").focus(); return null; }
+  if (!$("carFecha").value) { $("carAviso").textContent = "Pon la fecha."; $("carFecha").focus(); return null; }
+  if (!(dist > 0)) { $("carAviso").textContent = "Elige la distancia."; $("carOtra").focus(); return null; }
+  if (isNaN(t) || isNaN(chip)) { $("carAviso").textContent = "Escribe los tiempos como 41:30 o 1:45:20."; return null; }
+  const c = { ...e, nombre: $("carNombre").value.trim().slice(0, 80), fecha: $("carFecha").value, lugar: $("carLugar").value.trim().slice(0, 80), distancia: Math.round(dist), tiempo: t || 0, chip: chip || 0,
+    pos_general: entero("carPos"), total_general: entero("carTotal"), categoria: $("carCat").value.trim().slice(0, 40), pos_categoria: entero("carPosCat"), total_categoria: entero("carTotalCat"),
+    desnivel_pos: entero("carDesnivel"), fc_media: entero("carFc"), enlace: $("carEnlace").value.trim().slice(0, 300), notas: $("carNotas").value.trim().slice(0, 1000) };
+  // La predicción «antes de la carrera»: se guarda (y se actualiza) mientras la carrera es futura o del mismo día
+  const f = rendimiento().forma;
+  if (f && c.fecha >= iso(new Date()) && (!n0(e.previsto) || c.fecha > iso(new Date()))) c.previsto = Math.round(tiempoPrevisto(f.vdot, c.distancia));
+  delete c.nueva;
+  return c;
+}
+$("carGuardar").addEventListener("click", () => {
+  const c = leerCarrera();
+  if (!c) return;
+  cambiar("carreras", c);
+  $("dlgCarrera").close();
+  pintarMarcas();
+  setEstado("Carrera «" + c.nombre + "» guardada");
+});
+$("carBorrar").addEventListener("click", () => {
+  const b = $("carBorrar");
+  if (!b.classList.contains("confirmar")) { b.classList.add("confirmar"); b.textContent = "Pulsa otra vez para eliminarla"; return; }
+  const antes = { ...db.carreras[carEdit.id] };
+  cambiar("carreras", { ...antes, borrado: true });
+  $("dlgCarrera").close();
+  pintarMarcas();
+  avisoDeshacer("Carrera eliminada", [["carreras", antes]]);
+});
+// Próxima carrera → Crear con IA con la distancia, la fecha y el objetivo ya puestos
+$("carIA").addEventListener("click", () => {
+  const c = leerCarrera();
+  if (!c) return;
+  cambiar("carreras", c);
+  $("dlgCarrera").close();
+  abrirIA("prompt");
+  $("iaModo").value = "plan";
+  const obj = Object.entries(CARRERA_IA).sort((a, b) => Math.abs(a[1] - c.distancia) - Math.abs(b[1] - c.distancia))[0][0];
+  $("iaObjetivo").value = obj;
+  $("iaFechaCarrera").value = c.fecha;
+  $("iaMarca").value = n0(c.tiempo) ? fmtTiempo(n0(c.tiempo)) : "";
+  $("iaMeta").value = c.nombre + (c.lugar ? " (" + c.lugar + ")" : "") + (Math.abs(CARRERA_IA[obj] - c.distancia) > 100 ? ", " + fmtDist(c.distancia) : "");
+  pintarCamposIA();
+});
+// Desde el día: una actividad de carrera se convierte en carrera oficial con su distancia, tiempo, FC y desnivel
+function marcarComoCarrera(dia, series, nombre) {
+  const hechas = series.filter(s => hecha(s) && n0(s.distancia) > 0);
+  const d = hechas.reduce((x, s) => x + n0(s.distancia) + n0(s.rec_dist), 0), t = hechas.reduce((x, s) => x + n0(s.tiempo) + (n0(s.rec_dist) > 0 ? n0(s.descanso) : 0), 0);
+  const conFc = hechas.filter(s => n0(s.fc_media) > 0 && n0(s.tiempo) > 0), tf = conFc.reduce((x, s) => x + n0(s.tiempo), 0);
+  abrirCarrera(null, { nombre, fecha: dia.id, distancia: Math.round(d), tiempo: Math.round(t), desnivel_pos: Math.round(hechas.reduce((x, s) => x + n0(s.desnivel_pos), 0)), fc_media: tf ? Math.round(conFc.reduce((x, s) => x + n0(s.fc_media) * n0(s.tiempo), 0) / tf) : 0 });
+}
 function marcasFuerza(cont) {
   const ejs = vivos("ejercicios").filter(e => tipoDe(e.id) === "fuerza" && seriesDe(e.id).length);
   const caja = apartadoMarcas(cont, "fuerza", "Fuerza", ejs.length);
@@ -2421,6 +2563,7 @@ function pintarMarcas() {
   marcasPulso(raiz);
   marcasFuerza(raiz);
   const cont = apartadoMarcas(raiz, "carrera", "Carrera");
+  cont.appendChild(seccionCarreras());
   const { forma: f, carga } = rendimiento();
   const s1 = seccionMarcas("Forma en carrera");
   if (!f) s1.appendChild(nota("Apunta series o rodajes de carrera con metros y tiempo para estimar tu forma, tus marcas previstas y tus ritmos."));
@@ -4254,7 +4397,7 @@ $("enSalir").addEventListener("click", salirEntreno);
 $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); abrirRpe(d); });
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
-const VERSION_APP = "v49" + (BETA ? " beta" : "");
+const VERSION_APP = "v50" + (BETA ? " beta" : "");
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";
