@@ -842,3 +842,11 @@ body.seleccionando { padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 150
 .cat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 8px; }
 .cat-grid .tarjeta { background: var(--bg); box-shadow: none; }
 @media (prefers-color-scheme: dark) { .cat-sec { border: 1px solid var(--line); } }
+
+/* Al desplazar para ver un desplegable abierto: margen para la cabecera fija y la barra de pestañas */
+.dia, .plan-sec, .cat-sec { scroll-margin-top: 12px; scroll-margin-bottom: 16px; }
+.ayuda details { scroll-margin: 64px 0 12px; }
+@media (max-width: 760px) { .dia, .plan-sec, .cat-sec { scroll-margin-top: calc(env(safe-area-inset-top, 0px) + 64px); scroll-margin-bottom: calc(env(safe-area-inset-bottom, 0px) + 92px); } }
+@media (min-width: 761px) { .dia, .plan-sec, .cat-sec { scroll-margin-top: 72px; } }
+.sug-borrar-leidas { align-self: flex-start; font-size: 14px; padding: 4px 0; }
+.sug-cab .borrar { flex: none; }

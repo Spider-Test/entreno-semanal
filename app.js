@@ -1376,6 +1376,7 @@ function pintarCatalogo() {
       boton.setAttribute("aria-expanded", String(abrir));
       cuerpo.inert = !abrir;
       if (!q) { catAbiertas[tipo] = abrir; escribir("catalogo-abiertas-v1", catAbiertas); }
+      if (abrir) verAlAbrir(sec);
     });
     const grid = sec.querySelector(".cat-grid");
     deTipo.forEach(e => grid.appendChild(tarjetaEjercicio(e)));
@@ -3210,6 +3211,13 @@ function plegarDia(d) {
   Object.keys(desplegados).forEach(k => { if (k < limite) delete desplegados[k]; });
   escribir("dias-desplegados-v1", desplegados);
   ponerPlegado(d, !desplegados[d.id]);
+  if (desplegados[d.id]) verAlAbrir(d.col);
+}
+// Tras abrir un desplegable, si su contenido queda fuera de la pantalla se desplaza lo justo para verlo
+// (si es más alto que la pantalla, su cabecera queda arriba); scroll-margin deja sitio a la cabecera y a las pestañas
+function verAlAbrir(el) {
+  const rapido = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  setTimeout(() => el.scrollIntoView({ block: "nearest", behavior: rapido ? "auto" : "smooth" }), rapido ? 0 : 280);
 }
 
 // Cabecera de cada día: anillo de series hechas, resumen de una línea (día plegado) y botón de entreno
@@ -3251,6 +3259,7 @@ let deshacerPend = null, timerAviso = null;
 const capaArriba = () => ($("dlgEntreno").open ? $("dlgEntreno") : document.body);
 function avisoDeshacer(texto, deshacer, pr) {
   const t = $("toast");
+  deshacerSug = null;
   if (t.parentNode !== capaArriba()) capaArriba().appendChild(t);
   deshacerPend = deshacer || null;
   $("toastTxt").textContent = texto;
@@ -3261,6 +3270,7 @@ function avisoDeshacer(texto, deshacer, pr) {
   timerAviso = setTimeout(() => { t.hidden = true; deshacerPend = null; }, pr ? 6000 : 5000);
 }
 $("toastBtn").addEventListener("click", () => {
+  if (deshacerSug) { const f = deshacerSug; deshacerSug = null; $("toast").hidden = true; f(); return; }
   if (!deshacerPend) return;
   deshacerPend.forEach(([t, f]) => { const c = { ...f }; delete c.sucio; cambiar(t, c, true); });
   deshacerPend = null;
@@ -3554,7 +3564,7 @@ $("enSalir").addEventListener("click", salirEntreno);
 $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); abrirRpe(d); });
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
-const VERSION_APP = "v30";
+const VERSION_APP = "v31";
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";
@@ -3595,7 +3605,7 @@ async function enviarSugerencias() {
 async function cargarSugerencias() {
   if (!(perfil && perfil.es_admin)) return;
   try {
-    const r = await api("/rest/v1/sugerencias?select=id,email,tipo,texto,version,agente,creado,leida&order=creado.desc&limit=200");
+    const r = await api("/rest/v1/sugerencias?select=id,email,tipo,texto,version,agente,creado,leida&borrada=is.false&order=creado.desc&limit=200");
     if (r.ok) sugerencias = await r.json();
   } catch {}
   pintarSugerencias();
@@ -3608,17 +3618,28 @@ function pintarSugerencias() {
   contadorSec("sugerencias", noLeidas ? noLeidas + " sin leer" : sugerencias.length);
   const cont = $("listaSug");
   cont.textContent = "";
-  if (!sugerencias.length) { cont.appendChild(nota("Aún no hay sugerencias. Cuando alguien envíe una, te llegará también un correo.")); return; }
+  if (!sugerencias.length) { cont.appendChild(nota("No hay sugerencias. Cuando alguien envíe una, te llegará también un correo.")); return; }
+  const leidas = sugerencias.filter(s => s.leida);
+  if (leidas.length) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "enlace sug-borrar-leidas";
+    b.textContent = "Borrar las leídas (" + leidas.length + ")";
+    b.addEventListener("click", () => abrirMenu("Borrar " + leidas.length + (leidas.length === 1 ? " sugerencia leída" : " sugerencias leídas"), "", [{ texto: "Borrar", peligro: true,
+      confirmar: "Pulsa otra vez: se borran " + leidas.length, accion: () => borrarSugerencias(leidas) }]));
+    cont.appendChild(b);
+  }
   sugerencias.forEach(s => {
     const d = document.createElement("div");
     d.className = "sug" + (s.leida ? " leida" : "");
-    d.innerHTML = '<div class="sug-cab"><span class="sug-tipo"></span><span class="sug-de"></span><button type="button" class="nav-btn"></button></div><p class="sug-texto"></p>';
+    d.innerHTML = '<div class="sug-cab"><span class="sug-tipo"></span><span class="sug-de"></span><button type="button" class="nav-btn"></button><button type="button" class="borrar" aria-label="Borrar sugerencia">✕</button></div><p class="sug-texto"></p>';
+    d.querySelector(".borrar").addEventListener("click", () => borrarSugerencias([s]));
     d.querySelector(".sug-tipo").textContent = { idea: "Idea", fallo: "Fallo", otro: "Otro" }[s.tipo] || s.tipo;
     d.querySelector(".sug-tipo").classList.add("t-" + s.tipo);
     d.querySelector(".sug-de").textContent = (s.email || "?") + " · " + fechaCorta(iso(new Date(s.creado))) + (s.version ? " · " + s.version : "");
     d.querySelector(".sug-de").title = s.agente || "";
     d.querySelector(".sug-texto").textContent = s.texto;
-    const b = d.querySelector("button");
+    const b = d.querySelector(".nav-btn");
     b.textContent = s.leida ? "Marcar no leída" : "Marcar leída";
     b.addEventListener("click", async () => {
       try {
@@ -3631,6 +3652,25 @@ function pintarSugerencias() {
     cont.appendChild(d);
   });
 }
+// Borrado lógico (columna «borrada»), con Deshacer
+async function marcarSugerencias(ids, borrada) {
+  const r = await api("/rest/v1/sugerencias?id=in.(" + ids.map(encodeURIComponent).join(",") + ")", { method: "PATCH", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ borrada }) });
+  if (!r.ok) throw new Error();
+}
+async function borrarSugerencias(lista) {
+  const ids = lista.map(s => s.id);
+  try { await marcarSugerencias(ids, true); } catch { setEstado("No se ha podido borrar. Revisa la conexión.", true); return; }
+  sugerencias = sugerencias.filter(s => !ids.includes(s.id));
+  pintarSugerencias();
+  avisoDeshacer(ids.length === 1 ? "Sugerencia borrada" : ids.length + " sugerencias borradas", null);
+  // Deshacer propio: vuelven a la lista y al servidor
+  $("toastBtn").hidden = false;
+  deshacerSug = async () => {
+    try { await marcarSugerencias(ids, false); } catch { setEstado("No se ha podido deshacer. Revisa la conexión.", true); return; }
+    await cargarSugerencias();
+  };
+}
+let deshacerSug = null;
 $("sugAyuda").addEventListener("click", abrirSug);
 $("sugPie").addEventListener("click", abrirSug);
 $("sugRecargar").addEventListener("click", cargarSugerencias);
@@ -3996,6 +4036,7 @@ document.querySelectorAll("#vistaPlan > .plan-sec[data-sec]").forEach(sec => {
     seccionesPlan[clave] = sec.classList.contains("cerrada");
     escribir("plan-abiertas-v1", seccionesPlan);
     ponerSeccion(sec, seccionesPlan[clave]);
+    if (seccionesPlan[clave]) verAlAbrir(sec);
   });
 });
 $("buscarPlantilla").addEventListener("input", () => {
@@ -4010,6 +4051,7 @@ function abrirAyuda() {
   if (!$("dlgAyuda").open) $("dlgAyuda").showModal();
 }
 $("ayudaBtn").addEventListener("click", abrirAyuda);
+$("dlgAyuda").querySelectorAll("details").forEach(d => d.addEventListener("toggle", () => { if (d.open) verAlAbrir(d); }));
 
 if (sesion) mostrarApp(); else $("login").hidden = false;
 
