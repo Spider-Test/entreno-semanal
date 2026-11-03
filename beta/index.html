@@ -57,6 +57,7 @@
       <div class="semana-info"><span id="rango"></span><span id="relativa"></span></div>
       <button type="button" class="nav-btn flecha" id="sigBtn" aria-label="Semana siguiente">›</button>
       <button type="button" class="nav-btn" id="hoyBtn" hidden>Hoy</button>
+      <button type="button" class="nav-btn cal-btn" id="calBtn" aria-label="Calendario: ir a otra fecha" title="Calendario">📅</button>
     </nav>
     <div class="sem-barra" id="semBarra" hidden><span></span></div>
     <nav class="dia-nav" id="diaNav" aria-label="Día" hidden>
@@ -131,6 +132,7 @@
         <label class="campo">Peso de la barra (kg) <input id="ajBarra" inputmode="decimal" placeholder="20"></label>
         <label class="campo">Botones − y + de peso (kg) <input id="ajPaso" inputmode="decimal" placeholder="2,5"></label>
       </div>
+      <label class="campo">Distancias en <select id="ajUnidad"><option value="auto">Automático (metros y km desde 3 km)</option><option value="m">Metros</option><option value="km">Kilómetros</option></select></label>
       <label class="campo">Al importar, una vuelta más lenta que este ritmo (min/km) es recuperación <input id="ajRitmoRec" inputmode="decimal" placeholder="8:00"></label>
       <label class="campo">Cómo se calcula tu FC máxima
         <select id="ajFcModo"><option value="auto">Automática (con tus archivos FIT y TCX)</option><option value="edad">Por tu edad (Tanaka)</option><option value="manual">La pongo a mano</option></select>
@@ -438,7 +440,8 @@
   </form>
   <div class="d-cuerpo ayuda">
     <p>Toca cada apartado para verlo. Puedes volver aquí cuando quieras con el botón <b>?</b> de arriba. ¿Echas algo en falta o algo no va bien? Envíanos una sugerencia:</p>
-    <details class="novedades" open><summary>Novedades · versión 50</summary>
+    <details class="novedades" open><summary>Novedades · versión 51</summary>
+      <p><b>Calendario</b>: el botón 📅 junto a las fechas abre el mes con un punto en cada día entrenado (hecho, a medias o planificado); toca un día para ir a él. · <b>Unidades</b>: en Plan → Ajustes elige si las distancias se ven y se escriben en metros, en kilómetros o automático; en cualquier campo puedes escribir «5 km» o «400 m».</p>
       <p><b>Mis carreras</b> (Marcas → Carrera): apunta tus carreras populares o competiciones con tiempo oficial y de chip, puesto general y por categoría, desnivel, FC, enlace y sensaciones, o márcalas desde el día (⋯ del ejercicio → «Marcar como carrera»). Lista por distancia con tu PB, evolución, previsto frente a real, y las próximas como objetivo con cuenta atrás y «Preparar con IA». Las carreras cuentan como marcas reales y pesan más en tu forma.</p>
       <p>Marcas → Carrera: predicción de <b>1 km y 2 km</b> (según tu forma y por Riegel, con ritmo por km) junto a 5 km, media y maratón, y una columna <b>Real</b> con tu mejor marca para comparar. Los 2000 m entran en tus mejores marcas, y Crear con IA tiene objetivos de 1 y 2 km.</p>
       <p>Crear con IA: la vista previa enseña cada tramo de una tirada larga («1×8 km en 42:40 + 1×6 km en 29:00») en vez de «2×8 km (con variaciones)».</p>
@@ -467,6 +470,10 @@
       <p>El botón <b>⤢</b> abre ese día solo, a pantalla completa. Pasa al día anterior o siguiente con ‹ › o deslizando a los lados, y vuelve con <b>‹ Semana</b>.</p>
       <p>Cada día tiene un espacio para escribir lo que quieras. Se guarda solo. Mientras escribes aparece el botón <b>N</b> de negrita.</p>
       <p>Cambia de semana con las flechas ‹ ›; <b>Hoy</b> te devuelve a la semana actual. El anillo de cada día y la barra bajo las fechas muestran cuántas series llevas hechas de las planificadas.</p>
+    </details>
+    <details><summary>Calendario y unidades</summary>
+      <p>El botón <b>📅</b>, junto a las fechas de la semana, abre el calendario del mes: cada día con entrenamiento lleva un punto (relleno si lo hiciste entero, a medias o vacío si estaba planificado). Cambia de mes con ‹ › y toca un día para ir a su semana con ese día abierto.</p>
+      <p>En <b>Plan → Ajustes → Distancias en</b> eliges metros, kilómetros o automático (metros y, desde 3 km, kilómetros). Cambia cómo se ven y en qué unidad escribes los campos de distancia; los botones − y + suben 100 m (o 0,1 km). En cualquier campo puedes escribir la unidad: «5 km», «5,2km» o «400 m».</p>
     </details>
     <details><summary>Añadir ejercicios y series</summary>
       <p>Pulsa <b>+ Ejercicio</b> en un día, busca el ejercicio o escribe uno nuevo. Arriba puedes filtrar por Fuerza, Carrera o Natación.</p>
@@ -605,6 +612,19 @@
     </div>
     <p class="menu-det nota">No sustituye la opinión de un profesional: si el dolor no mejora, consulta con tu médico o fisioterapeuta.</p>
     <div class="d-botones"><button type="button" class="peligro" id="molBorrar">Eliminar</button><button type="button" class="anadir" id="molGuardar">Guardar</button></div>
+  </div>
+</dialog>
+
+<dialog id="dlgCal" aria-label="Calendario">
+  <form method="dialog" class="d-cab">
+    <h3 class="d-tit">Calendario</h3>
+    <button class="cerrar" aria-label="Cerrar">✕</button>
+  </form>
+  <div class="d-cuerpo">
+    <div class="cal-nav"><button type="button" class="nav-btn flecha" id="calAnt" aria-label="Mes anterior">‹</button><span id="calMes" class="cal-mes"></span><button type="button" class="nav-btn flecha" id="calSig" aria-label="Mes siguiente">›</button></div>
+    <div class="cal-grid" id="calDias"></div>
+    <p class="menu-det nota">● entrenamiento hecho · ◐ a medias · ○ planificado. Toca un día para ir a él.</p>
+    <div class="d-botones"><button type="button" class="nav-btn" id="calHoy">Ir a hoy</button></div>
   </div>
 </dialog>
 
