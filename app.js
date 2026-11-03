@@ -634,7 +634,10 @@ function menuDia(dia) {
 }
 function menuGrupo(dia, grupo) {
   const series = seriesDelDia(dia.id).filter(s => (s.grupo || "") === grupo);
+  const nGrupos = new Set(seriesDelDia(dia.id).map(s => s.grupo || "")).size;
   abrirMenu(grupo, resumenItems(itemsDe(series)), [
+    nGrupos > 1 && { texto: "Subir sesión", accion: () => moverGrupo(dia.id, grupo, -1) },
+    nGrupos > 1 && { texto: "Bajar sesión", accion: () => moverGrupo(dia.id, grupo, 1) },
     { texto: "Copiar sesión", accion: () => copiar(grupo, "", series) },
     { texto: "Guardar como plantilla…", accion: () => guardarPlantilla(grupo, series) },
     { texto: "Compartir con un amigo…", accion: () => compartir(grupo, itemsDe(series)) },
@@ -735,7 +738,12 @@ function pintarDia(dia) {
   // Cada elemento de una sesión es un ejercicio suelto o un bloque ("b:" + id), en el orden en que aparecen
   delDia.forEach(s => { const g = grupo(s.grupo || ""), k = s.bloque_id ? "b:" + s.bloque_id : s.ejercicio_id; if (!g.ids.includes(k)) g.ids.push(k); });
   (enEspera[dia.id] || []).forEach(id => { if (ejercicioVivo(id) && !grupos.some(g => g.ids.includes(id))) grupo("").ids.push(id); });
+  // Cada sesión va en su propio contenedor para poder moverla entera
+  const conAsa = grupos.filter(g => g.nombre).length > 1 && grupos.length > 1;
   grupos.forEach(g => {
+    const caja = document.createElement("div");
+    caja.className = "grupo";
+    caja.dataset.grupo = g.nombre;
     if (g.nombre) {
       const cab = document.createElement("div");
       cab.className = "grupo-cab";
@@ -745,11 +753,30 @@ function pintarDia(dia) {
       cab.querySelector(".g-prog").textContent = deG.filter(hecha).length + "/" + deG.length;
       cab.querySelector(".menu-btn").setAttribute("aria-label", "Opciones de la sesión " + g.nombre);
       cab.querySelector(".menu-btn").addEventListener("click", () => menuGrupo(dia, g.nombre));
-      cont.appendChild(cab);
+      if (conAsa) cab.appendChild(asaArrastre(caja, () => [...cont.querySelectorAll(":scope > .grupo")], n => reordenar(n.map(x => seriesDeGrupo(dia.id, x.dataset.grupo)), "Sesión movida"), "Sesión " + g.nombre));
+      caja.appendChild(cab);
     }
-    g.ids.forEach(id => cont.appendChild(id.startsWith("b:")
+    g.ids.forEach(id => caja.appendChild(id.startsWith("b:")
       ? tarjetaBloque(dia, id.slice(2), delDia.filter(s => s.bloque_id === id.slice(2)))
       : bloque(dia, id, delDia.filter(s => s.ejercicio_id === id && !s.bloque_id && (s.grupo || "") === g.nombre), g.nombre)));
+    // Ejercicios y bloques de la sesión: se mueven dentro de ella (los que ya tienen series)
+    const movibles = () => [...caja.querySelectorAll(":scope > .bloque[data-clave]")];
+    if (movibles().length > 1) movibles().forEach(el => {
+      const clave = el.dataset.clave, nombre = clave.startsWith("b:") ? "Bloque" : nombreEj(clave);
+      el.querySelector(".bloque-cab").appendChild(asaArrastre(el, movibles, n => reordenar(n.map(x => seriesDeItem(dia.id, g.nombre, x.dataset.clave)), "Ejercicio movido"), nombre));
+      if (!clave.startsWith("b:")) {
+        const m = document.createElement("button");
+        m.type = "button"; m.className = "menu-btn"; m.textContent = "⋯";
+        m.setAttribute("aria-label", "Opciones de " + nombre);
+        m.addEventListener("click", () => abrirMenu(nombre, "", [
+          { texto: "Subir", accion: () => moverItem(dia.id, g.nombre, clave, -1) },
+          { texto: "Bajar", accion: () => moverItem(dia.id, g.nombre, clave, 1) },
+          { texto: "Ver ficha del ejercicio", accion: () => abrirDetalle(clave) }
+        ]));
+        el.querySelector(".asa").before(m);
+      }
+    });
+    cont.appendChild(caja);
   });
   pintarRpe(dia);
   pintarCabDia(dia);
@@ -770,6 +797,7 @@ function bloque(dia, id, series, grupo) {
   const b = document.createElement("div");
   b.className = "bloque t-" + tipo;
   b.dataset.ej = id;
+  if (series.length) b.dataset.clave = id;
   b.dataset.grupo = grupo;
   b.innerHTML = '<div class="bloque-cab"><button type="button" class="ej-nombre"></button><button type="button" class="quitar" aria-label="Quitar ejercicio">✕</button></div>' +
     '<ol class="series"></ol>' +
@@ -935,6 +963,8 @@ function bloque(dia, id, series, grupo) {
     li.querySelector(".borrar").addEventListener("click", () => borrarSerie(s));
     // Deslizar: a la derecha la marca hecha; a la izquierda la borra (con Deshacer)
     deslizable(li, planificada && s.ciclo_id !== "auto" ? () => marcarHecha(s, { ...s, hecha: true, peso: pesoMostrado(s) }) : null, () => borrarSerie(s));
+    li.dataset.sid = s.id;
+    if (series.length > 1) li.appendChild(asaArrastre(li, () => [...ol.querySelectorAll(":scope > li[data-sid]")], n => reordenar(n.map(x => [db.series[x.dataset.sid]]), "Serie movida"), "Serie " + (s.calentamiento ? "de calentamiento" : numero)));
     ol.appendChild(li);
   });
 
@@ -1002,6 +1032,7 @@ function tarjetaBloque(dia, bloqueId, series) {
   let editando = null;
   const c = document.createElement("div");
   c.className = "bloque bloque-rep";
+  c.dataset.clave = "b:" + bloqueId;
   c.innerHTML = '<div class="bloque-cab"><span class="br-tit"></span><span class="g-prog"></span><button type="button" class="menu-btn">⋯</button></div>' +
     '<div class="rondas"></div>' +
     '<form class="nueva-serie br-form" hidden><span class="br-que"></span>' +
@@ -1015,6 +1046,8 @@ function tarjetaBloque(dia, bloqueId, series) {
   menu.addEventListener("click", () => {
     const ultima = series.filter(s => n0(s.ronda) === rondas[rondas.length - 1]);
     abrirMenu("Bloque ×" + rondas.length, primera.map(s => nombreEj(s.ejercicio_id)).join(" + "), [
+      { texto: "Subir", accion: () => moverItem(dia.id, series[0].grupo || "", "b:" + bloqueId, -1) },
+      { texto: "Bajar", accion: () => moverItem(dia.id, series[0].grupo || "", "b:" + bloqueId, 1) },
       { texto: "Añadir una ronda", accion: () => {
         let orden = Date.now();
         ultima.sort((a, b) => a.orden - b.orden).forEach(s => cambiar("series", { ...s, id: nuevoId(), orden: orden++, ronda: n0(s.ronda) + 1, hecha: false, meso_id: s.meso_id || "" }, true));
@@ -1875,14 +1908,23 @@ function resumenDiasMeso(m) {
 function pintarPlan() {
   const lp = $("listaPlantillas");
   lp.textContent = "";
-  const ps = vivos("plantillas").sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
-  if (!ps.length) lp.innerHTML = '<p class="vacio-lista">Monta un entrenamiento en un día de la semana (por ejemplo, Pierna) y en su menú ⋯ elige «Guardar ejercicios como plantilla».</p>';
+  const todas = vivos("plantillas").sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
+  // Buscador: por nombre o por los ejercicios que contiene, sin tildes ni mayúsculas
+  const q = norm($("buscarPlantilla").value);
+  const ps = q ? todas.filter(p => norm(p.nombre).includes(q) || norm(nombresItems(p.items || [])).includes(q)) : todas;
+  contadorSec("plantillas", q ? ps.length + " de " + todas.length : todas.length);
+  if (!todas.length) lp.innerHTML = '<p class="vacio-lista">Monta un entrenamiento en un día de la semana (por ejemplo, Pierna) y en su menú ⋯ elige «Guardar ejercicios como plantilla».</p>';
+  else if (!ps.length) { const v = document.createElement("p"); v.className = "vacio-lista"; v.textContent = "Ninguna plantilla tiene «" + $("buscarPlantilla").value.trim() + "» en su nombre ni en sus ejercicios."; lp.appendChild(v); }
   ps.forEach(p => lp.appendChild(tarjeta(p.nombre, [resumenItems(p.items || []), nombresItems(p.items || [])], () => menuPlantilla(p))));
 
   const lm = $("listaMesos");
   lm.textContent = "";
   const hoy = iso(new Date());
   const ms = vivos("mesociclos").sort((a, b) => (b.inicio || "").localeCompare(a.inicio || ""));
+  contadorSec("mesociclos", ms.length);
+  contadorSec("molestias", molestiasActivas().length ? molestiasActivas().length + " activa" + (molestiasActivas().length === 1 ? "" : "s") : vivos("molestias").length);
+  contadorSec("rutinas", RUTINAS_TIPO.length);
+  contadorSec("usuarios", usuarios.filter(u => !u.aprobado).length ? usuarios.filter(u => !u.aprobado).length + " pendientes" : usuarios.length);
   if (!ms.length) lm.innerHTML = '<p class="vacio-lista">Un mesociclo reparte tus plantillas por los días de la semana durante varias semanas, con progresión de peso si quieres.</p>';
   ms.forEach(m => {
     const actual = m.inicio && hoy >= m.inicio && hoy < iso(sumarDias(deIso(m.inicio), n0(m.semanas) * 7));
@@ -2972,6 +3014,104 @@ $("mesoCompartir").addEventListener("click", () => {
   compartirMeso(m);
 });
 
+// ---------- Reordenar dentro de un día: series, ejercicios y bloques, y sesiones ----------
+// Las series de cada día se ordenan por «orden»: reordenar es repartir los mismos valores en el orden nuevo
+function reordenar(conjuntos, texto) {
+  const todas = conjuntos.flat().filter(Boolean);
+  if (todas.length < 2) return;
+  const huecos = todas.map(s => n0(s.orden)).sort((a, b) => a - b), antes = [];
+  let k = 0;
+  conjuntos.forEach(c => c.filter(Boolean).slice().sort((a, b) => a.orden - b.orden).forEach(s => {
+    const o = huecos[k++];
+    if (n0(s.orden) !== o) { antes.push(["series", { ...s }]); cambiar("series", { ...s, orden: o }, true); }
+  }));
+  if (!antes.length) { pintarBloques(true); return; }
+  persistir();
+  pintarBloques(true);
+  avisoDeshacer(texto + " · Deshacer para volver como estaba", antes);
+}
+// Sesiones del día con sus ejercicios y bloques, en el orden en que se ven
+function estructuraDia(fecha) {
+  const grupos = [];
+  seriesDelDia(fecha).forEach(s => {
+    let g = grupos.find(x => x.nombre === (s.grupo || ""));
+    if (!g) grupos.push(g = { nombre: s.grupo || "", items: [] });
+    const clave = s.bloque_id ? "b:" + s.bloque_id : s.ejercicio_id;
+    let it = g.items.find(x => x.clave === clave);
+    if (!it) g.items.push(it = { clave, series: [] });
+    it.series.push(s);
+  });
+  return grupos;
+}
+const seriesDeGrupo = (fecha, nombre) => seriesDelDia(fecha).filter(s => (s.grupo || "") === nombre);
+const seriesDeItem = (fecha, grupo, clave) => ((estructuraDia(fecha).find(g => g.nombre === grupo) || { items: [] }).items.find(x => x.clave === clave) || { series: [] }).series;
+function moverItem(fecha, grupo, clave, paso) {
+  const g = estructuraDia(fecha).find(x => x.nombre === grupo);
+  if (!g) return;
+  const i = g.items.findIndex(x => x.clave === clave), j = i + paso;
+  if (i < 0 || j < 0 || j >= g.items.length) return;
+  const items = g.items.slice();
+  [items[i], items[j]] = [items[j], items[i]];
+  reordenar(items.map(x => x.series), "Ejercicio movido");
+}
+function moverGrupo(fecha, nombre, paso) {
+  const gs = estructuraDia(fecha), i = gs.findIndex(x => x.nombre === nombre), j = i + paso;
+  if (i < 0 || j < 0 || j >= gs.length) return;
+  const lista = gs.slice();
+  [lista[i], lista[j]] = [lista[j], lista[i]];
+  reordenar(lista.map(g => g.items.flatMap(x => x.series)), "Sesión movida");
+}
+// Asa ≡: se arrastra (dedo o ratón) con vista en vivo, o se mueve con las flechas del teclado
+function asaArrastre(el, hermanos, alSoltar, nombre) {
+  const asa = document.createElement("button");
+  asa.type = "button";
+  asa.className = "asa";
+  asa.textContent = "≡";
+  asa.setAttribute("aria-label", "Mover " + nombre + " (arrástralo o usa las flechas arriba y abajo)");
+  asa.addEventListener("click", e => e.stopPropagation());
+  asa.addEventListener("keydown", e => {
+    if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
+    e.preventDefault();
+    const h = hermanos(), i = h.indexOf(el), j = i + (e.key === "ArrowUp" ? -1 : 1);
+    if (j < 0 || j >= h.length) return;
+    const n = h.slice();
+    [n[i], n[j]] = [n[j], n[i]];
+    alSoltar(n);
+  });
+  asa.addEventListener("pointerdown", e => {
+    if (e.button > 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const inicial = hermanos();
+    if (inicial.length < 2) return;
+    try { asa.setPointerCapture(e.pointerId); } catch {}
+    let y0 = e.clientY;
+    el.classList.add("arrastrando");
+    const mover = ev => {
+      const lista = hermanos(), i = lista.indexOf(el), antes = lista[i - 1], despues = lista[i + 1];
+      const arriba = el.offsetTop;
+      if (despues && ev.clientY > despues.getBoundingClientRect().top + despues.offsetHeight / 2) despues.after(el);
+      else if (antes && ev.clientY < antes.getBoundingClientRect().top + antes.offsetHeight / 2) antes.before(el);
+      y0 += el.offsetTop - arriba;
+      el.style.transform = "translateY(" + (ev.clientY - y0) + "px)";
+    };
+    const fin = ev => {
+      asa.removeEventListener("pointermove", mover);
+      asa.removeEventListener("pointerup", fin);
+      asa.removeEventListener("pointercancel", fin);
+      el.classList.remove("arrastrando");
+      el.style.transform = "";
+      const final = hermanos();
+      if (ev.type === "pointercancel" || final.every((x, k) => x === inicial[k])) { pintarBloques(true); return; }
+      alSoltar(final);
+    };
+    asa.addEventListener("pointermove", mover);
+    asa.addEventListener("pointerup", fin);
+    asa.addEventListener("pointercancel", fin);
+  });
+  return asa;
+}
+
 // ---------- Vista de un solo día ----------
 function abrirDia(id) {
   if (!id) return;
@@ -3346,7 +3486,7 @@ $("enSalir").addEventListener("click", salirEntreno);
 $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); abrirRpe(d); });
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
-const VERSION_APP = "v22";
+const VERSION_APP = "v23";
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";
@@ -3397,7 +3537,7 @@ function pintarSugerencias() {
   $("bloqueSug").hidden = !admin;
   if (!admin) return;
   const noLeidas = sugerencias.filter(s => !s.leida).length;
-  $("sugTit").textContent = "Sugerencias" + (noLeidas ? " · " + noLeidas + " sin leer" : "");
+  contadorSec("sugerencias", noLeidas ? noLeidas + " sin leer" : sugerencias.length);
   const cont = $("listaSug");
   cont.textContent = "";
   if (!sugerencias.length) { cont.appendChild(nota("Aún no hay sugerencias. Cuando alguien envíe una, te llegará también un correo.")); return; }
@@ -3427,6 +3567,44 @@ $("sugAyuda").addEventListener("click", abrirSug);
 $("sugPie").addEventListener("click", abrirSug);
 $("sugRecargar").addEventListener("click", cargarSugerencias);
 $("tabPlan").addEventListener("click", cargarSugerencias);
+
+// ---------- Plan: secciones desplegables con contador; se recuerda cuáles quedan abiertas ----------
+let seccionesPlan = { plantillas: true, mesociclos: true, ...(leer("plan-abiertas-v1") || {}) };
+function ponerSeccion(sec, abierta) {
+  sec.classList.toggle("cerrada", !abierta);
+  sec.querySelector(".sec-toggle").setAttribute("aria-expanded", String(abierta));
+  sec.querySelector(".sec-cuerpo").inert = !abierta;
+}
+function contadorSec(clave, n) {
+  const el = document.querySelector('#vistaPlan [data-sec="' + clave + '"] .sec-n');
+  if (el) el.textContent = n === "" || n === 0 ? "" : "· " + n;
+}
+document.querySelectorAll("#vistaPlan > .plan-sec[data-sec]").forEach(sec => {
+  const h = sec.querySelector("h3"), cab = h.closest(".sec-cab") || h, clave = sec.dataset.sec;
+  const boton = document.createElement("button");
+  boton.type = "button";
+  boton.className = "sec-toggle";
+  boton.innerHTML = '<span class="flecha-dia" aria-hidden="true">▸</span>';
+  h.before(boton);
+  boton.appendChild(h);
+  const n = document.createElement("span"); n.className = "sec-n"; boton.appendChild(n);
+  const cuerpo = document.createElement("div"), dentro = document.createElement("div");
+  cuerpo.className = "sec-cuerpo"; dentro.className = "sec-cuerpo-in";
+  while (cab.nextSibling) dentro.appendChild(cab.nextSibling);
+  cuerpo.appendChild(dentro);
+  sec.appendChild(cuerpo);
+  ponerSeccion(sec, !!seccionesPlan[clave]);
+  boton.addEventListener("click", () => {
+    seccionesPlan[clave] = sec.classList.contains("cerrada");
+    escribir("plan-abiertas-v1", seccionesPlan);
+    ponerSeccion(sec, seccionesPlan[clave]);
+  });
+});
+$("buscarPlantilla").addEventListener("input", () => {
+  const sec = $("buscarPlantilla").closest(".plan-sec");
+  if (sec.classList.contains("cerrada")) { seccionesPlan.plantillas = true; escribir("plan-abiertas-v1", seccionesPlan); ponerSeccion(sec, true); }
+  pintarPlan();
+});
 
 // ---------- Instrucciones de uso ----------
 function abrirAyuda() {

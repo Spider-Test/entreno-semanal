@@ -82,33 +82,33 @@
   </div>
 
   <div id="vistaPlan" hidden>
-    <section class="plan-sec">
-      <h3>Plantillas</h3>
+    <section class="plan-sec" data-sec="plantillas">
+      <div class="sec-cab"><h3>Plantillas</h3><input id="buscarPlantilla" type="search" placeholder="Buscar plantilla" aria-label="Buscar plantilla por nombre o ejercicio" autocomplete="off"></div>
       <div class="lista-tarjetas" id="listaPlantillas"></div>
     </section>
-    <section class="plan-sec">
+    <section class="plan-sec" data-sec="mesociclos">
       <div class="sec-cab"><h3>Mesociclos</h3><button type="button" class="nav-btn" id="nuevoMeso">+ Nuevo</button></div>
       <div class="lista-tarjetas" id="listaMesos"></div>
     </section>
-    <section class="plan-sec">
+    <section class="plan-sec" data-sec="molestias">
       <div class="sec-cab"><h3>Molestias y lesiones</h3><button type="button" class="nav-btn" id="nuevaMolestia">+ Nueva</button></div>
       <div class="lista-tarjetas" id="listaMolestias"></div>
     </section>
-    <section class="plan-sec">
+    <section class="plan-sec" data-sec="ia">
       <h3>Crear con IA</h3>
       <p class="vacio-lista">Elige tu objetivo, copia el prompt, pégalo en ChatGPT, Claude u otra IA y pega aquí su respuesta: la app crea las plantillas (o el mesociclo) y los ejercicios que falten.</p>
       <div class="botonera"><button type="button" class="anadir" id="iaAbrir">Crear con IA</button><button type="button" class="nav-btn" id="iaPegarAbrir">Pegar entrenamiento de IA</button></div>
     </section>
-    <section class="plan-sec">
+    <section class="plan-sec" data-sec="rutinas">
       <h3>Rutinas tipo</h3>
       <p class="aviso-estim">Ejemplos generales para empezar, no un plan médico ni personalizado. Al usarlos se copian a tus plantillas y los cambias a tu gusto.</p>
       <div class="lista-tarjetas" id="listaRutinas"></div>
     </section>
-    <section class="plan-sec">
+    <section class="plan-sec" data-sec="compartido">
       <h3>Añadir algo compartido</h3>
       <div class="barra"><input id="codigoComp" placeholder="Pega el enlace o el código de 8 letras" autocomplete="off" autocapitalize="characters"><button type="button" class="nav-btn" id="abrirComp">Abrir</button></div>
     </section>
-    <section class="plan-sec">
+    <section class="plan-sec" data-sec="copia">
       <h3>Copia de seguridad</h3>
       <p class="vacio-lista">Descarga todos tus datos. La copia completa (JSON) sirve para restaurarlos; los CSV se abren con Excel o Numbers.</p>
       <div class="botonera">
@@ -118,18 +118,18 @@
         <label class="nav-btn">Restaurar copia…<input type="file" id="impJson" accept="application/json,.json" hidden></label>
       </div>
     </section>
-    <section class="plan-sec">
+    <section class="plan-sec" data-sec="ajustes">
       <h3>Ajustes de este dispositivo</h3>
       <div class="fila">
         <label class="campo">Peso de la barra (kg) <input id="ajBarra" inputmode="decimal" placeholder="20"></label>
         <label class="campo">Botones − y + de peso (kg) <input id="ajPaso" inputmode="decimal" placeholder="2,5"></label>
       </div>
     </section>
-    <section class="plan-sec" id="bloqueSug" hidden>
+    <section class="plan-sec" data-sec="sugerencias" id="bloqueSug" hidden>
       <div class="sec-cab"><h3 id="sugTit">Sugerencias</h3><button type="button" class="nav-btn" id="sugRecargar">Actualizar</button></div>
       <div id="listaSug"></div>
     </section>
-    <section class="plan-sec" id="bloqueUsuarios" hidden>
+    <section class="plan-sec" data-sec="usuarios" id="bloqueUsuarios" hidden>
       <h3>Usuarios</h3>
       <p class="vacio-lista">Las cuentas nuevas no pueden ver ni guardar nada hasta que las apruebes.</p>
       <div id="listaUsuarios"></div>
@@ -383,8 +383,8 @@
   </form>
   <div class="d-cuerpo ayuda">
     <p>Toca cada apartado para verlo. Puedes volver aquí cuando quieras con el botón <b>?</b> de arriba. ¿Echas algo en falta o algo no va bien? Envíanos una sugerencia:</p>
-    <details class="novedades" open><summary>Novedades · versión 22</summary>
-      <p>Discos por lado y calentamiento sugerido · molestias y lesiones con aviso ⚠ · compartir mesociclos enteros · título del entreno en los días plegados · instalar en Android.</p>
+    <details class="novedades" open><summary>Novedades · versión 23</summary>
+      <p>Reordenar arrastrando el asa ≡ (o con Subir y Bajar) · secciones de Plan desplegables con contador · buscador de plantillas · antes: discos por lado y calentamiento, molestias, compartir mesociclos.</p>
     </details>
     <button type="button" class="nav-btn sug-btn" id="sugAyuda">💬 Enviar una sugerencia o avisar de un fallo</button>
     <details><summary>La semana y el texto del día</summary>
@@ -423,6 +423,10 @@
     <details><summary>Bloques ×N</summary>
       <p><b>+ Bloque</b> crea uno o varios tramos que se repiten, por ejemplo 1000 m + recuperación 300 m ×4, o Press banca + Remo ×4. Se muestran ronda a ronda.</p>
     </details>
+    <details><summary>Cambiar el orden</summary>
+      <p>Arrastra el asa <b>≡</b> para mover una serie dentro de su ejercicio, un ejercicio o bloque dentro de su sesión, o una sesión entera dentro del día (por ejemplo, subir un calentamiento que añadiste al final). Mientras arrastras ves el resultado; el asa no interfiere con deslizar ni con el desplazamiento.</p>
+      <p>También puedes usar <b>Subir</b> y <b>Bajar</b> en el menú ⋯ de cada ejercicio, bloque o sesión, o las flechas del teclado sobre el asa. Durante 5 segundos aparece <b>Deshacer</b>. El nuevo orden se usa también en el modo entreno y al guardar como plantilla.</p>
+    </details>
     <details><summary>Plantillas, copiar y pegar</summary>
       <p>En el menú <b>⋯</b> de cada día puedes copiar el día, pegar lo último copiado, añadir una plantilla, guardar los ejercicios como plantilla o compartirlos con un amigo.</p>
       <p>Si los ejercicios tienen nombre de sesión (por ejemplo «Pierna»), su menú ⋯ copia, guarda o comparte solo esa sesión. Puedes tener varias sesiones el mismo día.</p>
@@ -436,6 +440,7 @@
       <p>Los ejercicios que trabajan esa zona muestran un aviso ⚠ (en la ficha de cada ejercicio puedes ajustar sus zonas) y «Crear con IA» la tiene en cuenta. No sustituye la opinión de un profesional.</p>
     </details>
     <details><summary>Mesociclos y semana de descarga</summary>
+      <p>Las secciones de <b>Plan</b> se abren y cierran tocando su título (con su contador); la app recuerda cuáles dejas abiertas. En <b>Plantillas</b> tienes un buscador por nombre o por ejercicio.</p>
       <p>En <b>Plan → Mesociclos</b> repartes tus plantillas por los días de la semana durante varias semanas. Puedes sumar kilos cada semana.</p>
       <p>La <b>semana de descarga</b> (la última, o cada N semanas) baja un 30 % el peso y la distancia, o el número de series (lo eliges tú). En la semana aparece marcada como «Descarga».</p>
       <p>Pulsa <b>Guardar y rellenar calendario</b> para que aparezcan las series planificadas.</p>
