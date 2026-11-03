@@ -132,7 +132,12 @@
         <label class="campo">Botones − y + de peso (kg) <input id="ajPaso" inputmode="decimal" placeholder="2,5"></label>
       </div>
       <label class="campo">Al importar, una vuelta más lenta que este ritmo (min/km) es recuperación <input id="ajRitmoRec" inputmode="decimal" placeholder="8:00"></label>
-      <label class="campo">Frecuencia cardíaca máxima (ppm; si la dejas vacía, la mayor de tus archivos FIT) <input id="ajFcMax" inputmode="numeric" pattern="[0-9]*"></label>
+      <label class="campo">Frecuencia cardíaca máxima (ppm; vacía = automática) <input id="ajFcMax" inputmode="numeric" pattern="[0-9]*"></label>
+      <p class="menu-det nota" id="ajFcInfo"></p>
+      <div class="fila">
+        <label class="campo">Edad (para estimar la FC máxima sin datos) <input id="ajEdad" inputmode="numeric" pattern="[0-9]*"></label>
+        <label class="campo">FC en reposo (opcional, zonas por reserva) <input id="ajFcReposo" inputmode="numeric" pattern="[0-9]*"></label>
+      </div>
       <label class="campo">Series importadas con mucho desnivel (pendiente media de más del 4 %) <select id="ajDesnivel"><option value="excluir">No cuentan para las marcas por distancia</option><option value="contar">Cuentan, con su ritmo ajustado</option></select></label>
     </section>
     <section class="plan-sec" data-sec="sugerencias" id="bloqueSug" hidden>
@@ -428,7 +433,8 @@
   </form>
   <div class="d-cuerpo ayuda">
     <p>Toca cada apartado para verlo. Puedes volver aquí cuando quieras con el botón <b>?</b> de arriba. ¿Echas algo en falta o algo no va bien? Envíanos una sugerencia:</p>
-    <details class="novedades" open><summary>Novedades · versión 42</summary>
+    <details class="novedades" open><summary>Novedades · versión 43</summary>
+      <p><b>Pulsaciones:</b> la FC máxima se calcula sola con el pico mantenido (10 s) de tus FIT y TCX de los últimos 6 meses, sin picos falsos, y te dice de dónde sale; sin datos, por tu edad. <b>Zonas Z1–Z5</b> con el tiempo en cada una en cada carrera importada y en Marcas (con FC en reposo, por reserva). La <b>forma</b> tiene en cuenta el tipo de recuperación, el % de FC máxima de cada serie (si no fuiste a tope, extrapola) y la deriva cardiaca, y Marcas explica el «Por qué».</p>
       <p><b>Crear con IA:</b> ahora también un <b>entrenamiento suelto</b> (tipo de sesión, duración, intensidad…) que se añade directamente a un día o se guarda como plantilla, y planes para <b>media maratón y maratón</b> con marca objetivo, fecha de carrera, tus marcas previstas y tapering. · El botón <b>?</b> avisa con un punto cuando hay novedades que no has visto.</p>
       <p><b>Agrupar en bloque:</b> mantén pulsada una serie, elige varias y agrúpalas en un bloque ×N (propone el patrón que se repite); «Desagrupar» en el ⋯ del bloque. Al importar, marca vueltas y agrúpalas a mano antes de guardar.</p>
       <p><b>Archivos FIT</b> de COROS y Garmin: la app usa las vueltas tal como las marcó el reloj (serie, recuperación, descanso, calentamiento, vuelta a la calma), el nombre del entrenamiento y sus objetivos de ritmo, el desnivel del barómetro, y las <b>pulsaciones</b> y la cadencia de cada vuelta. En los rodajes con pulsaciones, la forma (VDOT) se estima con tu FC: un rodaje suave ya no la rebaja. Pon tu FC máxima en Plan → Ajustes (si no, se usa la mayor registrada).</p>
@@ -521,6 +527,9 @@
     <details><summary>Importar carreras</summary>
       <p>En <b>Plan → Importar carreras</b> subes un archivo GPX o TCX del reloj o de Strava, el CSV de actividades de Strava o Garmin, o el <b>CSV de vueltas de COROS</b> (en la app de COROS, la actividad → exportar vueltas). Cada carrera se guarda en su fecha con distancia y tiempo, y alimenta Marcas y ritmos.</p>
       <p><b>Archivos FIT (lo más completo):</b> en la app de COROS, abre la actividad → compartir (arriba) → <b>Exportar archivo .fit</b>; en COROS Training Hub (web), la actividad → Exportar → FIT. En Garmin Connect (web), la actividad → ⚙ → <b>Exportar original</b> (descarga un .zip: descomprímelo y elige el .fit). Del FIT se toman la fecha y la hora, cada vuelta con su tipo según el reloj (sin adivinar por el ritmo), el nombre del entrenamiento programado y sus objetivos, el desnivel del barómetro, y las pulsaciones media y máxima y la cadencia.</p>
+      <p><b>FC máxima automática:</b> se calcula con el pico mantenido (media de 10 segundos) de tus archivos FIT y TCX de los últimos 6 meses, descartando los primeros minutos, los saltos bruscos y los valores imposibles. Plan → Ajustes y Marcas te dicen de dónde sale («168 ppm · Series 1000 m del 2 nov»). Puedes ponerla a mano; si un archivo la supera, te avisa. Sin datos, si pones tu edad, se usa la fórmula de Tanaka (208 − 0,7 × edad) de forma provisional.</p>
+      <p><b>Zonas Z1–Z5:</b> 50–60, 60–70, 70–80, 80–90 y 90–100 % de tu FC máxima (o de tu reserva, si pones la FC en reposo: método Karvonen). Cada carrera importada con pulso muestra el tiempo en cada zona debajo de su total, y Marcas, el de las últimas 4 semanas.</p>
+      <p><b>Cómo se calcula la forma:</b> nunca con una serie suelta, sino con la sesión entera: número de series, volumen, duración y tipo de recuperación (trotando descansa menos que parado), caída de ritmo entre series y desnivel (ritmo ajustado). Con pulsaciones, además, el % de tu FC máxima en cada serie (si llegaste al 88 %, no fuiste a tope y se extrapola tu ritmo máximo) y la deriva cardiaca (si el pulso sube mucho con el mismo ritmo, estabas cerca del límite). En Marcas, «Por qué» enseña los factores de la sesión que más pesa.</p>
       <p><b>Pulsaciones:</b> en los rodajes continuos con FC, la forma se calcula con la parte de tu VO₂máx que usaste según tu % de FC máxima (fórmula de Londeree): así un rodaje suave no rebaja tu forma. Pon tu <b>FC máxima</b> en Plan → Ajustes; si la dejas vacía se usa la mayor registrada en tus archivos del último año (más prudente si nunca llegaste a tu máximo).</p>
       <p><b>Desnivel:</b> si el archivo trae altitud (GPX y TCX punto a punto, o la subida y bajada de cada vuelta en el CSV de COROS, Strava o Garmin), cada serie guarda su desnivel y un <b>ritmo ajustado por pendiente</b>: el ritmo equivalente en llano según el coste energético de correr en cuesta (modelo de Minetti, 2002). La altitud se suaviza para quitar el ruido del GPS. Subir hace el ritmo ajustado más rápido que el real y bajar, más lento. La forma, las marcas, las predicciones y los objetivos usan el ajustado; lo apuntado a mano y los archivos sin altitud, el real.</p>
       <p>Una serie con pendiente media de más del 4 % se marca «con desnivel» y no cuenta para las marcas por distancia. En <b>Plan → Ajustes</b> puedes hacer que cuente con su ritmo ajustado.</p>
