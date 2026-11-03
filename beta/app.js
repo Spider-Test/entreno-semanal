@@ -412,7 +412,7 @@ async function api(ruta, opciones = {}, reintento = false) {
 
 // Perfil: las cuentas nuevas quedan pendientes hasta que el administrador las aprueba
 async function cargarPerfil() {
-  const r = await api("/rest/v1/perfiles?select=user_id,email,aprobado,es_admin,edita_catalogo,creado,novedades_vistas&order=creado.asc");
+  const r = await api("/rest/v1/perfiles?select=user_id,email,aprobado,es_admin,edita_catalogo,creado,novedades_vistas,ultimo_acceso,ultimo_dispositivo,ultima_version&order=creado.asc");
   if (!r.ok) throw new Error("perfil " + r.status);
   const lista = await r.json();
   const mio = lista.find(p => p.user_id === sesion.user_id);
@@ -2689,12 +2689,20 @@ function pintarPlan() {
   if (perfil && perfil.es_admin) {
     const lu = $("listaUsuarios");
     lu.textContent = "";
-    usuarios.forEach(u => {
+    const semana = Date.now() - 7 * 864e5;
+    usuarios.slice().sort((a, b) => (b.ultimo_acceso || "").localeCompare(a.ultimo_acceso || "")).forEach(u => {
       const fila = document.createElement("div");
       fila.className = "usuario";
       fila.innerHTML = '<span class="u-info"><span class="u-email"></span><span class="u-fecha"></span></span><span class="u-estado"></span>';
       fila.querySelector(".u-email").textContent = u.email || "(sin email)";
       fila.querySelector(".u-fecha").textContent = "Registrado el " + fechaCorta(iso(new Date(u.creado))) + (u.es_admin ? " · administrador" : "");
+      // Solo datos de acceso: cuándo usó la app y desde dónde (nunca qué entrena)
+      const acc = document.createElement("span");
+      acc.className = "u-acceso";
+      acc.textContent = "Último uso: " + fechaHora(u.ultimo_acceso) + (u.ultimo_dispositivo ? " · " + u.ultimo_dispositivo : "") + (u.ultima_version ? " · " + u.ultima_version : "") +
+        " · Último inicio de sesión: " + fechaHora(iniciosSesion[u.user_id]);
+      fila.querySelector(".u-info").appendChild(acc);
+      if (u.ultimo_acceso && Date.parse(u.ultimo_acceso) > semana) { const b = document.createElement("span"); b.className = "u-activo"; b.textContent = "activo esta semana"; fila.querySelector(".u-email").appendChild(b); }
       const est = fila.querySelector(".u-estado");
       if (u.user_id === sesion.user_id) est.textContent = "Tú";
       else {
@@ -2968,7 +2976,7 @@ function pintarTodo() {
 }
 
 // Sincronizar al abrir, al volver a la app, al recuperar conexión y cada 30 s
-document.addEventListener("visibilitychange", () => { if (!document.hidden) { if (!$("vistaSemana").hidden && !escribiendoSerie()) pintarSemana(); sincronizar(); } });
+document.addEventListener("visibilitychange", () => { if (!document.hidden) { registrarAcceso(); if (!$("vistaSemana").hidden && !escribiendoSerie()) pintarSemana(); sincronizar(); } });
 addEventListener("online", sincronizar);
 setInterval(() => { if (!document.hidden) sincronizar(); }, 30000);
 
@@ -3029,12 +3037,45 @@ function mostrarPendiente() {
 }
 $("pendReintentar").addEventListener("click", () => { $("pendAviso").textContent = "Comprobando…"; sincronizar().then(() => { $("pendAviso").textContent = perfil && perfil.aprobado ? "" : "Tu cuenta sigue pendiente."; }); });
 $("pendSalir").addEventListener("click", () => cerrarSesion(""));
+// ---------- Último acceso (solo lo ve el administrador): se anota como mucho una vez cada 10 minutos ----------
+function dispositivo() {
+  const ua = navigator.userAgent, app = matchMedia("(display-mode: standalone)").matches || navigator.standalone;
+  const d = /iPhone/.test(ua) ? "iPhone" : /iPad/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1) ? "iPad" : /Android/.test(ua) ? "Android" : /Macintosh/.test(ua) ? "Mac" : /Windows/.test(ua) ? "Windows" : /Linux/.test(ua) ? "Linux" : "otro";
+  return d + (app ? " (app)" : " (navegador)");
+}
+function registrarAcceso() {
+  if (!sesion || !navigator.onLine) return;
+  const ultimo = n0(leer("ultimo-acceso-v1"));
+  if (Date.now() - ultimo < 10 * 60e3) return;
+  escribir("ultimo-acceso-v1", Date.now());
+  api("/rest/v1/rpc/registrar_acceso", { method: "POST", body: JSON.stringify({ disp: dispositivo(), ver: VERSION_APP }) }).catch(() => escribir("ultimo-acceso-v1", ultimo));
+}
+// Fecha y hora absolutas: «hoy 21:14», «ayer 9:05» o «4 nov, 21:14» (con el año si no es este)
+function fechaHora(ts) {
+  if (!ts) return "—";
+  const d = new Date(ts), dia = iso(d), hoy = iso(new Date()), hora = String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+  if (dia === hoy) return "hoy " + hora;
+  if (dia === iso(sumarDias(new Date(), -1))) return "ayer " + hora;
+  return d.getDate() + " " + MESES[d.getMonth()] + (d.getFullYear() !== new Date().getFullYear() ? " " + d.getFullYear() : "") + ", " + hora;
+}
+let iniciosSesion = {};   // último inicio de sesión de cada usuario (solo para el administrador)
+async function cargarInicios() {
+  try {
+    const r = await api("/rest/v1/rpc/accesos_admin", { method: "POST", body: "{}" });
+    if (!r.ok) return;
+    iniciosSesion = {};
+    (await r.json()).forEach(x => { iniciosSesion[x.user_id] = x.last_sign_in_at; });
+    if (!$("vistaPlan").hidden) pintarPlan();
+  } catch {}
+}
 function mostrarApp() {
   if (perfil && perfil.aprobado === false) { mostrarPendiente(); return; }
   $("login").hidden = true; $("pendiente").hidden = true; $("app").hidden = false;
   verPestana(leer("pestana-v1") || "semana");
   setEstado("Sincronizando…");
   sincronizar();
+  registrarAcceso();
+  if (perfil && perfil.es_admin) cargarInicios();
   // Enlace compartido por un amigo: #c=CODIGO
   if (/^#c=/i.test(location.hash)) {
     const h = location.hash;
@@ -4459,7 +4500,7 @@ $("enSalir").addEventListener("click", salirEntreno);
 $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); abrirRpe(d); });
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
-const VERSION_APP = "v51" + (BETA ? " beta" : "");
+const VERSION_APP = "v52" + (BETA ? " beta" : "");
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";
