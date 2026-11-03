@@ -263,3 +263,27 @@ dialog::backdrop { background: rgba(0,0,0,0.45); }
   .meso-dia { grid-template-columns: 5.5em 1fr auto; }
   .md-lista { padding-left: 0; }
 }
+
+/* Bloques repetibles */
+.add-fila { display: flex; gap: 8px; margin: 8px; }
+.add-fila .add-ej { flex: 1; margin: 0; }
+.bloque-rep { border-style: dashed; border-color: var(--accent); }
+.bloque-rep .bloque-cab { gap: 8px; }
+.br-tit { flex: 1; min-width: 0; font-weight: 700; font-size: 15px; overflow-wrap: anywhere; }
+.bloque-rep .g-prog { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.rondas { display: flex; flex-direction: column; }
+.ronda { display: grid; grid-template-columns: 2.2em 1fr; gap: 4px; align-items: start; padding: 3px 0; border-top: 1px solid var(--line); }
+.ronda:first-child { border-top: 0; }
+.r-lab { font-family: var(--display); font-weight: 700; color: var(--accent); padding-top: 4px; font-variant-numeric: tabular-nums; }
+.ronda .n { color: var(--accent); }
+.br-que { font-size: 13px; font-weight: 700; color: var(--accent); }
+.tramo { display: flex; flex-direction: column; gap: 6px; padding: 10px 0; border-top: 1px solid var(--line); }
+.tramo .in-c, .tramo .ns-fila input { padding: 8px; text-align: center; }
+.tr-cab { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-weight: 700; }
+#blqAnadir { margin: 0; }
+@media (max-width: 760px) {
+  .br-tit { font-size: 17px; }
+  .ronda { grid-template-columns: 2.4em 1fr; }
+  .r-lab { font-size: 18px; padding-top: 6px; }
+  .add-fila { margin: 10px; }
+}

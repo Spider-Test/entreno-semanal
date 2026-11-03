@@ -163,6 +163,23 @@
   </form>
 </dialog>
 
+<dialog id="dlgBloque" aria-label="Nuevo bloque">
+  <form method="dialog" class="d-cab">
+    <h3 class="d-tit">Nuevo bloque</h3>
+    <button class="cerrar" aria-label="Cerrar">✕</button>
+  </form>
+  <div class="d-cuerpo">
+    <p class="menu-det" style="padding:0">Uno o varios tramos seguidos que se repiten. Ej.: 1000 m + rec. 300 m ×4, o Press banca + Remo ×4.</p>
+    <div id="blqTramos"></div>
+    <button type="button" class="add-ej" id="blqAnadir">+ Añadir tramo</button>
+    <label class="campo">Rondas (veces que se repite) <input id="blqRondas" type="number" min="1" max="50" inputmode="numeric"></label>
+    <p id="blqAviso" class="aviso" role="status"></p>
+    <div class="d-botones">
+      <button type="button" class="anadir" id="blqCrear">Crear bloque</button>
+    </div>
+  </div>
+</dialog>
+
 <dialog id="dlgMeso" aria-label="Mesociclo">
   <form method="dialog" class="d-cab">
     <h3 class="d-tit">Mesociclo</h3>
