@@ -902,3 +902,12 @@ html.ampliado label, html.ampliado summary, html.ampliado .tarjeta, html.ampliad
 .series .desnivel { flex-basis: 100%; font-size: 0.8em; color: var(--muted); font-variant-numeric: tabular-nums; }
 .series .desnivel.fuerte { color: var(--gold); font-weight: 600; }
 #ajDesnivel { width: 100%; padding: 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--fg); font-size: 15px; }
+
+/* Elegir series del día para agruparlas en un bloque */
+.sel-acciones .sel-n { align-self: center; padding: 0 8px; font-size: 14px; font-weight: 700; color: var(--muted); white-space: nowrap; }
+body.sel-series .series li[data-sid] { cursor: pointer; }
+body.sel-series .series li[data-sid]::before { content: ""; flex: none; width: 20px; height: 20px; margin-right: 6px; border: 2px solid var(--line); border-radius: 6px; }
+body.sel-series .series li.sel { background: var(--accent-soft); border-radius: 8px; }
+body.sel-series .series li.sel::before { background: var(--accent); border-color: var(--accent); }
+.imp-marca { margin-right: 4px; width: 18px; height: 18px; vertical-align: middle; }
+.imp-agrupar { margin-top: 8px; gap: 8px; flex-wrap: wrap; }

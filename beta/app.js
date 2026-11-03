@@ -681,6 +681,7 @@ function menuDia(dia) {
     (series.length || aTexto(html).trim()) && { texto: "Copiar día", accion: () => copiar(titulo, html, series) },
     porta && { texto: "Pegar «" + porta.nombre + "»", accion: () => pegar(dia) },
     { texto: "Añadir plantilla…", accion: () => elegirPlantilla("Añadir plantilla al " + titulo, p => aplicarPlantilla(dia, p)) },
+    series.filter(s => !s.bloque_id).length > 1 && { texto: "Seleccionar series para agrupar en bloque", accion: () => empezarSelSeries(dia) },
     series.length && { texto: "Guardar ejercicios como plantilla…", accion: () => guardarPlantilla(series[0].grupo || "Entrenamiento", series) },
     series.length && { texto: "Compartir con un amigo…", accion: () => compartir(series[0].grupo || titulo, itemsDe(series)) },
     series.length && { texto: "Vaciar ejercicios del día", peligro: true, confirmar: "Pulsa otra vez: se borran " + series.length + " series", accion: () => {
@@ -694,6 +695,7 @@ function menuGrupo(dia, grupo) {
   abrirMenu(grupo, resumenItems(itemsDe(series)), [
     nGrupos > 1 && { texto: "Subir sesión", accion: () => moverGrupo(dia.id, grupo, -1) },
     nGrupos > 1 && { texto: "Bajar sesión", accion: () => moverGrupo(dia.id, grupo, 1) },
+    series.filter(s => !s.bloque_id).length > 1 && { texto: "Seleccionar series para agrupar en bloque", accion: () => empezarSelSeries(dia) },
     { texto: "Copiar sesión", accion: () => copiar(grupo, "", series) },
     { texto: "Guardar como plantilla…", accion: () => guardarPlantilla(grupo, series) },
     { texto: "Compartir con un amigo…", accion: () => compartir(grupo, itemsDe(series)) },
@@ -878,6 +880,7 @@ function pintarDia(dia) {
   if (pieDia) cont.appendChild(pieDia);
   pintarRpe(dia);
   pintarCabDia(dia);
+  if (selSeries) pintarSelSeries();
 }
 
 function etiquetaTipo(tipo) {
@@ -1113,6 +1116,7 @@ function bloque(dia, id, series, grupo) {
     // Deslizar: a la derecha la marca hecha; a la izquierda la borra (con Deshacer)
     deslizable(li, planificada ? (s.ciclo_id !== "auto" ? () => marcarHecha(s, { ...s, hecha: true, peso: pesoMostrado(s) }) : null) : () => desmarcar(s), () => borrarSerie(s));
     li.dataset.sid = s.id;
+    mantenerPulsado(li, () => { if (!selSeries) empezarSelSeries(dia, s.id); });   // mantener pulsada una serie: elegir varias para agruparlas
     if (series.length > 1) li.appendChild(asaArrastre(li, () => [...ol.querySelectorAll(":scope > li[data-sid]")], n => reordenar(n.map(x => [db.series[x.dataset.sid]]), "Serie movida"), "Serie " + (s.calentamiento ? "de calentamiento" : numero)));
     ol.appendChild(li);
   });
@@ -1235,6 +1239,72 @@ function bloque(dia, id, series, grupo) {
 }
 
 // ---------- Bloques: tramos repetidos ×N, mostrados ronda a ronda ----------
+// ---------- Agrupar series sueltas en un bloque ×N (y desagrupar) ----------
+// El menor patrón que se repite entero (A,B,A,B,A,B → 2); si no se repite, todas en una ronda
+function periodoRepetido(claves) {
+  for (let p = 1; p <= claves.length / 2; p++) if (claves.length % p === 0 && claves.every((c, i) => c === claves[i % p])) return p;
+  return claves.length;
+}
+let selSeries = null;   // { dia, ids: Set } mientras se eligen series del día para agruparlas
+function empezarSelSeries(dia, primera) {
+  selSeries = { dia, ids: new Set(primera ? [primera] : []) };
+  pintarSelSeries();
+  setEstado("Toca las series que quieras agrupar");
+}
+function salirSelSeries() { selSeries = null; pintarSelSeries(); }
+function pintarSelSeries() {
+  document.body.classList.toggle("sel-series", !!selSeries);
+  document.querySelectorAll(".series li[data-sid]").forEach(li => li.classList.toggle("sel", !!selSeries && selSeries.ids.has(li.dataset.sid)));
+  $("selSerBarra").hidden = !selSeries;
+  if (!selSeries) return;
+  $("selSerN").textContent = selSeries.ids.size + (selSeries.ids.size === 1 ? " serie" : " series");
+  $("selSerAgrupar").disabled = selSeries.ids.size < 2;
+}
+// En modo selección, tocar una serie la marca o desmarca (y no abre su formulario)
+document.addEventListener("click", e => {
+  if (!selSeries) return;
+  const li = e.target.closest(".series li[data-sid]");
+  if (!li) return;
+  e.preventDefault(); e.stopPropagation();
+  if (pulsacionLarga) { pulsacionLarga = false; return; }   // el toque que sigue a mantener pulsado
+  const s = db.series[li.dataset.sid];
+  if (!s || s.bloque_id || s.fecha !== selSeries.dia.id) return;
+  if (selSeries.ids.has(s.id)) selSeries.ids.delete(s.id); else selSeries.ids.add(s.id);
+  pintarSelSeries();
+}, true);
+function agruparSeleccion() {
+  const dia = selSeries.dia, elegidas = [...selSeries.ids].map(id => db.series[id]).filter(s => s && !s.borrado && !s.bloque_id);
+  if (elegidas.length < 2) return;
+  const enDia = elegidas.slice().sort((a, b) => a.orden - b.orden);
+  const opcion = (lista, rondas) => {
+    const p = rondas ? periodoRepetido(lista.map(s => s.ejercicio_id)) : lista.length, n = lista.length / p;
+    const nombres = lista.slice(0, p).map(s => nombreEj(s.ejercicio_id));
+    return { lista, p, n, texto: "Bloque ×" + n + " · " + (p > 3 ? nombres.slice(0, 2).join(" + ") + "… (" + p + " tramos)" : nombres.join(" + ")) };
+  };
+  const aplicar = o => {
+    const bloque = nuevoId(), grupo = o.lista[0].grupo || "", huecos = o.lista.map(s => n0(s.orden)).sort((a, b) => a - b);
+    const deshacer = o.lista.map(s => ["series", { ...s }]);
+    o.lista.forEach((s, i) => cambiar("series", { ...s, bloque_id: bloque, ronda: Math.floor(i / o.p) + 1, grupo, orden: huecos[i] }, true));
+    persistir();
+    salirSelSeries();
+    pintarDia(dia);
+    avisoDeshacer("Agrupadas en " + o.texto, deshacer);
+  };
+  const conPatron = opcion(enDia, true), unaRonda = opcion(enDia, false), orden = opcion(elegidas, true);
+  const otroOrden = elegidas.some((s, i) => s !== enDia[i]);
+  abrirMenu("Agrupar " + elegidas.length + " series", "Se conservan sus valores, lo hecho y lo pendiente. Elige cómo:", [
+    conPatron.n > 1 && { texto: conPatron.texto, accion: () => aplicar(conPatron) },
+    { texto: "Bloque ×1 con las " + elegidas.length + " en una ronda", accion: () => aplicar(unaRonda) },
+    otroOrden && { texto: "En el orden en que las tocaste · " + orden.texto, accion: () => aplicar(orden) }
+  ]);
+}
+function desagruparBloque(dia, series) {
+  const deshacer = series.map(s => ["series", { ...s }]);
+  series.forEach(s => cambiar("series", { ...s, bloque_id: "", ronda: 0 }, true));
+  persistir();
+  pintarDia(dia);
+  avisoDeshacer("Bloque desagrupado en series sueltas", deshacer);
+}
 function tarjetaBloque(dia, bloqueId, series) {
   const rondas = [...new Set(series.map(s => n0(s.ronda)))].sort((a, b) => a - b);
   const primera = series.filter(s => n0(s.ronda) === rondas[0]).sort((a, b) => a.orden - b.orden);
@@ -1265,6 +1335,7 @@ function tarjetaBloque(dia, bloqueId, series) {
         persistir(); pintarDia(dia);
       } },
       rondas.length > 1 && { texto: "Quitar la última ronda", accion: () => { ultima.forEach(s => cambiar("series", { ...s, borrado: true }, true)); persistir(); pintarDia(dia); } },
+      { texto: "Desagrupar (series sueltas)", accion: () => desagruparBloque(dia, series) },
       { texto: "Copiar bloque", accion: () => copiar("Bloque ×" + rondas.length, "", series) },
       { texto: "Compartir con un amigo…", accion: () => compartir("Bloque ×" + rondas.length + " · " + primera.map(s => nombreEj(s.ejercicio_id)).join(" + "), itemsDe(series)) },
       { texto: "Quitar bloque", peligro: true, confirmar: "Pulsa otra vez: se borran " + series.length + " series", accion: () => {
@@ -3883,7 +3954,7 @@ $("enSalir").addEventListener("click", salirEntreno);
 $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); abrirRpe(d); });
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
-const VERSION_APP = "v40" + (BETA ? " beta" : "");
+const VERSION_APP = "v41" + (BETA ? " beta" : "");
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";
@@ -4324,6 +4395,14 @@ function pintarImportar() {
         fila.className = "imp-v c-" + v.clase;
         fila.innerHTML = '<span class="imp-n"></span><span class="imp-d"></span><select></select>';
         fila.querySelector(".imp-n").textContent = i + 1;
+        // Casilla para agrupar a mano las series en un bloque
+        if (v.clase === "serie" && v.grupoManual == null) {
+          const chk = document.createElement("input");
+          chk.type = "checkbox"; chk.className = "imp-marca"; chk.checked = !!v.marcada;
+          chk.setAttribute("aria-label", "Elegir la vuelta " + (i + 1) + " para agruparla");
+          chk.addEventListener("change", () => { v.marcada = chk.checked; pintarImportar(); });
+          fila.querySelector(".imp-n").prepend(chk);
+        } else if (v.grupoManual != null) fila.querySelector(".imp-n").textContent = "▣ " + (i + 1);
         const aj = v.factor && v.distancia >= 50 && isFinite(v.ritmo) ? v.ritmo / v.factor : 0;
         fila.querySelector(".imp-d").textContent = fmtDist(v.distancia) + " · " + fmtTiempo(v.tiempo) + (isFinite(v.ritmo) && v.distancia >= 50 ? " · " + fmtTiempo(v.ritmo) + "/km" : "") +
           (aj && Math.abs(aj - v.ritmo) >= 1 ? " (aj. " + fmtTiempo(aj) + ")" : "") + (n0(v.subida) + n0(v.bajada) > 0 ? " · +" + Math.round(n0(v.subida)) + " m / −" + Math.round(n0(v.bajada)) + " m" : "") +
@@ -4336,6 +4415,30 @@ function pintarImportar() {
         tabla.appendChild(fila);
       });
       caja.appendChild(tabla);
+      // Agrupar a mano: las vueltas marcadas forman un bloque ×N (N según el patrón de distancias que se repite)
+      const marcadas = a.vueltas.filter(v => v.marcada && v.clase === "serie" && v.grupoManual == null);
+      const grupos = [...new Set(a.vueltas.filter(v => v.grupoManual != null).map(v => v.grupoManual))];
+      if (marcadas.length >= 2 || grupos.length) {
+        const bot = document.createElement("div");
+        bot.className = "botonera imp-agrupar";
+        if (marcadas.length >= 2) {
+          const n = marcadas.length / periodoRepetido(marcadas.map(v => Math.round(v.distancia / 50)));
+          const b = document.createElement("button");
+          b.type = "button"; b.className = "anadir";
+          b.textContent = "Agrupar las " + marcadas.length + " marcadas en bloque ×" + n;
+          b.addEventListener("click", () => { const g = (a.siguienteGrupo = (a.siguienteGrupo || 0) + 1); marcadas.forEach(v => { v.grupoManual = g; v.marcada = false; }); a.bloque = false; pintarImportar(); });
+          bot.appendChild(b);
+        }
+        if (grupos.length) {
+          const q = document.createElement("button");
+          q.type = "button"; q.className = "nav-btn";
+          q.textContent = "Quitar agrupación" + (grupos.length > 1 ? "es (" + grupos.length + ")" : "");
+          q.addEventListener("click", () => { a.vueltas.forEach(v => { delete v.grupoManual; }); pintarImportar(); });
+          bot.appendChild(q);
+        }
+        caja.appendChild(bot);
+      }
+      if (grupos.length) caja.appendChild(nota("Las vueltas con ▣ se guardarán como " + (grupos.length === 1 ? "un bloque" : grupos.length + " bloques") + " (×N según cuántas veces se repite su patrón)."));
       const p = patronSeries(a.vueltas);
       caja.appendChild(nota(p.n ? p.n + (p.n === 1 ? " serie" : " series") + " → «" + p.nombre + "». Las recuperaciones y los descansos se guardan como descanso de la serie anterior; el calentamiento y la vuelta a la calma no cuentan para marcas." : "No hay ninguna vuelta marcada como serie."));
       if (p.regular) {
@@ -4381,10 +4484,17 @@ function guardarActividad(a) {
   if (a.modo === "rodaje") fila(idPorNombre("Rodaje", "carrera"), { distancia: Math.round(a.total.d), tiempo: Math.round(a.total.t), ...desnivel(a.vueltas, a.total.d, a.total.t), ...pulso(a.vueltas) });
   else {
     const p = patronSeries(a.vueltas), idSerie = idPorNombre(p.nombre, "carrera"), bloque = a.bloque && p.regular ? nuevoId() : "";
+    // Bloques hechos a mano en la vista previa: su ×N sale del patrón de distancias que se repite
+    const manual = {};
+    [...new Set(a.vueltas.filter(v => v.grupoManual != null && v.clase === "serie").map(v => v.grupoManual))].forEach(g => {
+      const vs = a.vueltas.filter(v => v.grupoManual === g && v.clase === "serie");
+      manual[g] = { id: nuevoId(), p: periodoRepetido(vs.map(v => Math.round(v.distancia / 50))), k: 0 };
+    });
     let ultima = null, ronda = 0;
     a.vueltas.forEach(v => {
-      const d = Math.round(v.distancia), t = Math.round(v.tiempo);
-      if (v.clase === "serie") ultima = fila(idSerie, { distancia: d, tiempo: t, bloque_id: bloque, ronda: bloque ? ++ronda : 0, ...desnivel([v], d, t), ...pulso([v]) });
+      const d = Math.round(v.distancia), t = Math.round(v.tiempo), m = v.clase === "serie" && manual[v.grupoManual];
+      const enBloque = m ? { bloque_id: m.id, ronda: Math.floor(m.k++ / m.p) + 1 } : { bloque_id: bloque, ronda: bloque ? ++ronda : 0 };
+      if (v.clase === "serie") ultima = fila(idSerie, { distancia: d, tiempo: t, ...enBloque, ...desnivel([v], d, t), ...pulso([v]) });
       else if ((v.clase === "rec" || v.clase === "parado") && ultima) { ultima.descanso += t; if (v.clase === "rec") ultima.rec_dist += d; }
       else if (v.clase === "calent" || v.clase === "calma") { fila(idPorNombre(v.clase === "calent" ? "Calentamiento carrera" : "Vuelta a la calma", "carrera"), { distancia: d, tiempo: t, calentamiento: true, ...desnivel([v], d, t), ...pulso([v]) }); ultima = null; }
     });
@@ -4408,6 +4518,8 @@ $("impAbrir").addEventListener("click", () => {
   pintarBotonImport();
   $("dlgImport").showModal();
 });
+$("selSerAgrupar").addEventListener("click", agruparSeleccion);
+$("selSerSalir").addEventListener("click", salirSelSeries);
 // Ajuste: las series con mucho desnivel cuentan o no para las marcas por distancia
 $("ajDesnivel").value = ajustes().desnivelMarcas === "contar" ? "contar" : "excluir";
 $("ajDesnivel").addEventListener("change", () => {

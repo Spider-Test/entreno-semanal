@@ -393,7 +393,8 @@
   </form>
   <div class="d-cuerpo ayuda">
     <p>Toca cada apartado para verlo. Puedes volver aquí cuando quieras con el botón <b>?</b> de arriba. ¿Echas algo en falta o algo no va bien? Envíanos una sugerencia:</p>
-    <details class="novedades" open><summary>Novedades · versión 40</summary>
+    <details class="novedades" open><summary>Novedades · versión 41</summary>
+      <p><b>Agrupar en bloque:</b> mantén pulsada una serie, elige varias y agrúpalas en un bloque ×N (propone el patrón que se repite); «Desagrupar» en el ⋯ del bloque. Al importar, marca vueltas y agrúpalas a mano antes de guardar.</p>
       <p><b>Archivos FIT</b> de COROS y Garmin: la app usa las vueltas tal como las marcó el reloj (serie, recuperación, descanso, calentamiento, vuelta a la calma), el nombre del entrenamiento y sus objetivos de ritmo, el desnivel del barómetro, y las <b>pulsaciones</b> y la cadencia de cada vuelta. En los rodajes con pulsaciones, la forma (VDOT) se estima con tu FC: un rodaje suave ya no la rebaja. Pon tu FC máxima en Plan → Ajustes (si no, se usa la mayor registrada).</p>
       <p><b>Desnivel en las carreras importadas</b> (GPX, TCX y CSV de COROS, Strava o Garmin): cada serie guarda lo que sube y baja («+18 m / −5 m») y su <b>ritmo ajustado por pendiente</b> («3:58/km (aj. 3:44/km)»). La forma (VDOT), las marcas, las predicciones y los objetivos usan el ritmo ajustado. Las series con pendiente media de más del 4 % quedan fuera de las marcas por distancia (cámbialo en Plan → Ajustes).</p>
       <p>Importar carreras lee el <b>CSV de vueltas de la app de COROS</b>: toma la fecha del nombre del archivo (puedes corregirla en la vista previa) y separa calentamiento, series y recuperaciones.</p>
@@ -446,6 +447,8 @@
     </details>
     <details><summary>Bloques ×N</summary>
       <p><b>+ Bloque</b> crea uno o varios tramos que se repiten, por ejemplo 1000 m + recuperación 300 m ×4, o Press banca + Remo ×4. Se muestran ronda a ronda.</p>
+      <p><b>Agrupar series ya apuntadas:</b> mantén pulsada una serie (o ⋯ del día o de la sesión → <b>Seleccionar series para agrupar en bloque</b>), toca las que quieras y pulsa <b>Agrupar en bloque</b>. Si hay un patrón que se repite (por ejemplo 1000 m + trote 300 m, cuatro veces) te propone el bloque ×4; también puedes juntarlas en una sola ronda o en el orden en que las tocaste. Se conservan valores, hechas y pendientes, tiempos, desnivel y pulsaciones, y se puede deshacer. <b>⋯ del bloque → Desagrupar</b> lo vuelve a dejar en series sueltas.</p>
+      <p><b>Al importar</b> una carrera, en la vista previa marca las casillas de las vueltas y pulsa <b>Agrupar las marcadas en bloque ×N</b>; «Quitar agrupación» lo deshace antes de guardar.</p>
     </details>
     <details><summary>Cambiar el orden</summary>
       <p>Arrastra el asa <b>≡</b> para mover una serie dentro de su ejercicio, un ejercicio o bloque dentro de su sesión, o una sesión entera dentro del día (por ejemplo, subir un calentamiento que añadiste al final). Mientras arrastras ves el resultado; el asa no interfiere con deslizar ni con el desplazamiento.</p>
@@ -609,6 +612,7 @@
   <div class="en-pie"><button type="button" class="nav-btn" id="enAnt">‹ Anterior</button><button type="button" class="nav-btn" id="enSig">Siguiente ›</button></div>
 </dialog>
 
+<div class="sel-acciones" id="selSerBarra" hidden><span class="sel-n" id="selSerN"></span><button type="button" id="selSerAgrupar">Agrupar en bloque</button><button type="button" id="selSerSalir">Cancelar</button></div>
 <div class="sel-acciones" id="selPlantAcciones" hidden>
   <button type="button" id="selPlantDia">Añadir a un día</button>
   <button type="button" id="selPlantMeso">Mesociclo</button>
