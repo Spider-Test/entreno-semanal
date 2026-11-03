@@ -638,3 +638,7 @@ dialog.pantalla[open] { display: flex; flex-direction: column; }
 .chip.zona:disabled { opacity: 0.7; cursor: default; }
 .tarjeta.molestia-resuelta { opacity: 0.6; }
 @media (max-width: 760px) { .calent-sug .nav-btn, .calent-sug .anadir { min-height: 44px; } .chip.zona { padding: 8px 12px; font-size: 14px; } }
+
+.ayuda .novedades { border-top: 0; background: var(--accent-soft); border-radius: 10px; padding: 8px 12px; }
+.ayuda .novedades summary { color: var(--accent); }
+.ayuda .novedades > p { color: var(--fg); }
