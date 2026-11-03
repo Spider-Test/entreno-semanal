@@ -43,6 +43,11 @@ Apunta en cada versión: fecha, versión, dispositivo (iPhone / Mac / Android) y
 - [ ] «+ Bloque» con 2 ejercicios × 3 rondas: se crean las rondas en orden.
 - [ ] Marcar una ronda; el progreso del bloque sube.
 
+## 4b. Agrupar en bloque
+- [ ] Día con 4 × (1000 m + trote 300 m), 2 hechas: mantener pulsada una serie, tocar las 8 → «Agrupar en bloque» propone «Bloque ×4 · Series 1000 m + Trote…»; al aceptar se conservan las 2 hechas y el total de distancia.
+- [ ] «Deshacer» devuelve las series sueltas; ⋯ del bloque → «Desagrupar» también.
+- [ ] Importar un archivo con series: marcar vueltas → «Agrupar las marcadas en bloque ×N» → «Quitar agrupación» → volver a agrupar y guardar: el día muestra el bloque.
+
 ## 5. Desplegables
 - [ ] Plegar y desplegar cada día; tras recargar, quedan como estaban.
 - [ ] Resumen de la semana, secciones de Plan, tipos de Ejercicios y apartados de la Ayuda: abren y cierran.
@@ -80,6 +85,13 @@ Apunta en cada versión: fecha, versión, dispositivo (iPhone / Mac / Android) y
 - [ ] Borrar lo importado si era una prueba.
 
 - [ ] CSV de vueltas de COROS (p. ej. …20261103185611.csv): sale el 3 nov 18:56 con fecha editable; calentamiento, 4 series y recuperaciones; cambiar la fecha y comprobar que se guarda en el día elegido.
+
+- [ ] GPX con cuestas (o el CSV de COROS): la vista previa muestra «(aj. …)» y «+X m / −Y m» por vuelta; tras importar, cada serie lo enseña y las de más del 4 % salen «con desnivel».
+- [ ] Marcas: la serie «con desnivel» no aparece en mejores marcas; con Plan → Ajustes → «Cuentan, con su ritmo ajustado», sí (con el tiempo ajustado).
+- [ ] Un archivo sin altitud y las series apuntadas a mano siguen como antes (sin «aj.»).
+
+- [ ] FIT de COROS (o el de prueba «5x1000 cuestas»): fecha y hora del archivo, vueltas clasificadas por el reloj (calentamiento, serie, recuperación, vuelta a la calma), bloque ×5, objetivos «obj. 3:50–4:00/km», ♥ media/máxima, pasos/min y desnivel por vuelta en la vista previa y en cada serie.
+- [ ] Marcas: un rodaje con FC sube (o mantiene) el VDOT y la nota dice «estimado con tus pulsaciones»; cambiar la FC máxima en Plan → Ajustes lo recalcula.
 
 ## 12. Sugerencias
 - [ ] Enviar una sugerencia de prueba desde «Enviar sugerencia».

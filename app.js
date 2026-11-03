@@ -37,7 +37,7 @@ const TABLAS = {
   ciclos: { clave: "id", conflicto: "id", campos: ["id", "ejercicio_id", "numero", "rm_inicio", "peso_inicial", "incremento", "reps_reset", "importadas", "cerrado", "borrado", "actualizado"] },
   plantillas: { clave: "id", conflicto: "id", campos: ["id", "nombre", "items", "borrado", "actualizado"] },
   mesociclos: { clave: "id", conflicto: "id", campos: ["id", "nombre", "inicio", "semanas", "dias", "progresion", "descarga", "notas", "borrado", "actualizado"] },
-  series: { clave: "id", conflicto: "id", campos: ["id", "fecha", "ejercicio_id", "orden", "peso", "reps", "distancia", "tiempo", "descanso", "hecha", "grupo", "meso_id", "bloque_id", "ronda", "rec_dist", "pct", "ciclo_id", "calentamiento", "borrado", "actualizado"] },
+  series: { clave: "id", conflicto: "id", campos: ["id", "fecha", "ejercicio_id", "orden", "peso", "reps", "distancia", "tiempo", "descanso", "hecha", "grupo", "meso_id", "bloque_id", "ronda", "rec_dist", "pct", "ciclo_id", "calentamiento", "desnivel_pos", "desnivel_neg", "ritmo_ajustado", "fc_media", "fc_max", "cadencia", "borrado", "actualizado"] },
   entrenos: { clave: "fecha", conflicto: "user_id,fecha", campos: ["fecha", "html", "texto", "rpe", "sensacion", "actualizado"] },
   molestias: { clave: "id", conflicto: "id", campos: ["id", "zona", "descripcion", "inicio", "estado", "borrado", "actualizado"] }
 };
@@ -161,6 +161,43 @@ const distDeNombre = nombre => { const m = norm(nombre).match(/(\d+(?:[.,]\d+)?)
 const ritmoSeg = (s, tipo) => n0(s.tiempo) / (n0(s.distancia) / TIPOS[tipo].porMetros);
 const ritmo = (s, tipo) => fmtTiempo(ritmoSeg(s, tipo)) + TIPOS[tipo].sufijo;
 const conMarca = s => n0(s.tiempo) > 0 && n0(s.distancia) > 0;
+// ---------- Desnivel de las carreras importadas: ritmo ajustado por pendiente (coste energético de Minetti et al., 2002) ----------
+const costeMinetti = i => { const g = Math.max(-0.45, Math.min(0.45, i)); return 155.4 * g ** 5 - 30.4 * g ** 4 - 43.3 * g ** 3 + 46.3 * g ** 2 + 19.5 * g + 3.6; };
+const factorPendiente = i => costeMinetti(i) / 3.6;   // cuánto «cuesta» un metro con esa pendiente frente a uno en llano
+// Sin perfil punto a punto (CSV): la subida y la bajada de la vuelta, repartidas con la misma pendiente
+function factorVuelta(d, sube, baja) {
+  if (!(d > 0) || !(sube + baja > 0)) return 1;
+  const g = (sube + baja) / d;
+  return sube / (sube + baja) * factorPendiente(g) + baja / (sube + baja) * factorPendiente(-g);
+}
+// Con perfil (GPX/TCX): altitud suavizada con media móvil de 5 puntos (quita el ruido del GPS o del barómetro) y tramos de al menos 20 m
+function perfilDesnivel(puntos) {
+  const p = puntos.filter(x => isFinite(x.ele) && isFinite(x.d));
+  if (p.length < 3) return null;
+  const el = p.map((x, i) => { const v = p.slice(Math.max(0, i - 2), i + 3); return v.reduce((a, y) => a + y.ele, 0) / v.length; });
+  let sube = 0, baja = 0, eq = 0, i0 = 0;
+  for (let i = 1; i < p.length; i++) {
+    const dd = p[i].d - p[i0].d;
+    if (dd < 20 && i < p.length - 1) continue;
+    if (dd > 0) { const dh = el[i] - el[i0]; if (dh > 0) sube += dh; else baja -= dh; eq += dd * factorPendiente(dh / dd); }
+    i0 = i;
+  }
+  const total = p[p.length - 1].d - p[0].d;
+  return total > 0 ? { subida: sube, bajada: baja, factor: eq / total } : null;
+}
+// Tiempo «en llano» de una serie importada con altitud (si no tiene, el real): es el que usan la forma, las marcas y los objetivos
+const tiempoLlano = s => n0(s.ritmo_ajustado) > 0 && n0(s.distancia) > 0 ? n0(s.ritmo_ajustado) * n0(s.distancia) / 1000 : n0(s.tiempo);
+const conDesnivel = s => n0(s.distancia) > 0 && (n0(s.desnivel_pos) + n0(s.desnivel_neg)) / n0(s.distancia) > 0.04;   // pendiente media > 4 %
+const fueraDeMarcas = s => conDesnivel(s) && ajustes().desnivelMarcas !== "contar";
+// Pulsaciones (archivos FIT): FC máxima del ajuste o, si no, la mayor registrada en el último año
+function fcMaxima() {
+  if (n0(ajustes().fcMax) > 0) return n0(ajustes().fcMax);
+  const ix = indiceSeries();
+  if (ix.fcMax == null) { const desde = iso(sumarDias(new Date(), -365)); ix.fcMax = ix.vivas.reduce((m, s) => s.fecha >= desde ? Math.max(m, n0(s.fc_max)) : m, 0); }
+  return ix.fcMax;
+}
+const textoPulso = s => [n0(s.fc_media) > 0 ? "♥ " + n0(s.fc_media) + (n0(s.fc_max) > 0 ? " (máx " + n0(s.fc_max) + ")" : "") + " ppm" : "", n0(s.cadencia) > 0 ? n0(s.cadencia) + " pasos/min" : ""].filter(Boolean).join(" · ");
+const textoDesnivel = s => n0(s.desnivel_pos) + n0(s.desnivel_neg) > 0 ? "+" + Math.round(n0(s.desnivel_pos)) + " m / −" + Math.round(n0(s.desnivel_neg)) + " m" + (conDesnivel(s) ? " · con desnivel" : "") : "";
 // Bilbo planificado: el peso sale del ciclo activo; %RM planificado: los kg salen del 1RM de referencia
 const pesoMostrado = s => !hecha(s) && s.ciclo_id === "auto" ? pesoBilbo(s.ejercicio_id)
   : !hecha(s) && n0(s.pct) > 0 ? kgDePct(s.ejercicio_id, s.pct) || n0(s.peso) : n0(s.peso);
@@ -169,7 +206,7 @@ function serieTexto(s) {
   if (esDistancia(tipo)) {
     // Por tiempo (sin metros): solo la duración, p. ej. «40 min»
     if (!(n0(s.distancia) > 0)) return n0(s.tiempo) > 0 ? fmtDuracion(s.tiempo) : "—";
-    return fmtDist(s.distancia) + (n0(s.tiempo) > 0 ? " · " + fmtTiempo(s.tiempo) + " · " + ritmo(s, tipo) : "");
+    return fmtDist(s.distancia) + (n0(s.tiempo) > 0 ? " · " + fmtTiempo(s.tiempo) + " · " + ritmo(s, tipo) + (n0(s.ritmo_ajustado) > 0 ? " (aj. " + fmtTiempo(s.ritmo_ajustado) + "/km)" : "") : "");
   }
   const kg = pesoMostrado(s), reps = n0(s.reps) > 0 ? n0(s.reps) : "máx";
   return (s.ciclo_id ? "Bilbo · " : "") + (n0(s.pct) > 0 ? num(s.pct) + " % · " : "") + (kg > 0 ? num(kg) + " kg × " + reps : reps + " reps");
@@ -200,10 +237,10 @@ function prsDe(lista, tipo) {
   const prs = new Set();
   if (esDistancia(tipo)) {
     const mejor = {};
-    lista.filter(conMarca).forEach(s => {
-      const d = n0(s.distancia);
-      if (mejor[d] !== undefined && n0(s.tiempo) < mejor[d]) prs.add(s.id);
-      mejor[d] = Math.min(mejor[d] ?? Infinity, n0(s.tiempo));
+    lista.filter(s => conMarca(s) && !fueraDeMarcas(s)).forEach(s => {
+      const d = n0(s.distancia), t = tiempoLlano(s);
+      if (mejor[d] !== undefined && t < mejor[d]) prs.add(s.id);
+      mejor[d] = Math.min(mejor[d] ?? Infinity, t);
     });
     return prs;
   }
@@ -644,6 +681,7 @@ function menuDia(dia) {
     (series.length || aTexto(html).trim()) && { texto: "Copiar día", accion: () => copiar(titulo, html, series) },
     porta && { texto: "Pegar «" + porta.nombre + "»", accion: () => pegar(dia) },
     { texto: "Añadir plantilla…", accion: () => elegirPlantilla("Añadir plantilla al " + titulo, p => aplicarPlantilla(dia, p)) },
+    series.filter(s => !s.bloque_id).length > 1 && { texto: "Seleccionar series para agrupar en bloque", accion: () => empezarSelSeries(dia) },
     series.length && { texto: "Guardar ejercicios como plantilla…", accion: () => guardarPlantilla(series[0].grupo || "Entrenamiento", series) },
     series.length && { texto: "Compartir con un amigo…", accion: () => compartir(series[0].grupo || titulo, itemsDe(series)) },
     series.length && { texto: "Vaciar ejercicios del día", peligro: true, confirmar: "Pulsa otra vez: se borran " + series.length + " series", accion: () => {
@@ -657,6 +695,7 @@ function menuGrupo(dia, grupo) {
   abrirMenu(grupo, resumenItems(itemsDe(series)), [
     nGrupos > 1 && { texto: "Subir sesión", accion: () => moverGrupo(dia.id, grupo, -1) },
     nGrupos > 1 && { texto: "Bajar sesión", accion: () => moverGrupo(dia.id, grupo, 1) },
+    series.filter(s => !s.bloque_id).length > 1 && { texto: "Seleccionar series para agrupar en bloque", accion: () => empezarSelSeries(dia) },
     { texto: "Copiar sesión", accion: () => copiar(grupo, "", series) },
     { texto: "Guardar como plantilla…", accion: () => guardarPlantilla(grupo, series) },
     { texto: "Compartir con un amigo…", accion: () => compartir(grupo, itemsDe(series)) },
@@ -841,6 +880,7 @@ function pintarDia(dia) {
   if (pieDia) cont.appendChild(pieDia);
   pintarRpe(dia);
   pintarCabDia(dia);
+  if (selSeries) pintarSelSeries();
 }
 
 function etiquetaTipo(tipo) {
@@ -1050,6 +1090,8 @@ function bloque(dia, id, series, grupo) {
     } else marca.replaceWith(botonHecha(s, s.calentamiento ? "C" : String(numero), s.calentamiento ? "serie de calentamiento" : "serie " + numero));
     li.querySelector(".sv-p").textContent = (s.calentamiento ? "Calent. · " : "") + serieTexto(s);
     if (descTexto(s)) { const d = document.createElement("span"); d.className = "desc"; d.textContent = descTexto(s); li.querySelector(".sv").appendChild(d); }
+    if (dist && textoPulso(s)) { const d = document.createElement("span"); d.className = "desnivel"; d.textContent = textoPulso(s); li.querySelector(".sv").appendChild(d); }
+    if (dist && textoDesnivel(s)) { const d = document.createElement("span"); d.className = "desnivel" + (conDesnivel(s) ? " fuerte" : ""); d.textContent = textoDesnivel(s); li.querySelector(".sv").appendChild(d); }
     if (!dist && usaBarra(id) && textoDiscos(pesoMostrado(s))) { const d = document.createElement("span"); d.className = "discos"; d.textContent = textoDiscos(pesoMostrado(s)); li.querySelector(".sv").appendChild(d); }
     if (planificada && tipo === "carrera") { const o = objetivoSerie(s); if (o) { const ob = document.createElement("span"); ob.className = "objetivo"; ob.textContent = textoObjetivo(o); li.querySelector(".sv").appendChild(ob); } }
     li.querySelector(".sv").setAttribute("aria-label", (planificada ? "Completar" : "Editar") + " serie " + numero + ": " + serieTexto(s));
@@ -1074,6 +1116,7 @@ function bloque(dia, id, series, grupo) {
     // Deslizar: a la derecha la marca hecha; a la izquierda la borra (con Deshacer)
     deslizable(li, planificada ? (s.ciclo_id !== "auto" ? () => marcarHecha(s, { ...s, hecha: true, peso: pesoMostrado(s) }) : null) : () => desmarcar(s), () => borrarSerie(s));
     li.dataset.sid = s.id;
+    mantenerPulsado(li, () => { if (!selSeries) empezarSelSeries(dia, s.id); });   // mantener pulsada una serie: elegir varias para agruparlas
     if (series.length > 1) li.appendChild(asaArrastre(li, () => [...ol.querySelectorAll(":scope > li[data-sid]")], n => reordenar(n.map(x => [db.series[x.dataset.sid]]), "Serie movida"), "Serie " + (s.calentamiento ? "de calentamiento" : numero)));
     ol.appendChild(li);
   });
@@ -1196,6 +1239,72 @@ function bloque(dia, id, series, grupo) {
 }
 
 // ---------- Bloques: tramos repetidos ×N, mostrados ronda a ronda ----------
+// ---------- Agrupar series sueltas en un bloque ×N (y desagrupar) ----------
+// El menor patrón que se repite entero (A,B,A,B,A,B → 2); si no se repite, todas en una ronda
+function periodoRepetido(claves) {
+  for (let p = 1; p <= claves.length / 2; p++) if (claves.length % p === 0 && claves.every((c, i) => c === claves[i % p])) return p;
+  return claves.length;
+}
+let selSeries = null;   // { dia, ids: Set } mientras se eligen series del día para agruparlas
+function empezarSelSeries(dia, primera) {
+  selSeries = { dia, ids: new Set(primera ? [primera] : []) };
+  pintarSelSeries();
+  setEstado("Toca las series que quieras agrupar");
+}
+function salirSelSeries() { selSeries = null; pintarSelSeries(); }
+function pintarSelSeries() {
+  document.body.classList.toggle("sel-series", !!selSeries);
+  document.querySelectorAll(".series li[data-sid]").forEach(li => li.classList.toggle("sel", !!selSeries && selSeries.ids.has(li.dataset.sid)));
+  $("selSerBarra").hidden = !selSeries;
+  if (!selSeries) return;
+  $("selSerN").textContent = selSeries.ids.size + (selSeries.ids.size === 1 ? " serie" : " series");
+  $("selSerAgrupar").disabled = selSeries.ids.size < 2;
+}
+// En modo selección, tocar una serie la marca o desmarca (y no abre su formulario)
+document.addEventListener("click", e => {
+  if (!selSeries) return;
+  const li = e.target.closest(".series li[data-sid]");
+  if (!li) return;
+  e.preventDefault(); e.stopPropagation();
+  if (pulsacionLarga) { pulsacionLarga = false; return; }   // el toque que sigue a mantener pulsado
+  const s = db.series[li.dataset.sid];
+  if (!s || s.bloque_id || s.fecha !== selSeries.dia.id) return;
+  if (selSeries.ids.has(s.id)) selSeries.ids.delete(s.id); else selSeries.ids.add(s.id);
+  pintarSelSeries();
+}, true);
+function agruparSeleccion() {
+  const dia = selSeries.dia, elegidas = [...selSeries.ids].map(id => db.series[id]).filter(s => s && !s.borrado && !s.bloque_id);
+  if (elegidas.length < 2) return;
+  const enDia = elegidas.slice().sort((a, b) => a.orden - b.orden);
+  const opcion = (lista, rondas) => {
+    const p = rondas ? periodoRepetido(lista.map(s => s.ejercicio_id)) : lista.length, n = lista.length / p;
+    const nombres = lista.slice(0, p).map(s => nombreEj(s.ejercicio_id));
+    return { lista, p, n, texto: "Bloque ×" + n + " · " + (p > 3 ? nombres.slice(0, 2).join(" + ") + "… (" + p + " tramos)" : nombres.join(" + ")) };
+  };
+  const aplicar = o => {
+    const bloque = nuevoId(), grupo = o.lista[0].grupo || "", huecos = o.lista.map(s => n0(s.orden)).sort((a, b) => a - b);
+    const deshacer = o.lista.map(s => ["series", { ...s }]);
+    o.lista.forEach((s, i) => cambiar("series", { ...s, bloque_id: bloque, ronda: Math.floor(i / o.p) + 1, grupo, orden: huecos[i] }, true));
+    persistir();
+    salirSelSeries();
+    pintarDia(dia);
+    avisoDeshacer("Agrupadas en " + o.texto, deshacer);
+  };
+  const conPatron = opcion(enDia, true), unaRonda = opcion(enDia, false), orden = opcion(elegidas, true);
+  const otroOrden = elegidas.some((s, i) => s !== enDia[i]);
+  abrirMenu("Agrupar " + elegidas.length + " series", "Se conservan sus valores, lo hecho y lo pendiente. Elige cómo:", [
+    conPatron.n > 1 && { texto: conPatron.texto, accion: () => aplicar(conPatron) },
+    { texto: "Bloque ×1 con las " + elegidas.length + " en una ronda", accion: () => aplicar(unaRonda) },
+    otroOrden && { texto: "En el orden en que las tocaste · " + orden.texto, accion: () => aplicar(orden) }
+  ]);
+}
+function desagruparBloque(dia, series) {
+  const deshacer = series.map(s => ["series", { ...s }]);
+  series.forEach(s => cambiar("series", { ...s, bloque_id: "", ronda: 0 }, true));
+  persistir();
+  pintarDia(dia);
+  avisoDeshacer("Bloque desagrupado en series sueltas", deshacer);
+}
 function tarjetaBloque(dia, bloqueId, series) {
   const rondas = [...new Set(series.map(s => n0(s.ronda)))].sort((a, b) => a - b);
   const primera = series.filter(s => n0(s.ronda) === rondas[0]).sort((a, b) => a.orden - b.orden);
@@ -1226,6 +1335,7 @@ function tarjetaBloque(dia, bloqueId, series) {
         persistir(); pintarDia(dia);
       } },
       rondas.length > 1 && { texto: "Quitar la última ronda", accion: () => { ultima.forEach(s => cambiar("series", { ...s, borrado: true }, true)); persistir(); pintarDia(dia); } },
+      { texto: "Desagrupar (series sueltas)", accion: () => desagruparBloque(dia, series) },
       { texto: "Copiar bloque", accion: () => copiar("Bloque ×" + rondas.length, "", series) },
       { texto: "Compartir con un amigo…", accion: () => compartir("Bloque ×" + rondas.length + " · " + primera.map(s => nombreEj(s.ejercicio_id)).join(" + "), itemsDe(series)) },
       { texto: "Quitar bloque", peligro: true, confirmar: "Pulsa otra vez: se borran " + series.length + " series", accion: () => {
@@ -1968,16 +2078,22 @@ function recuperacionMedia(ses, v) {
 function vdotSesion(ses) {
   const reps = ses.trabajo.filter(s => hecha(s) && n0(s.tiempo) > 0);
   if (!reps.length) return null;
-  const metros = reps.reduce((x, s) => x + n0(s.distancia), 0), seg = reps.reduce((x, s) => x + n0(s.tiempo), 0);
+  const metros = reps.reduce((x, s) => x + n0(s.distancia), 0), seg = reps.reduce((x, s) => x + tiempoLlano(s), 0);
   if (reps.length === 1 && metros < 3000) return null;   // una serie corta suelta no dice nada de la forma
   const v = metros / (seg / 60), recMedia = recuperacionMedia({ trabajo: reps, trotes: ses.trotes.filter(hecha) }, v);
-  let vdot = vo2(v) / fraccion(duracionEquivalente(seg, seg / reps.length, recMedia) / 60), caida = 0;
+  let vdot = vo2(v) / fraccion(duracionEquivalente(seg, seg / reps.length, recMedia) / 60), caida = 0, conFc = false;
+  // Carrera continua con pulsaciones: si fue suave, la FC dice qué parte del VO2máx usaste (%VO2máx ≈ (%FCmáx − 37) / 64, Londeree)
+  const fcMax = fcMaxima(), fc = reps.length === 1 ? n0(reps[0].fc_media) : 0;
+  if (fc > 0 && fcMax > 0 && fc < fcMax) {
+    const frac = Math.max(0.55, Math.min(1, (fc / fcMax * 100 - 37) / 64)), vFc = vo2(v) / frac;
+    if (vFc > vdot) { vdot = vFc; conFc = true; }
+  }
   if (reps.length >= 3) {
-    const k = Math.max(1, Math.floor(reps.length / 3)), r = s => n0(s.tiempo) / n0(s.distancia);
+    const k = Math.max(1, Math.floor(reps.length / 3)), r = s => tiempoLlano(s) / n0(s.distancia);
     caida = reps.slice(-k).reduce((x, s) => x + r(s), 0) / reps.slice(0, k).reduce((x, s) => x + r(s), 0) - 1;
     vdot *= 1 + Math.max(0, 0.03 - Math.max(0, caida));   // si no hubo caída, no fue al límite
   }
-  return { vdot, reps: reps.length, metros, seg, recMedia, caida };
+  return { vdot, reps: reps.length, metros, seg, recMedia, caida, conFc };
 }
 // Forma: media ponderada de las mejores sesiones de las últimas 12 semanas; lo reciente pesa más (vida media 6 semanas)
 function calcularForma() {
@@ -2031,7 +2147,7 @@ function objetivoSerie(s, extra) {
   const hechas = ses.trabajo.filter(x => hecha(x) && n0(x.tiempo) > 0 && x.id !== s.id);
   if (hechas.length && !hecha(s)) {
     let suma = 0, pesos = 0;
-    hechas.forEach((x, i) => { suma += (i + 1) * n0(x.tiempo) / tiempoObj(x); pesos += i + 1; });
+    hechas.forEach((x, i) => { suma += (i + 1) * tiempoLlano(x) / tiempoObj(x); pesos += i + 1; });
     const corr = Math.max(-0.03, Math.min(0.05, 0.5 * (suma / pesos - 1)));
     tiempo *= 1 + corr;
     ajustado = Math.abs(corr) > 0.005;
@@ -2042,12 +2158,12 @@ const textoObjetivo = o => !o ? "" : (o.suave ? "obj. suave ~" + fmtTiempo(o.rit
   : "obj. " + fmtTiempo(o.tiempo) + " · " + fmtTiempo(o.ritmo) + "/km" + (o.ajustado ? " · ajustado a cómo vas" : "")) + (o.fatiga ? " · más suave por tu esfuerzo" : "");
 // Mejores marcas por distancia: exactas o, dentro de una serie algo más larga, a su ritmo medio
 function marcasDe(tipo) {
-  const lista = seriesVivas().filter(s => hecha(s) && !s.calentamiento && tipoDe(s.ejercicio_id) === tipo && n0(s.distancia) > 0 && n0(s.tiempo) > 0);
+  const lista = seriesVivas().filter(s => hecha(s) && !s.calentamiento && tipoDe(s.ejercicio_id) === tipo && n0(s.distancia) > 0 && n0(s.tiempo) > 0 && !fueraDeMarcas(s));
   return DIST_MARCAS.map(d => {
     let mejor = null;
     const evol = {};
     lista.filter(s => n0(s.distancia) >= d && n0(s.distancia) <= d * 3).forEach(s => {
-      const exacta = n0(s.distancia) === d, t = exacta ? n0(s.tiempo) : n0(s.tiempo) * d / n0(s.distancia);
+      const exacta = n0(s.distancia) === d, t = exacta ? tiempoLlano(s) : tiempoLlano(s) * d / n0(s.distancia);
       if (!mejor || t < mejor.t) mejor = { t, fecha: s.fecha, exacta };
       if (!evol[s.fecha] || t < evol[s.fecha]) evol[s.fecha] = t;
     });
@@ -2100,7 +2216,7 @@ function pintarMarcas() {
     caja.appendChild(recuadro("Carga de la semana", num(Math.round(carga.actual * 10) / 10) + " km", "media de 4 semanas: " + num(Math.round(carga.media * 10) / 10) + " km" + (carga.ajuste ? " · objetivos un 2 % más suaves" : "")));
     s1.appendChild(caja);
     s1.appendChild(nota("Se calcula con cada entrenamiento completo (todas sus series, volumen, recuperaciones y cómo evolucionó el ritmo), nunca con una serie suelta, y combina tus mejores sesiones recientes; lo reciente pesa más. La principal, el " + fechaCorta(f.fecha) + ": " +
-      f.reps + (f.reps === 1 ? " serie, " : " series, ") + fmtDist(f.metros) + " en " + fmtTiempo(f.seg) + (f.recMedia ? ", recuperación media " + fmtTiempo(f.recMedia) : "") + (f.reps >= 3 ? (f.caida > 0.02 ? ", el ritmo cayó al final" : ", ritmo mantenido") : "") + "."));
+      f.reps + (f.reps === 1 ? " serie, " : " series, ") + fmtDist(f.metros) + " en " + fmtTiempo(f.seg) + (f.recMedia ? ", recuperación media " + fmtTiempo(f.recMedia) : "") + (f.reps >= 3 ? (f.caida > 0.02 ? ", el ritmo cayó al final" : ", ritmo mantenido") : "") + (f.conFc ? ", estimado con tus pulsaciones (FC máx " + fcMaxima() + ")" : "") + "."));
     const marcas = marcasDe("carrera");
     const ref = marcas.filter(m => m.d >= 1000).sort((x, y) => vdotDe(y.d, y.t) - vdotDe(x.d, x.t))[0];
     const s2 = seccionMarcas("Marcas previstas");
@@ -3838,7 +3954,7 @@ $("enSalir").addEventListener("click", salirEntreno);
 $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); abrirRpe(d); });
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
-const VERSION_APP = "v38" + (BETA ? " beta" : "");
+const VERSION_APP = "v41" + (BETA ? " beta" : "");
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";
@@ -3960,21 +4076,122 @@ const distGeo = (a, b) => {
 const textoDe = (el, tag) => ((el.getElementsByTagName(tag)[0] || {}).textContent || "").trim();
 function leerGPX(doc) {
   return [...doc.getElementsByTagName("trk")].map(trk => {
-    const pts = [...trk.getElementsByTagName("trkpt")].map(p => ({ lat: +p.getAttribute("lat"), lon: +p.getAttribute("lon"), t: Date.parse(textoDe(p, "time")) }))
+    const altura = p => { const e = p.getElementsByTagName("ele")[0]; return e ? parseFloat(e.textContent) : NaN; };
+    const pts = [...trk.getElementsByTagName("trkpt")].map(p => ({ lat: +p.getAttribute("lat"), lon: +p.getAttribute("lon"), t: Date.parse(textoDe(p, "time")), ele: altura(p) }))
       .filter(p => !isNaN(p.lat) && !isNaN(p.lon) && !isNaN(p.t));
     if (pts.length < 2) return null;
     let d = 0;
-    for (let i = 1; i < pts.length; i++) d += distGeo(pts[i - 1], pts[i]);
-    return { inicio: pts[0].t, nombre: textoDe(trk, "name"), deporte: textoDe(trk, "type"), vueltas: [{ distancia: d, tiempo: (pts[pts.length - 1].t - pts[0].t) / 1000 }] };
+    pts[0].d = 0;
+    for (let i = 1; i < pts.length; i++) { d += distGeo(pts[i - 1], pts[i]); pts[i].d = d; }
+    return { inicio: pts[0].t, nombre: textoDe(trk, "name"), deporte: textoDe(trk, "type"), vueltas: [{ distancia: d, tiempo: (pts[pts.length - 1].t - pts[0].t) / 1000, ...(perfilDesnivel(pts) || {}) }] };
   }).filter(Boolean);
 }
 function leerTCX(doc) {
   return [...doc.getElementsByTagName("Activity")].map(a => {
     const laps = [...a.getElementsByTagName("Lap")];
-    const vueltas = laps.map(l => ({ distancia: +textoDe(l, "DistanceMeters") || 0, tiempo: +textoDe(l, "TotalTimeSeconds") || 0 }));
+    const vueltas = laps.map(l => {
+      // Altitud de cada punto de la vuelta (si el reloj la guarda), con su distancia acumulada
+      const pts = [...l.getElementsByTagName("Trackpoint")].map(tp => {
+        const a = tp.getElementsByTagName("AltitudeMeters")[0], dm = tp.getElementsByTagName("DistanceMeters")[0];
+        return { ele: a ? parseFloat(a.textContent) : NaN, d: dm ? parseFloat(dm.textContent) : NaN };
+      });
+      return { distancia: +textoDe(l, "DistanceMeters") || 0, tiempo: +textoDe(l, "TotalTimeSeconds") || 0, ...(perfilDesnivel(pts) || {}) };
+    });
     if (!vueltas.length) return null;
     return { inicio: Date.parse(textoDe(a, "Id") || laps[0].getAttribute("StartTime")), nombre: textoDe(a, "Notes"), deporte: a.getAttribute("Sport") || "", vueltas };
   }).filter(Boolean);
+}
+// ---------- Archivos FIT (COROS, Garmin…): decodificador binario propio, sin servidor ni librerías ----------
+// Solo se leen los mensajes que hacen falta: session (18), lap (19), record (20), workout (26) y workout_step (27)
+const FIT_EPOCA = 631065600;   // 31-12-1989 en segundos Unix
+function decodificarFIT(buf) {
+  const dv = new DataView(buf), u8 = new Uint8Array(buf);
+  const cab = u8[0];
+  if (buf.byteLength < 14 || String.fromCharCode(u8[8], u8[9], u8[10], u8[11]) !== ".FIT") throw new Error("no es un archivo FIT");
+  const fin = Math.min(buf.byteLength, cab + dv.getUint32(4, true));
+  const defs = {}, out = { 18: [], 19: [], 20: [], 26: [], 27: [] };
+  const TAM = { 0: 1, 1: 1, 2: 1, 3: 2, 4: 2, 5: 4, 6: 4, 7: 1, 8: 4, 9: 8, 10: 1, 11: 2, 12: 4, 13: 1, 14: 8, 15: 8, 16: 8 };
+  let pos = cab, ultimoTs = 0;
+  const leerValor = (bt, off, tam, le) => {
+    const t = bt & 0x1f;
+    if (t === 7) { let x = ""; for (let i = 0; i < tam && u8[off + i]; i++) x += String.fromCharCode(u8[off + i]); try { return decodeURIComponent(escape(x)); } catch { return x; } }
+    if (tam < (TAM[t] || 1)) return null;
+    let v;
+    switch (t) {
+      case 0: case 2: case 10: case 13: v = u8[off]; return (t === 10 ? v === 0 : v === 0xff) ? null : v;
+      case 1: v = dv.getInt8(off); return v === 0x7f ? null : v;
+      case 3: v = dv.getInt16(off, le); return v === 0x7fff ? null : v;
+      case 4: case 11: v = dv.getUint16(off, le); return (t === 11 ? v === 0 : v === 0xffff) ? null : v;
+      case 5: v = dv.getInt32(off, le); return v === 0x7fffffff ? null : v;
+      case 6: case 12: v = dv.getUint32(off, le); return (t === 12 ? v === 0 : v === 0xffffffff) ? null : v;
+      case 8: v = dv.getFloat32(off, le); return isFinite(v) ? v : null;
+      case 9: v = dv.getFloat64(off, le); return isFinite(v) ? v : null;
+      default: return null;
+    }
+  };
+  while (pos < fin) {
+    const h = u8[pos++];
+    if (!(h & 0x80) && (h & 0x40)) {
+      // Definición: qué campos trae cada tipo de mensaje local
+      const le = u8[pos + 1] === 0, global = le ? dv.getUint16(pos + 2, true) : dv.getUint16(pos + 2, false), n = u8[pos + 4];
+      pos += 5;
+      const campos = [];
+      for (let i = 0; i < n; i++, pos += 3) campos.push({ num: u8[pos], tam: u8[pos + 1], bt: u8[pos + 2] });
+      let extra = 0;
+      if (h & 0x20) { const nd = u8[pos++]; for (let i = 0; i < nd; i++, pos += 3) extra += u8[pos + 1]; }   // campos de desarrollador: se saltan
+      defs[h & 0x0f] = { le, global, campos, extra };
+      continue;
+    }
+    const local = h & 0x80 ? (h >> 5) & 3 : h & 0x0f, d = defs[local];
+    if (!d) throw new Error("archivo FIT dañado");
+    const m = {};
+    d.campos.forEach(c => { if (out[d.global]) m[c.num] = leerValor(c.bt, pos, c.tam, d.le); pos += c.tam; });
+    pos += d.extra;
+    if (h & 0x80) {   // cabecera con la hora comprimida (5 bits de desfase)
+      const off = h & 0x1f;
+      ultimoTs = (ultimoTs & ~0x1f) + off + (off < (ultimoTs & 0x1f) ? 0x20 : 0);
+      m[253] = ultimoTs;
+    } else if (m[253] != null) ultimoTs = m[253];
+    if (out[d.global]) out[d.global].push(m);
+  }
+  return out;
+}
+const INTENSIDAD_FIT = { 0: "serie", 1: "parado", 2: "calent", 3: "calma", 4: "rec", 5: "serie" };
+const DEPORTE_FIT = { 1: "running", 2: "cycling", 5: "swimming", 11: "walking", 17: "hiking" };
+function leerFIT(buf) {
+  const f = decodificarFIT(buf), ses = f[18][0] || {};
+  const recs = f[20].filter(r => r[253] != null).map(r => ({
+    t: r[253], d: r[5] != null ? r[5] / 100 : NaN,
+    ele: r[78] != null ? r[78] / 5 - 500 : r[2] != null ? r[2] / 5 - 500 : NaN,   // altitud del barómetro si la hay
+    fc: r[3], cad: r[4]
+  }));
+  const laps = f[19].length ? f[19] : [{ 2: ses[2], 253: ses[253], 7: ses[7], 8: ses[8], 9: ses[9], 15: ses[16], 16: ses[17], 17: ses[18], 21: ses[22], 22: ses[23] }];
+  // Objetivos del entrenamiento programado (ritmo entre dos velocidades, en m/s × 1000)
+  const pasos = f[27].map(p => ({ i: p[254], nombre: p[0] || "", lo: p[5], hi: p[6], tipo: p[3] }));
+  const objetivoPaso = i => {
+    const p = pasos.find(x => x.i === i);
+    if (!p || p.tipo !== 0 || !(p.lo > 0) || !(p.hi > 0)) return "";
+    return "obj. " + fmtTiempo(1e6 / p.hi) + "–" + fmtTiempo(1e6 / p.lo) + "/km";
+  };
+  const vueltas = laps.map(l => {
+    const ini = l[2] != null ? l[2] : null, fin = l[253];
+    const tramo = ini != null && fin != null ? recs.filter(r => r.t >= ini && r.t <= fin) : [];
+    const perfil = perfilDesnivel(tramo);
+    const v = { distancia: (l[9] || 0) / 100, tiempo: (l[8] != null ? l[8] : l[7] || 0) / 1000, intensidad: l[23] };
+    if (perfil) Object.assign(v, perfil);
+    else if (l[21] != null || l[22] != null) { v.subida = l[21] || 0; v.bajada = l[22] || 0; v.factor = factorVuelta(v.distancia, v.subida, v.bajada); }
+    // Pulsaciones y cadencia: las de la vuelta o, si faltan, la media de sus puntos
+    const fcs = tramo.map(r => r.fc).filter(x => x > 0), cads = tramo.map(r => r.cad).filter(x => x > 0);
+    v.fc = l[15] || (fcs.length ? Math.round(fcs.reduce((a, b) => a + b, 0) / fcs.length) : 0);
+    v.fcMax = l[16] || (fcs.length ? Math.max(...fcs) : 0);
+    const cad = l[17] || (cads.length ? cads.reduce((a, b) => a + b, 0) / cads.length : 0);
+    v.cad = cad ? Math.round(cad * 2) : 0;   // el FIT guarda zancadas por minuto (un pie); se muestran pasos
+    v.objetivo = objetivoPaso(l[71]);
+    return v;
+  }).filter(v => v.tiempo > 0);
+  const inicio = (ses[2] != null ? ses[2] : recs.length ? recs[0].t : laps[0][2]) ;
+  const nombre = (f[26][0] && f[26][0][8]) || "";
+  return vueltas.length ? [{ inicio: (inicio + FIT_EPOCA) * 1000, nombre, deporte: DEPORTE_FIT[ses[5]] || "", vueltas, fit: true }] : [];
 }
 function filasCSV(texto) {
   const primera = texto.split("\n")[0], sep = (primera.match(/;/g) || []).length > (primera.match(/,/g) || []).length ? ";" : ",";
@@ -4017,12 +4234,20 @@ function leerCSVActividades(texto, archivo) {
   const iF = col("activity date", "date", "fecha", "fecha de la actividad", "start time", "hora de inicio"), iT = col("activity type", "tipo de actividad", "type", "tipo");
   const iD = col("distance", "distancia"), iM = col("moving time", "tiempo en movimiento"), iE = col("elapsed time", "tiempo transcurrido", "time", "tiempo");
   const iN = col("activity name", "title", "titulo", "nombre de la actividad", "nombre");
+  const iS = col("elevation gain", "ascenso total", "desnivel positivo"), iB = col("elevation loss", "descenso total", "desnivel negativo");
   if (iF < 0 || iD < 0 || (iM < 0 && iE < 0)) throw new Error("No reconozco las columnas del CSV (hacen falta fecha, distancia y tiempo).");
   return filas.slice(1).map(f => {
     const tt = String((iM >= 0 && f[iM]) || (iE >= 0 && f[iE]) || "").trim(), tiempo = /:/.test(tt) ? leerTiempo(tt.replace(/\.\d+$/, "")) : parseFloat(tt.replace(",", "."));
     let d = parseFloat(String(f[iD] || "").replace(/\s/g, "").replace(",", "."));
     if (d > 0 && d < 300) d *= 1000;   // en km
-    return { inicio: leerFechaCSV(f[iF]), nombre: iN >= 0 ? (f[iN] || "").trim() : "", deporte: iT >= 0 ? f[iT] || "" : "", vueltas: [{ distancia: d || 0, tiempo: tiempo || 0 }] };
+    const v = { distancia: d || 0, tiempo: tiempo || 0 };
+    if (iS >= 0 && parseFloat(f[iS]) >= 0) {
+      // Si solo trae la subida, la bajada se toma igual (casi todas las carreras vuelven al punto de salida)
+      v.subida = parseFloat(f[iS]) || 0;
+      v.bajada = iB >= 0 && parseFloat(f[iB]) >= 0 ? parseFloat(f[iB]) : v.subida;
+      v.factor = factorVuelta(v.distancia, v.subida, v.bajada);
+    }
+    return { inicio: leerFechaCSV(f[iF]), nombre: iN >= 0 ? (f[iN] || "").trim() : "", deporte: iT >= 0 ? f[iT] || "" : "", vueltas: [v] };
   }).filter(a => !isNaN(a.inicio) && a.vueltas[0].distancia > 0 && a.vueltas[0].tiempo > 0);
 }
 // CSV de las vueltas de UNA actividad (app de COROS: «Split», «Time», «Moving Time», «GetDistance», «Elevation Gain»…): no trae la fecha,
@@ -4040,6 +4265,7 @@ function leerCSVVueltas(filas, cab, col, archivo) {
     const v = { distancia: d || 0, tiempo: (iM >= 0 && seg(f[iM])) || seg(f[iE]) };
     if (iS >= 0) v.subida = parseFloat(f[iS]) || 0;
     if (iB >= 0) v.bajada = parseFloat(f[iB]) || 0;
+    if (iS >= 0 || iB >= 0) v.factor = factorVuelta(v.distancia, v.subida || 0, v.bajada || 0);
     return v;
   }).filter(v => v.tiempo > 0);
   if (!vueltas.length) return [];
@@ -4052,7 +4278,12 @@ function leerCSVVueltas(filas, cab, col, archivo) {
 // las lentas y largas del principio y del final, calentamiento y vuelta a la calma
 function clasificarVueltas(vueltas) {
   const lim = ritmoRecImport();
-  const v = vueltas.map(x => ({ distancia: x.distancia, tiempo: x.tiempo, ritmo: x.distancia > 0 ? x.tiempo / (x.distancia / 1000) : Infinity }));
+  const v = vueltas.map(x => ({ ...x, ritmo: x.distancia > 0 ? x.tiempo / (x.distancia / 1000) : Infinity }));
+  // FIT: el reloj ya dice qué es cada vuelta (activa, descanso, calentamiento, vuelta a la calma, recuperación); sin adivinar por el ritmo
+  if (v.some(x => x.intensidad != null && x.intensidad !== 0 && INTENSIDAD_FIT[x.intensidad])) {
+    v.forEach(x => { x.clase = x.distancia < 50 && x.intensidad === 0 ? "parado" : INTENSIDAD_FIT[x.intensidad] || "serie"; });
+    return { continuo: !v.some(x => x.clase !== "serie") || v.filter(x => x.clase === "serie").length < 2, vueltas: v, delReloj: true };
+  }
   v.forEach(x => { x.clase = x.distancia < 50 || x.tiempo <= 0 || x.ritmo > 1800 ? "parado" : x.ritmo > lim ? "rec" : "serie"; });
   const rapidas = v.filter(x => x.clase === "serie").map(x => x.ritmo).sort((a, b) => a - b);
   if (!rapidas.length) return { continuo: true, vueltas: v };
@@ -4092,7 +4323,14 @@ async function leerArchivosImport(archivos) {
   const nuevas = [];
   for (const f of archivos) {
     try {
-      const texto = await f.text(), nombre = f.name.toLowerCase();
+      const nombre = f.name.toLowerCase();
+      if (/\.fit$/.test(nombre)) {
+        const acts = leerFIT(await f.arrayBuffer());
+        if (!acts.length) throw new Error("no tiene ninguna vuelta con tiempo");
+        nuevas.push(...acts.map(prepararActividad));
+        continue;
+      }
+      const texto = await f.text();
       let acts;
       if (/\.csv$/.test(nombre) || !/^\s*</.test(texto)) acts = leerCSVActividades(texto, f);
       else {
@@ -4133,7 +4371,7 @@ function pintarImportar() {
         if (!fi.value) return;
         const d = new Date(a.inicio), n = deIso(fi.value);
         n.setHours(d.getHours(), d.getMinutes());
-        importadas[k] = prepararActividad({ inicio: n.getTime(), nombre: a.nombre, deporte: a.deporte, fechaDudosa: true, vueltas: a.vueltas.map(v => ({ distancia: v.distancia, tiempo: v.tiempo })) });
+        importadas[k] = prepararActividad({ inicio: n.getTime(), nombre: a.nombre, deporte: a.deporte, fechaDudosa: true, vueltas: a.vueltas.map(v => ({ ...v })) });
         pintarImportar();
       });
       caja.appendChild(fl);
@@ -4157,7 +4395,18 @@ function pintarImportar() {
         fila.className = "imp-v c-" + v.clase;
         fila.innerHTML = '<span class="imp-n"></span><span class="imp-d"></span><select></select>';
         fila.querySelector(".imp-n").textContent = i + 1;
-        fila.querySelector(".imp-d").textContent = fmtDist(v.distancia) + " · " + fmtTiempo(v.tiempo) + (isFinite(v.ritmo) && v.distancia >= 50 ? " · " + fmtTiempo(v.ritmo) + "/km" : "");
+        // Casilla para agrupar a mano las series en un bloque
+        if (v.clase === "serie" && v.grupoManual == null) {
+          const chk = document.createElement("input");
+          chk.type = "checkbox"; chk.className = "imp-marca"; chk.checked = !!v.marcada;
+          chk.setAttribute("aria-label", "Elegir la vuelta " + (i + 1) + " para agruparla");
+          chk.addEventListener("change", () => { v.marcada = chk.checked; pintarImportar(); });
+          fila.querySelector(".imp-n").prepend(chk);
+        } else if (v.grupoManual != null) fila.querySelector(".imp-n").textContent = "▣ " + (i + 1);
+        const aj = v.factor && v.distancia >= 50 && isFinite(v.ritmo) ? v.ritmo / v.factor : 0;
+        fila.querySelector(".imp-d").textContent = fmtDist(v.distancia) + " · " + fmtTiempo(v.tiempo) + (isFinite(v.ritmo) && v.distancia >= 50 ? " · " + fmtTiempo(v.ritmo) + "/km" : "") +
+          (aj && Math.abs(aj - v.ritmo) >= 1 ? " (aj. " + fmtTiempo(aj) + ")" : "") + (n0(v.subida) + n0(v.bajada) > 0 ? " · +" + Math.round(n0(v.subida)) + " m / −" + Math.round(n0(v.bajada)) + " m" : "") +
+          (v.fc ? " · ♥ " + v.fc + (v.fcMax ? "/" + v.fcMax : "") : "") + (v.cad ? " · " + v.cad + " ppm" : "") + (v.objetivo ? " · " + v.objetivo : "");
         const sel = fila.querySelector("select");
         Object.keys(CLASES_VUELTA).forEach(c => { const o = document.createElement("option"); o.value = c; o.textContent = CLASES_VUELTA[c]; sel.appendChild(o); });
         sel.value = v.clase;
@@ -4166,6 +4415,30 @@ function pintarImportar() {
         tabla.appendChild(fila);
       });
       caja.appendChild(tabla);
+      // Agrupar a mano: las vueltas marcadas forman un bloque ×N (N según el patrón de distancias que se repite)
+      const marcadas = a.vueltas.filter(v => v.marcada && v.clase === "serie" && v.grupoManual == null);
+      const grupos = [...new Set(a.vueltas.filter(v => v.grupoManual != null).map(v => v.grupoManual))];
+      if (marcadas.length >= 2 || grupos.length) {
+        const bot = document.createElement("div");
+        bot.className = "botonera imp-agrupar";
+        if (marcadas.length >= 2) {
+          const n = marcadas.length / periodoRepetido(marcadas.map(v => Math.round(v.distancia / 50)));
+          const b = document.createElement("button");
+          b.type = "button"; b.className = "anadir";
+          b.textContent = "Agrupar las " + marcadas.length + " marcadas en bloque ×" + n;
+          b.addEventListener("click", () => { const g = (a.siguienteGrupo = (a.siguienteGrupo || 0) + 1); marcadas.forEach(v => { v.grupoManual = g; v.marcada = false; }); a.bloque = false; pintarImportar(); });
+          bot.appendChild(b);
+        }
+        if (grupos.length) {
+          const q = document.createElement("button");
+          q.type = "button"; q.className = "nav-btn";
+          q.textContent = "Quitar agrupación" + (grupos.length > 1 ? "es (" + grupos.length + ")" : "");
+          q.addEventListener("click", () => { a.vueltas.forEach(v => { delete v.grupoManual; }); pintarImportar(); });
+          bot.appendChild(q);
+        }
+        caja.appendChild(bot);
+      }
+      if (grupos.length) caja.appendChild(nota("Las vueltas con ▣ se guardarán como " + (grupos.length === 1 ? "un bloque" : grupos.length + " bloques") + " (×N según cuántas veces se repite su patrón)."));
       const p = patronSeries(a.vueltas);
       caja.appendChild(nota(p.n ? p.n + (p.n === 1 ? " serie" : " series") + " → «" + p.nombre + "». Las recuperaciones y los descansos se guardan como descanso de la serie anterior; el calentamiento y la vuelta a la calma no cuentan para marcas." : "No hay ninguna vuelta marcada como serie."));
       if (p.regular) {
@@ -4192,15 +4465,38 @@ function guardarActividad(a) {
   const filas = [];
   const fila = (ej, extra) => { const f = { id: nuevoId(), fecha: a.fecha, ejercicio_id: ej, orden: orden++, peso: 0, reps: 0, distancia: 0, tiempo: 0, descanso: 0, rec_dist: 0, pct: 0,
     ciclo_id: "", calentamiento: false, hecha: true, grupo: a.grupo, meso_id: "", bloque_id: "", ronda: 0, borrado: false, ...extra }; filas.push(f); return f; };
-  if (a.modo === "rodaje") fila(idPorNombre("Rodaje", "carrera"), { distancia: Math.round(a.total.d), tiempo: Math.round(a.total.t) });
+  // Desnivel y ritmo ajustado por pendiente, solo si el archivo traía altitud
+  const conAltura = a.vueltas.some(v => v.factor);
+  // Pulsaciones y cadencia (FIT): media ponderada por tiempo y máxima
+  const pulso = vs => {
+    const conFc = vs.filter(v => v.fc > 0), t = conFc.reduce((x, v) => x + v.tiempo, 0), tc = vs.filter(v => v.cad > 0).reduce((x, v) => x + v.tiempo, 0);
+    return {
+      fc_media: t > 0 ? Math.round(conFc.reduce((x, v) => x + v.fc * v.tiempo, 0) / t) : 0,
+      fc_max: Math.max(0, ...vs.map(v => n0(v.fcMax))),
+      cadencia: tc > 0 ? Math.round(vs.filter(v => v.cad > 0).reduce((x, v) => x + v.cad * v.tiempo, 0) / tc) : 0
+    };
+  };
+  const desnivel = (vs, d, t) => {
+    if (!conAltura || !(d > 0) || !(t > 0)) return {};
+    const eq = vs.reduce((x, v) => x + v.distancia * (v.factor || 1), 0), dv = vs.reduce((x, v) => x + v.distancia, 0);
+    return { desnivel_pos: Math.round(vs.reduce((x, v) => x + n0(v.subida), 0)), desnivel_neg: Math.round(vs.reduce((x, v) => x + n0(v.bajada), 0)), ritmo_ajustado: eq > 0 ? Math.round(t / (d * eq / dv / 1000)) : 0 };
+  };
+  if (a.modo === "rodaje") fila(idPorNombre("Rodaje", "carrera"), { distancia: Math.round(a.total.d), tiempo: Math.round(a.total.t), ...desnivel(a.vueltas, a.total.d, a.total.t), ...pulso(a.vueltas) });
   else {
     const p = patronSeries(a.vueltas), idSerie = idPorNombre(p.nombre, "carrera"), bloque = a.bloque && p.regular ? nuevoId() : "";
+    // Bloques hechos a mano en la vista previa: su ×N sale del patrón de distancias que se repite
+    const manual = {};
+    [...new Set(a.vueltas.filter(v => v.grupoManual != null && v.clase === "serie").map(v => v.grupoManual))].forEach(g => {
+      const vs = a.vueltas.filter(v => v.grupoManual === g && v.clase === "serie");
+      manual[g] = { id: nuevoId(), p: periodoRepetido(vs.map(v => Math.round(v.distancia / 50))), k: 0 };
+    });
     let ultima = null, ronda = 0;
     a.vueltas.forEach(v => {
-      const d = Math.round(v.distancia), t = Math.round(v.tiempo);
-      if (v.clase === "serie") ultima = fila(idSerie, { distancia: d, tiempo: t, bloque_id: bloque, ronda: bloque ? ++ronda : 0 });
+      const d = Math.round(v.distancia), t = Math.round(v.tiempo), m = v.clase === "serie" && manual[v.grupoManual];
+      const enBloque = m ? { bloque_id: m.id, ronda: Math.floor(m.k++ / m.p) + 1 } : { bloque_id: bloque, ronda: bloque ? ++ronda : 0 };
+      if (v.clase === "serie") ultima = fila(idSerie, { distancia: d, tiempo: t, ...enBloque, ...desnivel([v], d, t), ...pulso([v]) });
       else if ((v.clase === "rec" || v.clase === "parado") && ultima) { ultima.descanso += t; if (v.clase === "rec") ultima.rec_dist += d; }
-      else if (v.clase === "calent" || v.clase === "calma") { fila(idPorNombre(v.clase === "calent" ? "Calentamiento carrera" : "Vuelta a la calma", "carrera"), { distancia: d, tiempo: t, calentamiento: true }); ultima = null; }
+      else if (v.clase === "calent" || v.clase === "calma") { fila(idPorNombre(v.clase === "calent" ? "Calentamiento carrera" : "Vuelta a la calma", "carrera"), { distancia: d, tiempo: t, calentamiento: true, ...desnivel([v], d, t), ...pulso([v]) }); ultima = null; }
     });
   }
   filas.forEach(f => cambiar("series", f, true));
@@ -4221,6 +4517,28 @@ $("impAbrir").addEventListener("click", () => {
   $("impAviso").textContent = "";
   pintarBotonImport();
   $("dlgImport").showModal();
+});
+$("selSerAgrupar").addEventListener("click", agruparSeleccion);
+$("selSerSalir").addEventListener("click", salirSelSeries);
+// Ajuste: las series con mucho desnivel cuentan o no para las marcas por distancia
+$("ajDesnivel").value = ajustes().desnivelMarcas === "contar" ? "contar" : "excluir";
+$("ajDesnivel").addEventListener("change", () => {
+  const a = leer("ajustes-v1") || {};
+  if ($("ajDesnivel").value === "contar") a.desnivelMarcas = "contar"; else delete a.desnivelMarcas;
+  escribir("ajustes-v1", a);
+  versionDatos++;   // las marcas y los récords se recalculan
+  setEstado("Ajuste guardado en este dispositivo");
+});
+// Ajuste: FC máxima (si no se pone, la mayor registrada en los archivos FIT del último año)
+$("ajFcMax").value = n0(ajustes().fcMax) || "";
+$("ajFcMax").placeholder = fcMaxima() ? "auto: " + fcMaxima() : "p. ej. 190";
+$("ajFcMax").addEventListener("change", () => {
+  const a = leer("ajustes-v1") || {}, v = parseInt($("ajFcMax").value, 10);
+  if (v >= 120 && v <= 230) a.fcMax = v; else delete a.fcMax;
+  escribir("ajustes-v1", a);
+  $("ajFcMax").value = a.fcMax || "";
+  versionDatos++;
+  setEstado("Ajuste guardado en este dispositivo");
 });
 // Ajuste: ritmo a partir del cual una vuelta es recuperación
 $("ajRitmoRec").value = ajustes().ritmoRec ? fmtTiempo(ajustes().ritmoRec) : "";

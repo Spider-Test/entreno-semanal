@@ -132,6 +132,8 @@
         <label class="campo">Botones − y + de peso (kg) <input id="ajPaso" inputmode="decimal" placeholder="2,5"></label>
       </div>
       <label class="campo">Al importar, una vuelta más lenta que este ritmo (min/km) es recuperación <input id="ajRitmoRec" inputmode="decimal" placeholder="8:00"></label>
+      <label class="campo">Frecuencia cardíaca máxima (ppm; si la dejas vacía, la mayor de tus archivos FIT) <input id="ajFcMax" inputmode="numeric" pattern="[0-9]*"></label>
+      <label class="campo">Series importadas con mucho desnivel (pendiente media de más del 4 %) <select id="ajDesnivel"><option value="excluir">No cuentan para las marcas por distancia</option><option value="contar">Cuentan, con su ritmo ajustado</option></select></label>
     </section>
     <section class="plan-sec" data-sec="sugerencias" id="bloqueSug" hidden>
       <div class="sec-cab"><h3 id="sugTit">Sugerencias</h3><button type="button" class="nav-btn" id="sugRecargar">Actualizar</button></div>
@@ -391,7 +393,10 @@
   </form>
   <div class="d-cuerpo ayuda">
     <p>Toca cada apartado para verlo. Puedes volver aquí cuando quieras con el botón <b>?</b> de arriba. ¿Echas algo en falta o algo no va bien? Envíanos una sugerencia:</p>
-    <details class="novedades" open><summary>Novedades · versión 38</summary>
+    <details class="novedades" open><summary>Novedades · versión 41</summary>
+      <p><b>Agrupar en bloque:</b> mantén pulsada una serie, elige varias y agrúpalas en un bloque ×N (propone el patrón que se repite); «Desagrupar» en el ⋯ del bloque. Al importar, marca vueltas y agrúpalas a mano antes de guardar.</p>
+      <p><b>Archivos FIT</b> de COROS y Garmin: la app usa las vueltas tal como las marcó el reloj (serie, recuperación, descanso, calentamiento, vuelta a la calma), el nombre del entrenamiento y sus objetivos de ritmo, el desnivel del barómetro, y las <b>pulsaciones</b> y la cadencia de cada vuelta. En los rodajes con pulsaciones, la forma (VDOT) se estima con tu FC: un rodaje suave ya no la rebaja. Pon tu FC máxima en Plan → Ajustes (si no, se usa la mayor registrada).</p>
+      <p><b>Desnivel en las carreras importadas</b> (GPX, TCX y CSV de COROS, Strava o Garmin): cada serie guarda lo que sube y baja («+18 m / −5 m») y su <b>ritmo ajustado por pendiente</b> («3:58/km (aj. 3:44/km)»). La forma (VDOT), las marcas, las predicciones y los objetivos usan el ritmo ajustado. Las series con pendiente media de más del 4 % quedan fuera de las marcas por distancia (cámbialo en Plan → Ajustes).</p>
       <p>Importar carreras lee el <b>CSV de vueltas de la app de COROS</b>: toma la fecha del nombre del archivo (puedes corregirla en la vista previa) y separa calentamiento, series y recuperaciones.</p>
       <p>Ejercicios con <b>×N y OK</b>: crea varias series iguales de golpe y el ejercicio queda plegado («60 kg × 8 · ×4»). Tocando su nombre editas todas las pendientes, el número de series o cambias el ejercicio manteniendo las series · <b>total de distancia</b> al final de cada sesión de carrera (km) y natación (metros), con tiempo, desglose y lo planificado aparte; también en el día plegado y al terminar el modo entreno.</p>
       <p>Más rápida con muchos datos: con un año de entrenos, la semana se pinta unas 8 veces más deprisa · en el ordenador, el día desplegado se ensancha para que cada serie quepa en una o dos líneas · en el modo entreno, el campo de tiempo de carrera muestra el objetivo de la serie · nueva versión de pruebas (beta) separada de la principal.</p>
@@ -442,6 +447,8 @@
     </details>
     <details><summary>Bloques ×N</summary>
       <p><b>+ Bloque</b> crea uno o varios tramos que se repiten, por ejemplo 1000 m + recuperación 300 m ×4, o Press banca + Remo ×4. Se muestran ronda a ronda.</p>
+      <p><b>Agrupar series ya apuntadas:</b> mantén pulsada una serie (o ⋯ del día o de la sesión → <b>Seleccionar series para agrupar en bloque</b>), toca las que quieras y pulsa <b>Agrupar en bloque</b>. Si hay un patrón que se repite (por ejemplo 1000 m + trote 300 m, cuatro veces) te propone el bloque ×4; también puedes juntarlas en una sola ronda o en el orden en que las tocaste. Se conservan valores, hechas y pendientes, tiempos, desnivel y pulsaciones, y se puede deshacer. <b>⋯ del bloque → Desagrupar</b> lo vuelve a dejar en series sueltas.</p>
+      <p><b>Al importar</b> una carrera, en la vista previa marca las casillas de las vueltas y pulsa <b>Agrupar las marcadas en bloque ×N</b>; «Quitar agrupación» lo deshace antes de guardar.</p>
     </details>
     <details><summary>Cambiar el orden</summary>
       <p>Arrastra el asa <b>≡</b> para mover una serie dentro de su ejercicio, un ejercicio o bloque dentro de su sesión, o una sesión entera dentro del día (por ejemplo, subir un calentamiento que añadiste al final). Mientras arrastras ves el resultado; el asa no interfiere con deslizar ni con el desplazamiento.</p>
@@ -475,6 +482,10 @@
     </details>
     <details><summary>Importar carreras</summary>
       <p>En <b>Plan → Importar carreras</b> subes un archivo GPX o TCX del reloj o de Strava, el CSV de actividades de Strava o Garmin, o el <b>CSV de vueltas de COROS</b> (en la app de COROS, la actividad → exportar vueltas). Cada carrera se guarda en su fecha con distancia y tiempo, y alimenta Marcas y ritmos.</p>
+      <p><b>Archivos FIT (lo más completo):</b> en la app de COROS, abre la actividad → compartir (arriba) → <b>Exportar archivo .fit</b>; en COROS Training Hub (web), la actividad → Exportar → FIT. En Garmin Connect (web), la actividad → ⚙ → <b>Exportar original</b> (descarga un .zip: descomprímelo y elige el .fit). Del FIT se toman la fecha y la hora, cada vuelta con su tipo según el reloj (sin adivinar por el ritmo), el nombre del entrenamiento programado y sus objetivos, el desnivel del barómetro, y las pulsaciones media y máxima y la cadencia.</p>
+      <p><b>Pulsaciones:</b> en los rodajes continuos con FC, la forma se calcula con la parte de tu VO₂máx que usaste según tu % de FC máxima (fórmula de Londeree): así un rodaje suave no rebaja tu forma. Pon tu <b>FC máxima</b> en Plan → Ajustes; si la dejas vacía se usa la mayor registrada en tus archivos del último año (más prudente si nunca llegaste a tu máximo).</p>
+      <p><b>Desnivel:</b> si el archivo trae altitud (GPX y TCX punto a punto, o la subida y bajada de cada vuelta en el CSV de COROS, Strava o Garmin), cada serie guarda su desnivel y un <b>ritmo ajustado por pendiente</b>: el ritmo equivalente en llano según el coste energético de correr en cuesta (modelo de Minetti, 2002). La altitud se suaviza para quitar el ruido del GPS. Subir hace el ritmo ajustado más rápido que el real y bajar, más lento. La forma, las marcas, las predicciones y los objetivos usan el ajustado; lo apuntado a mano y los archivos sin altitud, el real.</p>
+      <p>Una serie con pendiente media de más del 4 % se marca «con desnivel» y no cuenta para las marcas por distancia. En <b>Plan → Ajustes</b> puedes hacer que cuente con su ritmo ajustado.</p>
       <p>El CSV de vueltas de COROS no trae la fecha: se toma del nombre del archivo (por ejemplo …20261103185611.csv es el 3 de noviembre a las 18:56) y puedes corregirla en la vista previa antes de importar. Se usa el tiempo en movimiento de cada vuelta.</p>
       <p>Si tiene vueltas (lap): las rápidas son <b>series</b>; las más lentas de 8:00/km son <b>recuperación</b> y se guardan como descanso de la serie anterior; las que casi no avanzan son <b>descanso parado</b>; las lentas y largas del principio y del final son <b>calentamiento</b> y <b>vuelta a la calma</b> (no cuentan para marcas). Puedes cambiar cada vuelta en la vista previa, y si las series son iguales, agruparlas como bloque ×N. El límite de 8:00 se cambia en Plan → Ajustes.</p>
       <p>Si una carrera ya está en tu calendario, la app lo detecta y no la duplica. Los rodajes con vuelta automática cada km se guardan como una sola serie.</p>
@@ -543,7 +554,7 @@
   </form>
   <div class="d-cuerpo">
     <p class="menu-det nota">Elige uno o varios archivos: GPX o TCX exportados del reloj (Garmin, Coros, Suunto, Polar…) o de una actividad de Strava, el CSV de actividades de Strava o Garmin Connect, o el CSV de vueltas de una actividad de la app de COROS. Revisa cada vuelta antes de importar.</p>
-    <div class="botonera"><label class="anadir imp-elegir">Elegir archivo…<input type="file" id="impArchivo" accept=".gpx,.tcx,.csv,.xml,application/gpx+xml,text/csv" multiple hidden></label></div>
+    <div class="botonera"><label class="anadir imp-elegir">Elegir archivo…<input type="file" id="impArchivo" accept=".fit,.gpx,.tcx,.csv,.xml,application/gpx+xml,text/csv,application/octet-stream" multiple hidden></label></div>
     <p class="aviso" id="impAviso" role="status"></p>
     <div id="impLista" class="imp-lista"></div>
     <div class="d-botones"><button type="button" class="anadir" id="impGuardar" hidden>Importar</button></div>
@@ -601,6 +612,7 @@
   <div class="en-pie"><button type="button" class="nav-btn" id="enAnt">‹ Anterior</button><button type="button" class="nav-btn" id="enSig">Siguiente ›</button></div>
 </dialog>
 
+<div class="sel-acciones" id="selSerBarra" hidden><span class="sel-n" id="selSerN"></span><button type="button" id="selSerAgrupar">Agrupar en bloque</button><button type="button" id="selSerSalir">Cancelar</button></div>
 <div class="sel-acciones" id="selPlantAcciones" hidden>
   <button type="button" id="selPlantDia">Añadir a un día</button>
   <button type="button" id="selPlantMeso">Mesociclo</button>
