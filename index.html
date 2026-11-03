@@ -57,6 +57,7 @@
       <div class="semana-info"><span id="rango"></span><span id="relativa"></span></div>
       <button type="button" class="nav-btn flecha" id="sigBtn" aria-label="Semana siguiente">›</button>
       <button type="button" class="nav-btn" id="hoyBtn" hidden>Hoy</button>
+      <button type="button" class="nav-btn cal-btn" id="calBtn" aria-label="Calendario: ir a otra fecha" title="Calendario">📅</button>
     </nav>
     <div class="sem-barra" id="semBarra" hidden><span></span></div>
     <nav class="dia-nav" id="diaNav" aria-label="Día" hidden>
@@ -131,6 +132,7 @@
         <label class="campo">Peso de la barra (kg) <input id="ajBarra" inputmode="decimal" placeholder="20"></label>
         <label class="campo">Botones − y + de peso (kg) <input id="ajPaso" inputmode="decimal" placeholder="2,5"></label>
       </div>
+      <label class="campo">Distancias en <select id="ajUnidad"><option value="auto">Automático (metros y km desde 3 km)</option><option value="m">Metros</option><option value="km">Kilómetros</option></select></label>
       <label class="campo">Al importar, una vuelta más lenta que este ritmo (min/km) es recuperación <input id="ajRitmoRec" inputmode="decimal" placeholder="8:00"></label>
       <label class="campo">Cómo se calcula tu FC máxima
         <select id="ajFcModo"><option value="auto">Automática (con tus archivos FIT y TCX)</option><option value="edad">Por tu edad (Tanaka)</option><option value="manual">La pongo a mano</option></select>
@@ -357,6 +359,8 @@
             <select id="iaObjetivo">
               <option value="fuerza">Fuerza</option>
               <option value="hipertrofia">Hipertrofia</option>
+              <option value="1k">Carrera 1 km</option>
+              <option value="2k">Carrera 2 km</option>
               <option value="5k">Carrera 5 km</option>
               <option value="10k">Carrera 10 km</option>
               <option value="media">Media maratón (21,1 km)</option>
@@ -436,25 +440,8 @@
   </form>
   <div class="d-cuerpo ayuda">
     <p>Toca cada apartado para verlo. Puedes volver aquí cuando quieras con el botón <b>?</b> de arriba. ¿Echas algo en falta o algo no va bien? Envíanos una sugerencia:</p>
-    <details class="novedades" open><summary>Novedades · versión 48</summary>
-      <p>Crear con IA: la vista previa enseña cada tramo de una tirada larga («1×8 km en 42:40 + 1×6 km en 29:00») en vez de «2×8 km (con variaciones)».</p>
-      <p>Arreglado: Crear con IA ya acepta ejercicios de fuerza por tiempo (bici de calentamiento, movilidad, plancha: «1x5min», «3x45s»), que antes daban error al pegar la respuesta.</p>
-      <p>En el ⋯ de cada ejercicio, <b>Eliminar ejercicio y sus series</b> (pide confirmación y se puede deshacer).</p>
-      <p><b>Pulsaciones</b>, arriba en Marcas: tu FC máxima en grande y de dónde sale (con un botón para ir a esa actividad), la FC en reposo, tus zonas, el tiempo en cada una y la evolución de tu pico de FC; «Editar» para elegir automática, por edad o a mano. Cada carrera importada muestra su FC media y máxima junto al total. Arreglado: Ajustes no mostraba la FC máxima tras importar.</p>
-      <p><b>Marcas por apartados:</b> Fuerza (récord y 1RM estimado de cada ejercicio, separados en pierna, torso, brazos y core), Carrera y Piscina (mejores marcas en 50–1500 m), cada uno desplegable. · Plan → Ajustes: elige si la FC máxima es automática, por tu edad o a mano.</p>
-      <p><b>Pulsaciones:</b> la FC máxima se calcula sola con el pico mantenido (10 s) de tus FIT y TCX de los últimos 6 meses, sin picos falsos, y te dice de dónde sale; sin datos, por tu edad. <b>Zonas Z1–Z5</b> con el tiempo en cada una en cada carrera importada y en Marcas (con FC en reposo, por reserva). La <b>forma</b> tiene en cuenta el tipo de recuperación, el % de FC máxima de cada serie (si no fuiste a tope, extrapola) y la deriva cardiaca, y Marcas explica el «Por qué».</p>
-      <p><b>Crear con IA:</b> ahora también un <b>entrenamiento suelto</b> (tipo de sesión, duración, intensidad…) que se añade directamente a un día o se guarda como plantilla, y planes para <b>media maratón y maratón</b> con marca objetivo, fecha de carrera, tus marcas previstas y tapering. · El botón <b>?</b> avisa con un punto cuando hay novedades que no has visto.</p>
-      <p><b>Agrupar en bloque:</b> mantén pulsada una serie, elige varias y agrúpalas en un bloque ×N (propone el patrón que se repite); «Desagrupar» en el ⋯ del bloque. Al importar, marca vueltas y agrúpalas a mano antes de guardar.</p>
-      <p><b>Archivos FIT</b> de COROS y Garmin: la app usa las vueltas tal como las marcó el reloj (serie, recuperación, descanso, calentamiento, vuelta a la calma), el nombre del entrenamiento y sus objetivos de ritmo, el desnivel del barómetro, y las <b>pulsaciones</b> y la cadencia de cada vuelta. En los rodajes con pulsaciones, la forma (VDOT) se estima con tu FC: un rodaje suave ya no la rebaja. Pon tu FC máxima en Plan → Ajustes (si no, se usa la mayor registrada).</p>
-      <p><b>Desnivel en las carreras importadas</b> (GPX, TCX y CSV de COROS, Strava o Garmin): cada serie guarda lo que sube y baja («+18 m / −5 m») y su <b>ritmo ajustado por pendiente</b> («3:58/km (aj. 3:44/km)»). La forma (VDOT), las marcas, las predicciones y los objetivos usan el ritmo ajustado. Las series con pendiente media de más del 4 % quedan fuera de las marcas por distancia (cámbialo en Plan → Ajustes).</p>
-      <p>Importar carreras lee el <b>CSV de vueltas de la app de COROS</b>: toma la fecha del nombre del archivo (puedes corregirla en la vista previa) y separa calentamiento, series y recuperaciones.</p>
-      <p>Ejercicios con <b>×N y OK</b>: crea varias series iguales de golpe y el ejercicio queda plegado («60 kg × 8 · ×4»). Tocando su nombre editas todas las pendientes, el número de series o cambias el ejercicio manteniendo las series · <b>total de distancia</b> al final de cada sesión de carrera (km) y natación (metros), con tiempo, desglose y lo planificado aparte; también en el día plegado y al terminar el modo entreno.</p>
-      <p>Más rápida con muchos datos: con un año de entrenos, la semana se pinta unas 8 veces más deprisa · en el ordenador, el día desplegado se ensancha para que cada serie quepa en una o dos líneas · en el modo entreno, el campo de tiempo de carrera muestra el objetivo de la serie · nueva versión de pruebas (beta) separada de la principal.</p>
-      <p>Los ejercicios con series quedan limpios, como un bloque: «+ Serie» para añadir otra o toca una serie para editarla · arrastrar con el asa ≡ es fluido · en el móvil, el doble toque ya no hace zoom (el pellizco sí); si estás ampliado, el doble toque reduce el zoom (desde mucho zoom, puede hacer falta repetirlo) sin pulsar lo que haya debajo.</p>
-      <p>Arreglado: ya se pueden mover los ejercicios que aún no tienen series (por ejemplo, subir un calentamiento por encima de los bloques) y pasar ejercicios a otra sesión del día.</p>
-      <p>Al abrir un desplegable que queda por debajo, la pantalla baja sola para que lo veas · el administrador puede borrar sugerencias · Ejercicios ordenados por tipo.</p>
-      <p>Desmarcar una serie hecha por error: toca su número o ✓, deslízala a la derecha o usa «↺ Marcar como pendiente» (también en el modo entreno) · arreglados los desplegables de Plan; en Plantillas, el buscador y «Seleccionar» se pliegan con la sección.</p>
-      <p>Selección múltiple de plantillas (mantén pulsada una): añadir a un día, a un mesociclo, compartir juntas o eliminar · diseño más compacto y estilo de cristal · importar carreras del reloj o de Strava · reordenar con el asa ≡.</p>
+    <details class="novedades" open><summary>Novedades · versión 51</summary>
+      <p>Aquí verás lo nuevo de cada actualización. Todo lo que hace la app hoy está explicado en los apartados de abajo.</p>
     </details>
     <button type="button" class="nav-btn sug-btn" id="sugAyuda">💬 Enviar una sugerencia o avisar de un fallo</button>
     <details><summary>La semana y el texto del día</summary>
@@ -463,6 +450,10 @@
       <p>El botón <b>⤢</b> abre ese día solo, a pantalla completa. Pasa al día anterior o siguiente con ‹ › o deslizando a los lados, y vuelve con <b>‹ Semana</b>.</p>
       <p>Cada día tiene un espacio para escribir lo que quieras. Se guarda solo. Mientras escribes aparece el botón <b>N</b> de negrita.</p>
       <p>Cambia de semana con las flechas ‹ ›; <b>Hoy</b> te devuelve a la semana actual. El anillo de cada día y la barra bajo las fechas muestran cuántas series llevas hechas de las planificadas.</p>
+    </details>
+    <details><summary>Calendario y unidades</summary>
+      <p>El botón <b>📅</b>, junto a las fechas de la semana, abre el calendario del mes: cada día con entrenamiento lleva un punto (relleno si lo hiciste entero, a medias o vacío si estaba planificado). Cambia de mes con ‹ › y toca un día para ir a su semana con ese día abierto.</p>
+      <p>En <b>Plan → Ajustes → Distancias en</b> eliges metros, kilómetros o automático (metros y, desde 3 km, kilómetros). Cambia cómo se ven y en qué unidad escribes los campos de distancia; los botones − y + suben 100 m (o 0,1 km). En cualquier campo puedes escribir la unidad: «5 km», «5,2km» o «400 m».</p>
     </details>
     <details><summary>Añadir ejercicios y series</summary>
       <p>Pulsa <b>+ Ejercicio</b> en un día, busca el ejercicio o escribe uno nuevo. Arriba puedes filtrar por Fuerza, Carrera o Natación.</p>
@@ -548,7 +539,7 @@
       <p>Si una carrera ya está en tu calendario, la app lo detecta y no la duplica. Los rodajes con vuelta automática cada km se guardan como una sola serie.</p>
     </details>
     <details><summary>Marcas y ritmos recomendados</summary>
-      <p>La pestaña <b>Marcas</b> tiene tres apartados desplegables. <b>Fuerza:</b> el récord y el 1RM estimado de cada ejercicio, separados en pierna, torso, brazos y core según las zonas que trabaja (las de su ficha); toca uno para ver su gráfica e historial. <b>Carrera:</b> tu forma (VDOT), tus marcas previstas, tus ritmos de entrenamiento, tus pulsaciones y tus mejores marcas. <b>Piscina:</b> tus mejores marcas en 50, 100, 200, 400, 800 y 1500 m y su evolución.</p>
+      <p>La pestaña <b>Marcas</b> tiene tres apartados desplegables. <b>Fuerza:</b> el récord y el 1RM estimado de cada ejercicio, separados en pierna, torso, brazos y core según las zonas que trabaja (las de su ficha); toca uno para ver su gráfica e historial. <b>Carrera:</b> «Mis carreras» (tus competiciones: «+ Carrera» o, desde el día, ⋯ del ejercicio → «Marcar como carrera»; por distancia con tu PB ★, evolución y lo que la app preveía antes de cada una; las futuras salen como objetivo con cuenta atrás y «Preparar con IA»; cuentan como tus marcas reales y pesan un 50 % más en la forma), tu forma (VDOT), tus marcas previstas en 1 km, 2 km, 5 km, 10 km, media y maratón (según tu forma y por Riegel, con su ritmo y tu marca real al lado para comparar), tus ritmos de entrenamiento, tus pulsaciones y tus mejores marcas. <b>Piscina:</b> tus mejores marcas en 50, 100, 200, 400, 800 y 1500 m y su evolución.</p>
       <p>Las series de carrera planificadas muestran un objetivo que se ajusta según cómo te van saliendo. Si tus últimos días tienen esfuerzo alto, el objetivo se suaviza un poco. Son estimaciones orientativas.</p>
     </details>
     <details><summary>Esfuerzo (RPE) y resumen semanal</summary>
@@ -601,6 +592,62 @@
     </div>
     <p class="menu-det nota">No sustituye la opinión de un profesional: si el dolor no mejora, consulta con tu médico o fisioterapeuta.</p>
     <div class="d-botones"><button type="button" class="peligro" id="molBorrar">Eliminar</button><button type="button" class="anadir" id="molGuardar">Guardar</button></div>
+  </div>
+</dialog>
+
+<dialog id="dlgCal" aria-label="Calendario">
+  <form method="dialog" class="d-cab">
+    <h3 class="d-tit">Calendario</h3>
+    <button class="cerrar" aria-label="Cerrar">✕</button>
+  </form>
+  <div class="d-cuerpo">
+    <div class="cal-nav"><button type="button" class="nav-btn flecha" id="calAnt" aria-label="Mes anterior">‹</button><span id="calMes" class="cal-mes"></span><button type="button" class="nav-btn flecha" id="calSig" aria-label="Mes siguiente">›</button></div>
+    <div class="cal-grid" id="calDias"></div>
+    <p class="menu-det nota">● entrenamiento hecho · ◐ a medias · ○ planificado. Toca un día para ir a él.</p>
+    <div class="d-botones"><button type="button" class="nav-btn" id="calHoy">Ir a hoy</button></div>
+  </div>
+</dialog>
+
+<dialog id="dlgCarrera" aria-label="Carrera">
+  <form method="dialog" class="d-cab">
+    <h3 class="d-tit">Carrera</h3>
+    <button class="cerrar" aria-label="Cerrar">✕</button>
+  </form>
+  <div class="d-cuerpo">
+    <label class="campo">Nombre <input id="carNombre" placeholder="San Silvestre Vallecana" autocomplete="off"></label>
+    <div class="fila">
+      <label class="campo">Fecha <input type="date" id="carFecha"></label>
+      <label class="campo">Lugar <input id="carLugar" placeholder="Madrid" autocomplete="off"></label>
+    </div>
+    <div class="fila">
+      <label class="campo">Distancia
+        <select id="carDist"><option value="2000">2 km</option><option value="5000">5 km</option><option value="10000" selected>10 km</option><option value="21097">Media maratón (21,1 km)</option><option value="42195">Maratón (42,2 km)</option><option value="otra">Otra…</option></select>
+      </label>
+      <label class="campo" id="carOtraL" hidden>Kilómetros <input id="carOtra" inputmode="decimal" placeholder="7,5" autocomplete="off"></label>
+    </div>
+    <div class="fila">
+      <label class="campo" id="carTiempoL">Tiempo oficial <input id="carTiempo" inputmode="decimal" placeholder="41:30" autocomplete="off"></label>
+      <label class="campo">Tiempo de chip <input id="carChip" inputmode="decimal" placeholder="40:52" autocomplete="off"></label>
+    </div>
+    <div id="carResultado">
+      <div class="fila">
+        <label class="campo">Puesto general <input id="carPos" inputmode="numeric" pattern="[0-9]*"></label>
+        <label class="campo">de <input id="carTotal" inputmode="numeric" pattern="[0-9]*"></label>
+      </div>
+      <div class="fila">
+        <label class="campo">Categoría <input id="carCat" placeholder="M35" autocomplete="off"></label>
+        <label class="campo">Puesto <input id="carPosCat" inputmode="numeric" pattern="[0-9]*"></label>
+        <label class="campo">de <input id="carTotalCat" inputmode="numeric" pattern="[0-9]*"></label>
+      </div>
+      <div class="fila">
+        <label class="campo">Desnivel + (m) <input id="carDesnivel" inputmode="numeric" pattern="[0-9]*"></label>
+        <label class="campo">FC media <input id="carFc" inputmode="numeric" pattern="[0-9]*"></label>
+      </div>
+    </div>
+    <label class="campo">Enlace a los resultados <input id="carEnlace" type="url" placeholder="https://…" autocomplete="off"></label>
+    <label class="campo">Notas y sensaciones <textarea id="carNotas" rows="3" maxlength="1000"></textarea></label>
+    <p class="aviso" id="carAviso" role="status"></p>
+    <div class="d-botones"><button type="button" class="peligro" id="carBorrar">Eliminar</button><button type="button" class="nav-btn" id="carIA" hidden>Preparar con IA</button><button type="button" class="anadir" id="carGuardar">Guardar</button></div>
   </div>
 </dialog>
 

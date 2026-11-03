@@ -50,6 +50,10 @@ Apunta en cada versión: fecha, versión, dispositivo (iPhone / Mac / Android) y
 - [ ] «Deshacer» devuelve las series sueltas; ⋯ del bloque → «Desagrupar» también.
 - [ ] Importar un archivo con series: marcar vueltas → «Agrupar las marcadas en bloque ×N» → «Quitar agrupación» → volver a agrupar y guardar: el día muestra el bloque.
 
+## 4c. Calendario y unidades
+- [ ] 📅 abre el mes: puntos en los días con entrenamiento (hecho, a medias, planificado), hoy marcado, la semana visible resaltada; ‹ › cambian de mes; tocar un día lleva a su semana con ese día desplegado; «Ir a hoy».
+- [ ] Plan → Ajustes → Distancias en «Kilómetros»: las series salen en km, los campos piden km, − y + suben 0,1; escribir «400 m» o «5 km» en cualquier campo guarda bien; volver a «Automático».
+
 ## 5. Desplegables
 - [ ] Plegar y desplegar cada día; tras recargar, quedan como estaban.
 - [ ] Resumen de la semana, secciones de Plan, tipos de Ejercicios y apartados de la Ayuda: abren y cierran.
@@ -111,6 +115,10 @@ Apunta en cada versión: fecha, versión, dispositivo (iPhone / Mac / Android) y
 - [ ] Marcas: tres apartados desplegables (Fuerza, Carrera, Piscina) que recuerdan si estaban abiertos; Fuerza separa Pierna, Torso, Brazos y Core con récord, 1RM y fecha, y al tocar un ejercicio abre su ficha; Piscina muestra las marcas de natación.
 
 - [ ] Marcas → Pulsaciones (arriba): FC máxima en grande con su origen, «Ver la actividad del …» abre ese día, FC en reposo, zonas, tiempo por zona y gráfica del pico; «Editar» cambia entre automática, por edad y a mano. Tras importar un FIT, Plan → Ajustes muestra la FC máxima (no «sin datos»). El total de una carrera importada muestra «♥ media … · máx … ppm».
+
+- [ ] Marcas → Carrera → Marcas previstas: filas de 1 km y 2 km con VDOT, ritmo, Riegel y «Real» (tu mejor marca, con * si sale de una serie más larga); 2000 m en Mejores marcas; Crear con IA tiene «Carrera 1 km» y «Carrera 2 km».
+
+- [ ] Mis carreras: «+ Carrera» con fecha futura → aparece como objetivo con cuenta atrás y «Preparar con IA» rellena distancia, fecha y objetivo; con fecha pasada y tiempo → sale en su distancia con ★ si es la mejor, ritmo, puesto y previsto; ⋯ de un ejercicio de carrera → «Marcar como carrera» rellena distancia, tiempo, FC y desnivel; la carrera aparece en Mejores marcas y en el «Por qué» de la forma; eliminar y deshacer.
 
 ## 12. Sugerencias
 - [ ] Enviar una sugerencia de prueba desde «Enviar sugerencia».

@@ -935,3 +935,23 @@ body.sel-series .series li.sel::before { background: var(--accent); border-color
 .marcas-sec .plan-sec { box-shadow: none; padding-left: 0; padding-right: 0; background: none; }
 .marcas-sec.t-carrera h3 { color: var(--carrera, var(--fg)); }
 .marcas-sec.t-natacion h3 { color: var(--natacion, var(--fg)); }
+
+/* Mis carreras */
+.carrera-prox { border-left: 3px solid var(--gold); margin-bottom: 8px; }
+
+/* Calendario del mes */
+.cal-btn { font-size: 18px; }
+.cal-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.cal-mes { font-weight: 800; text-transform: capitalize; font-size: 17px; }
+.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.cal-cab { text-align: center; font-size: 12px; font-weight: 700; color: var(--muted); padding: 2px 0; }
+.cal-dia { position: relative; aspect-ratio: 1; min-height: 40px; border: 1px solid transparent; border-radius: 10px; background: var(--bg); color: var(--fg); font-weight: 600; font-size: 15px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; padding: 0; }
+.cal-dia.fuera { opacity: 0.4; }
+.cal-dia.hoy { border-color: var(--accent); color: var(--accent); }
+.cal-dia.en-vista { background: var(--accent-soft); }
+.cal-punto { width: 7px; height: 7px; border-radius: 50%; border: 2px solid var(--muted); }
+.cal-punto.hecho { background: var(--accent); border-color: var(--accent); }
+.cal-punto.medio { background: linear-gradient(90deg, var(--accent) 50%, transparent 50%); border-color: var(--accent); }
+.cal-punto.t-carrera.hecho { background: var(--carrera); border-color: var(--carrera); }
+.cal-punto.t-natacion.hecho { background: var(--natacion); border-color: var(--natacion); }
+.cal-punto.t-fuerza.hecho { background: var(--fuerza); border-color: var(--fuerza); }
