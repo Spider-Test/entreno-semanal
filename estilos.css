@@ -856,25 +856,10 @@ body.seleccionando { padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 150
 .apartandose { transition: transform 0.15s ease; will-change: transform; }
 @media (prefers-reduced-motion: reduce) { .apartandose { transition: none; } }
 
-/* Serie hecha frente a pendiente: hecha = círculo relleno con ✓, texto normal y un tinte suave; pendiente = círculo vacío y texto atenuado */
-.series li.plan .sv-p { color: var(--muted); }
-.series li:not(.plan) { background: color-mix(in srgb, var(--accent) 7%, transparent); border-radius: 8px; }
-.series li:not(.plan).calent { background: none; }
-.series li:not(.plan) .sv-p { color: var(--fg); }
-.n-hecha { width: 22px; height: 22px; min-height: 22px; margin: 0 4px; border-radius: 50%; background: var(--accent); color: #fff; font-size: 13px; font-weight: 800; text-align: center; line-height: 22px; padding: 0; }
-.ronda .n-hecha { color: #fff; }
-.bloque.t-fuerza .n-hecha { background: var(--fuerza); }
-.bloque.t-carrera .n-hecha { background: var(--carrera); }
-.bloque.t-natacion .n-hecha { background: var(--natacion); }
-.series li.calent .n-hecha { background: var(--line); color: var(--muted); }
-.n-hecha:hover { color: #fff; filter: brightness(1.1); background-color: var(--accent); }
-@media (prefers-color-scheme: dark) { .n-hecha, .ronda .n-hecha, .n-hecha:hover { color: #0c110e; } }
-/* Al validar: la fila destaca un momento y el ✓ aparece con un pequeño salto */
-.series li.recien { animation: fila-validada 1.2s ease-out; }
-.series li.recien .n-hecha { animation: check-validado 0.4s cubic-bezier(0.3, 1.6, 0.5, 1); }
-@keyframes fila-validada { 0% { background: color-mix(in srgb, var(--accent) 35%, transparent); } 100% { background: color-mix(in srgb, var(--accent) 7%, transparent); } }
-@keyframes check-validado { 0% { transform: scale(0.3); } 100% { transform: scale(1); } }
-@media (prefers-reduced-motion: reduce) { .series li.recien, .series li.recien .n-hecha { animation: none; } }
-
 /* Sin zoom por doble toque (el pellizco sigue funcionando) */
 html, body, button, a, input, select, textarea, label, summary, .tarjeta { touch-action: manipulation; }
+
+/* Ejercicio con series: limpio como un bloque; «+ Serie» abre el formulario */
+.bloque-cab .g-prog { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; flex: none; }
+.mas-serie { align-self: flex-start; font-size: 14px; font-weight: 700; padding: 4px 2px; min-height: 32px; }
+@media (max-width: 760px) { .mas-serie { min-height: 40px; font-size: 15px; } }

@@ -860,6 +860,17 @@ function bloque(dia, id, series, grupo) {
   const quitar = b.querySelector(".quitar");
   if (series.length) quitar.remove();
   else quitar.addEventListener("click", () => { quitarEspera(dia.id, id); pintarDia(dia); });
+  // Con series apuntadas, el ejercicio queda limpio como un bloque: progreso en la cabecera y el formulario plegado
+  // hasta pulsar «+ Serie» o tocar una serie para editarla
+  const formEl = b.querySelector("form.nueva-serie");
+  if (series.length) {
+    const prog = document.createElement("span");
+    prog.className = "g-prog";
+    prog.textContent = series.filter(hecha).length + "/" + series.length;
+    nom.after(prog);
+    formEl.hidden = true;
+  }
+  const abrirForm = () => { formEl.hidden = false; const m = b.querySelector(".mas-serie"); if (m) m.hidden = true; };
 
   const fa = b.querySelector(".in-a"), fb = b.querySelector(".in-b"), fc = b.querySelector(".in-c"), boton = b.querySelector(".anadir");
   const modo = b.querySelector(".modo"), calc = b.querySelector(".calc"), opBilbo = b.querySelector(".bilbo-op"), chkBilbo = b.querySelector(".es-bilbo");
@@ -963,6 +974,7 @@ function bloque(dia, id, series, grupo) {
   let numero = 0;
   series.forEach(s => {
     if (!s.calentamiento) numero++;
+    const nSerie = numero;   // el número de esta serie (numero sigue creciendo en el bucle)
     const li = document.createElement("li");
     const planificada = !hecha(s);
     li.className = (planificada ? "plan" : "") + (s.calentamiento ? " calent" : "");
@@ -978,8 +990,7 @@ function bloque(dia, id, series, grupo) {
         marcarHecha(s, { ...s, hecha: true, peso: pesoMostrado(s) });
       });
       marca.replaceWith(c);
-    } else marca.replaceWith(botonHecha(s, s.calentamiento ? "C" : "✓", s.calentamiento ? "serie de calentamiento" : "serie " + numero));
-    if (recienValidadas.has(s.id)) li.classList.add("recien");
+    } else marca.replaceWith(botonHecha(s, s.calentamiento ? "C" : String(numero), s.calentamiento ? "serie de calentamiento" : "serie " + numero));
     li.querySelector(".sv-p").textContent = (s.calentamiento ? "Calent. · " : "") + serieTexto(s);
     if (descTexto(s)) { const d = document.createElement("span"); d.className = "desc"; d.textContent = descTexto(s); li.querySelector(".sv").appendChild(d); }
     if (!dist && usaBarra(id) && textoDiscos(pesoMostrado(s))) { const d = document.createElement("span"); d.className = "discos"; d.textContent = textoDiscos(pesoMostrado(s)); li.querySelector(".sv").appendChild(d); }
@@ -987,11 +998,12 @@ function bloque(dia, id, series, grupo) {
     li.querySelector(".sv").setAttribute("aria-label", (planificada ? "Completar" : "Editar") + " serie " + numero + ": " + serieTexto(s));
     li.querySelector(".sv").addEventListener("click", () => {
       if (li.dataset.deslizado) return;
+      abrirForm();
       editando = s;
       rellenarCon(s, true);
       if (chkBilbo) chkBilbo.checked = !!s.ciclo_id;
       if (s.ciclo_id === "auto") { fb.value = ""; fb.placeholder = "reps máx"; }
-      boton.textContent = "✓ Validar serie " + numero;
+      boton.textContent = "✓ Guardar " + nSerie;
       b.querySelector(".desmarcar").hidden = planificada;
       b.querySelector(".desmarcar").onclick = () => desmarcar(s);
       ol.querySelectorAll("li").forEach(x => x.classList.remove("editando"));
@@ -1008,6 +1020,15 @@ function bloque(dia, id, series, grupo) {
     ol.appendChild(li);
   });
 
+  if (series.length) {
+    const mas = document.createElement("button");
+    mas.type = "button";
+    mas.className = "enlace mas-serie";
+    mas.textContent = "+ Serie";
+    mas.setAttribute("aria-label", "Añadir otra serie de " + (ej.nombre || "este ejercicio"));
+    mas.addEventListener("click", () => { abrirForm(); fa.focus(); });
+    ol.after(mas);
+  }
   // Calentamiento sugerido antes de la primera serie efectiva (hoy y sin haber empezado)
   const pasosCalent = sugerenciaCalent(dia.id, id, series);
   if (pasosCalent) {
@@ -1053,9 +1074,7 @@ function bloque(dia, id, series, grupo) {
     // En días futuros se programa (queda planificada); hoy o antes se apunta como hecha
     fila.hecha = dia.id <= iso(new Date());
     const veces = editando ? 1 : parseInt(b.querySelector(".veces").value, 10) || 1;
-    const nuevasIds = [];
-    for (let k = 0; k < veces; k++) { const f = k ? { ...fila, id: nuevoId(), orden: fila.orden + k } : fila; nuevasIds.push(f.id); cambiar("series", f, true); }
-    if (fila.hecha) validada(...nuevasIds);
+    for (let k = 0; k < veces; k++) cambiar("series", k ? { ...fila, id: nuevoId(), orden: fila.orden + k } : fila, true);
     colocarPrimeraSerie(dia.id, id, grupo, !series.length && !editando);
     persistir();
     quitarEspera(dia.id, id);
@@ -1081,7 +1100,7 @@ function tarjetaBloque(dia, bloqueId, series) {
     '<form class="nueva-serie br-form" hidden><span class="br-que"></span>' +
       '<div class="ns-fila"><input class="in-a" autocomplete="off" enterkeyhint="next"><span class="por"></span><input class="in-b" autocomplete="off" enterkeyhint="next"></div>' +
       '<div class="ns-fila"><input class="in-c" inputmode="decimal" placeholder="⏱ recuperación 2,00 o 300 m" aria-label="Recuperación (tiempo o metros)" autocomplete="off" enterkeyhint="done">' +
-      '<button class="anadir">✓ Validar</button></div><button type="button" class="enlace desmarcar" hidden>↺ Marcar como pendiente</button></form>';
+      '<button class="anadir">✓ Guardar</button></div><button type="button" class="enlace desmarcar" hidden>↺ Marcar como pendiente</button></form>';
   c.querySelector(".br-tit").textContent = "Bloque ×" + rondas.length + " · " + primera.map(s => nombreEj(s.ejercicio_id)).join(" + ");
   c.querySelector(".g-prog").textContent = series.filter(hecha).length + "/" + series.length;
   const menu = c.querySelector(".menu-btn");
@@ -1146,7 +1165,6 @@ function tarjetaBloque(dia, bloqueId, series) {
         m.addEventListener("click", () => marcarHecha(s, { ...s, hecha: true, peso: pesoMostrado(s) }));
         li.querySelector(".n").replaceWith(m);
       } else li.querySelector(".n").replaceWith(botonHecha(s, "✓", "ronda " + r + ", " + nombreEj(s.ejercicio_id)));
-      if (recienValidadas.has(s.id)) li.classList.add("recien");
       deslizable(li, !hecha(s) ? () => marcarHecha(s, { ...s, hecha: true, peso: pesoMostrado(s) }) : () => desmarcar(s), null);
       // El nombre del tramo solo si aporta algo: «Series 1000 m · 1000 m» se queda en «1000 m»
       const nomTramo = variosTramos && !distDeNombre(nombreEj(s.ejercicio_id)) ? nombreEj(s.ejercicio_id) + " · " : "";
@@ -1179,7 +1197,6 @@ function tarjetaBloque(dia, bloqueId, series) {
       if (!(fila.peso >= 0)) { fa.focus(); return; }
       if (!(fila.reps > 0)) { fb.focus(); return; }
     }
-    if (fila.hecha) validada(fila.id);
     cambiar("series", fila);
     terminar(fila);
     if (fila.hecha) avisarSiPR(fila);
@@ -3399,15 +3416,7 @@ function avisarSiPR(fila, deshacer) {
   else if (deshacer) avisoDeshacer("Serie hecha · " + nombreEj(fila.ejercicio_id), deshacer);
   return pr;
 }
-// Series recién validadas: su fila destaca un momento al pintarse
-const recienValidadas = new Set();
-function validada(...ids) {
-  ids.forEach(id => recienValidadas.add(id));
-  if (navigator.vibrate) navigator.vibrate(15);
-  setTimeout(() => ids.forEach(id => recienValidadas.delete(id)), 1500);
-}
 function marcarHecha(antes, fila) {
-  validada(fila.id);
   cambiar("series", fila);
   pintarBloques(true);
   avisarSiPR(fila, [["series", antes]]);
@@ -3572,7 +3581,6 @@ $("enHecha").addEventListener("click", () => {
     if (!(fila.distancia > 0) && !(fila.tiempo > 0)) { aviso("Pon los metros o el tiempo."); return; }
   }
   const yaHecha = hecha(s);
-  validada(fila.id);
   cambiar("series", fila);
   pintarBloques(true);
   avisarSiPR(fila, [["series", s]]);
@@ -3669,7 +3677,7 @@ $("enSalir").addEventListener("click", salirEntreno);
 $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); abrirRpe(d); });
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
-const VERSION_APP = "v33";
+const VERSION_APP = "v34";
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";
