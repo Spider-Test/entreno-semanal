@@ -978,15 +978,4 @@ body.sel-series .series li.sel::before { background: var(--accent); border-color
   }
 }
 h1 { color: var(--titulo); }
-/* Más a juego con el logo: cabecera y pestañas en azul marino, con el verde de las zancadas como acento */
-:root { --bg: #e4ebf2; --azul: #14324a; --azul-cristal: color-mix(in srgb, #14324a 90%, transparent); --verde: #4cc48a; }
-@media (prefers-color-scheme: dark) { :root { --bg: #08121b; --azul: #11304a; --azul-cristal: color-mix(in srgb, #11304a 88%, transparent); } }
-.cabecera { background: var(--azul-cristal) !important; border-bottom: 0 !important; color: #fff; }
-.cabecera h1 { color: #fff; }
-.cabecera .ayuda-btn { background: rgba(255, 255, 255, 0.12); border-color: rgba(255, 255, 255, 0.35); color: var(--verde); }
-.tabbar { background: var(--azul-cristal) !important; border-color: rgba(255, 255, 255, 0.12) !important; }
-.tabbar button { color: rgba(255, 255, 255, 0.72); }
-.tabbar button[aria-selected="true"] { color: var(--verde); background: rgba(76, 196, 138, 0.18) !important; }
-.primario { background: var(--accent); color: #fff; }
-@media (prefers-color-scheme: dark) { .primario { color: #08121b; } }
-@media (min-width: 761px) { .cabecera { padding: 12px 18px; border-radius: 16px; } }
+.primario { background: var(--marca); color: var(--on-marca); }
