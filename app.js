@@ -48,13 +48,13 @@ const TABLAS = {
   ciclos: { clave: "id", conflicto: "id", campos: ["id", "ejercicio_id", "numero", "rm_inicio", "peso_inicial", "incremento", "reps_reset", "importadas", "cerrado", "borrado", "actualizado"] },
   plantillas: { clave: "id", conflicto: "id", campos: ["id", "nombre", "items", "borrado", "actualizado"] },
   mesociclos: { clave: "id", conflicto: "id", campos: ["id", "nombre", "inicio", "semanas", "dias", "progresion", "descarga", "notas", "borrado", "actualizado"] },
-  series: { clave: "id", conflicto: "id", campos: ["id", "fecha", "ejercicio_id", "orden", "peso", "reps", "distancia", "tiempo", "descanso", "hecha", "grupo", "meso_id", "bloque_id", "ronda", "rec_dist", "pct", "ciclo_id", "calentamiento", "desnivel_pos", "desnivel_neg", "ritmo_ajustado", "fc_media", "fc_max", "cadencia", "fc_pico", "fc_hist", "seccion", "por_lado", "nota", "letra_nueva", "max_tiempo", "borrado", "actualizado"] },
+  series: { clave: "id", conflicto: "id", campos: ["id", "fecha", "ejercicio_id", "orden", "peso", "reps", "distancia", "tiempo", "descanso", "hecha", "grupo", "meso_id", "bloque_id", "ronda", "rec_dist", "pct", "ciclo_id", "calentamiento", "desnivel_pos", "desnivel_neg", "ritmo_ajustado", "fc_media", "fc_max", "cadencia", "fc_pico", "fc_hist", "seccion", "por_lado", "nota", "letra_nueva", "max_tiempo", "max_reps", "borrado", "actualizado"] },
   entrenos: { clave: "fecha", conflicto: "user_id,fecha", campos: ["fecha", "html", "texto", "rpe", "sensacion", "extra", "actualizado"] },
   molestias: { clave: "id", conflicto: "id", campos: ["id", "zona", "descripcion", "inicio", "estado", "borrado", "actualizado"] },
   listas: { clave: "id", conflicto: "id", campos: ["id", "nombre", "items", "siguiente", "borrado", "actualizado"], opcional: true },
   carreras: { clave: "id", conflicto: "id", campos: ["id", "nombre", "fecha", "lugar", "distancia", "tiempo", "chip", "pos_general", "total_general", "categoria", "pos_categoria", "total_categoria", "desnivel_pos", "fc_media", "notas", "enlace", "previsto", "borrado", "actualizado"] }
 };
-const DEFECTOS = { extra: {}, seccion: "", por_lado: false, nota: "", letra_nueva: false, max_tiempo: false, fecha: null, lugar: "", categoria: "", enlace: "", fc_hist: [], tipo: "fuerza", hecha: true, grupo: "", meso_id: "", bloque_id: "", ciclo_id: "", importadas: [], cerrado: false, compartido: false, items: [], dias: {}, descarga: {}, zonas: [], calentamiento: false, inicio: null, zona: "", descripcion: "", estado: "activa", nombre: "", video_url: "", notas: "", html: "", texto: "", sensacion: "", borrado: false };
+const DEFECTOS = { extra: {}, seccion: "", por_lado: false, nota: "", letra_nueva: false, max_tiempo: false, max_reps: false, fecha: null, lugar: "", categoria: "", enlace: "", fc_hist: [], tipo: "fuerza", hecha: true, grupo: "", meso_id: "", bloque_id: "", ciclo_id: "", importadas: [], cerrado: false, compartido: false, items: [], dias: {}, descarga: {}, zonas: [], calentamiento: false, inicio: null, zona: "", descripcion: "", estado: "activa", nombre: "", video_url: "", notas: "", html: "", texto: "", sensacion: "", borrado: false };
 let sesion = leer("sesion-v1");                 // {access_token, refresh_token, expires_at, user_id, email}
 let perfil = leer("perfil-v1");                 // {aprobado, es_admin, email}
 let usuarios = leer("usuarios-v1") || [];        // solo para el administrador (se guarda para no verla vacía al abrir)
@@ -326,7 +326,10 @@ function serieTexto(s) {
   const kg = pesoMostrado(s), reps = n0(s.reps) > 0 ? n0(s.reps) : "máx";
   // Como en una hoja: primero las repeticiones (o el tiempo) y el peso detrás, entre paréntesis: «10 reps (100 kg)»
   const peso = kg > 0 || n0(s.pct) > 0 ? " (" + (n0(s.pct) > 0 ? num(s.pct) + " %" + (kg > 0 ? " · " : "") : "") + (kg > 0 ? num(kg) + " kg" : "") + ")" : "";
-  if (s.max_tiempo && !(n0(s.tiempo) > 0) && !(n0(s.reps) > 0)) return "máx tiempo" + lado + peso;   // aguantar el máximo
+  // Series «al máximo»: la marca se queda y, al registrarla, lo que salió va entre paréntesis: «máx reps (14 · 10 kg)»
+  const kgTxt = kg > 0 ? " · " + num(kg) + " kg" : "";
+  if (s.max_tiempo) return "máx tiempo" + lado + (n0(s.tiempo) > 0 ? " (" + fmtSegs(s.tiempo) + kgTxt + ")" : peso);
+  if (s.max_reps || (!s.ciclo_id && !(n0(s.reps) > 0) && !(n0(s.tiempo) > 0))) return "máx reps" + lado + (n0(s.reps) > 0 ? " (" + n0(s.reps) + kgTxt + ")" : peso);
   if (n0(s.tiempo) > 0 && !(n0(s.reps) > 0)) return fmtSegs(s.tiempo) + lado + peso;   // por tiempo: bici, plancha, isométricos…
   return (s.ciclo_id ? "Bilbo · " : "") + (reps === "máx" ? "máx reps" : reps + " reps") + lado + peso;
 }
@@ -880,7 +883,7 @@ document.addEventListener("selectionchange", () => {
 const seriesDelDia = fecha => (indiceSeries().porFecha[fecha] || []).slice();
 // Convierte series en una lista de ejercicios con sus series (para copiar o guardar como plantilla)
 // Los bloques se guardan como tramos con una serie por ronda: { bloque: true, tramos: [{ ejercicio_id, series: [ronda 1, ronda 2…] }] }
-const valores = s => ({ peso: n0(s.peso), reps: s.ciclo_id ? 0 : n0(s.reps), distancia: n0(s.distancia), tiempo: n0(s.tiempo), descanso: n0(s.descanso), rec_dist: n0(s.rec_dist), pct: n0(s.pct), bilbo: !!s.ciclo_id, calentamiento: !!s.calentamiento, por_lado: !!s.por_lado, nota: s.nota || "", letra_nueva: !!s.letra_nueva, max_tiempo: !!s.max_tiempo });
+const valores = s => ({ peso: n0(s.peso), reps: s.ciclo_id ? 0 : n0(s.reps), distancia: n0(s.distancia), tiempo: n0(s.tiempo), descanso: n0(s.descanso), rec_dist: n0(s.rec_dist), pct: n0(s.pct), bilbo: !!s.ciclo_id, calentamiento: !!s.calentamiento, por_lado: !!s.por_lado, nota: s.nota || "", letra_nueva: !!s.letra_nueva, max_tiempo: !!s.max_tiempo, max_reps: !!s.max_reps });
 function itemsDe(series) {
   const items = [], bloques = {};
   series.forEach(s => {
@@ -907,7 +910,7 @@ function pegarItems(fecha, items, grupo, mesoId, masKg) {
   const nueva = (ejercicio_id, v, extra) => cambiar("series", Object.assign({
     id: nuevoId(), fecha, ejercicio_id, orden: orden++,
     peso: n0(v.peso) > 0 ? Math.max(0, n0(v.peso) + n0(masKg)) : 0, reps: n0(v.reps), distancia: n0(v.distancia), tiempo: n0(v.tiempo),
-    descanso: n0(v.descanso), rec_dist: n0(v.rec_dist), pct: n0(v.pct), ciclo_id: v.bilbo ? "auto" : "", calentamiento: !!v.calentamiento, por_lado: !!v.por_lado, nota: v.nota || "", letra_nueva: !!v.letra_nueva, max_tiempo: !!v.max_tiempo, hecha: false, meso_id: mesoId || "", bloque_id: "", ronda: 0, borrado: false
+    descanso: n0(v.descanso), rec_dist: n0(v.rec_dist), pct: n0(v.pct), ciclo_id: v.bilbo ? "auto" : "", calentamiento: !!v.calentamiento, por_lado: !!v.por_lado, nota: v.nota || "", letra_nueva: !!v.letra_nueva, max_tiempo: !!v.max_tiempo, max_reps: !!v.max_reps, hecha: false, meso_id: mesoId || "", bloque_id: "", ronda: 0, borrado: false
   }, extra), true);
   items.forEach(it => {
     const g = grupo !== undefined ? grupo : (it.grupo || "");
@@ -1948,7 +1951,7 @@ function bloque(dia, id, series, grupo, parte) {
         if (enMax() || /^\s*m[aá]x/i.test(fb.value)) { v.tiempo = 0; v.max_tiempo = true; }   // aguantar el máximo
         else { v.tiempo = leerSegs(fb.value); if (!(v.tiempo > 0)) { fb.focus(); return null; } }
       } else if (enMax() || /^\s*(m[aá]x|amrap|fallo)/i.test(fb.value)) {
-        v.reps = 0;   // máximas repeticiones
+        v.reps = 0; v.max_reps = true;   // máximas repeticiones
       } else {
         v.reps = parseInt(fb.value, 10);
         if (!(v.reps > 0)) { fb.focus(); return null; }
@@ -1966,6 +1969,9 @@ function bloque(dia, id, series, grupo, parte) {
     if (modoForm === "editar" && editando) {
       // Una serie concreta: se completa (o corrige) con lo escrito; hoy o antes queda hecha
       const fila = { ...editando, ...v, hecha: dia.id <= iso(new Date()) };
+      // Si era «al máximo», sigue siéndolo aunque ahora tenga lo que salió
+      if (editando.max_tiempo && n0(fila.tiempo) > 0) fila.max_tiempo = true;
+      if ((editando.max_reps || esMaxSinDato(editando) && !editando.max_tiempo) && n0(fila.reps) > 0) fila.max_reps = true;
       cambiar("series", fila);
       terminar(fila);
       if (fila.hecha) avisarSiPR(fila);
@@ -2295,9 +2301,9 @@ function tarjetaBloque(dia, bloqueId, series) {
       fila.peso = parseFloat((fa.value.trim() || "0").replace(",", "."));
       if (!(fila.peso >= 0)) { fa.focus(); return; }
       if (form.dataset.isoT && /^\s*m[aá]x/i.test(fb.value)) { fila.tiempo = 0; fila.reps = 0; fila.max_tiempo = true; }
-      else if (form.dataset.isoT) { fila.tiempo = leerSegs(fb.value); fila.reps = 0; fila.max_tiempo = false; if (!(fila.tiempo > 0)) { fb.focus(); return; } }
-      else if (/^\s*(m[aá]x|amrap|fallo)/i.test(fb.value)) fila.reps = 0;
-      else { fila.reps = parseInt(fb.value, 10); if (!(fila.reps > 0)) { fb.focus(); return; } }
+      else if (form.dataset.isoT) { fila.tiempo = leerSegs(fb.value); fila.reps = 0; if (!(fila.tiempo > 0)) { fb.focus(); return; } }
+      else if (/^\s*(m[aá]x|amrap|fallo)/i.test(fb.value)) { fila.reps = 0; fila.max_reps = true; }
+      else { fila.reps = parseInt(fb.value, 10); if (!(fila.reps > 0)) { fb.focus(); return; } if (esMaxSinDato(s) && !s.max_tiempo) fila.max_reps = true; }
     }
     cambiar("series", fila);
     terminar(fila);
@@ -4483,7 +4489,7 @@ function leerValor(txt, tipo) {
   else if ((m = tok.match(/^(\d+)(s|seg|")$/))) v.tiempo = +m[1];
   else if (/^\d+[:'´’]\d{2}([:'´’]\d{2})?$/.test(tok)) v.tiempo = leerTiempo(tok);
   else if ((m = tok.match(/^(\d+)(?:-\d+)?(?:reps?)?$/))) v.reps = +m[1];
-  else if (/^(m[aá]x|amrap|fallo)/.test(tok)) { v.reps = 0; if (/^\s*m[aá]x\s*(s\b|seg|tiempo)/i.test(t)) v.max_tiempo = true; }
+  else if (/^(m[aá]x|amrap|fallo)/.test(tok)) { v.reps = 0; if (/^\s*m[aá]x\s*(s\b|seg|tiempo)/i.test(t)) v.max_tiempo = true; else v.max_reps = true; }
   else return { error: "no entiendo «" + tok + "» (usa 8, máx, 400m, 40min o 3:30)" };
   if (tipo === "movilidad") {
     if (v.distancia) return { error: "en movilidad las series van en repeticiones o tiempo (por ejemplo 2x10 por lado o 3x45s)" };
@@ -5709,6 +5715,7 @@ $("enHecha").addEventListener("click", () => {
   if (!ent.audio && window.AudioContext) { try { ent.audio = new AudioContext(); } catch {} }
   const a = $("enA"), b = $("enB"), aviso = t => { $("enAviso").textContent = t; };
   const fila = { ...s, hecha: true };
+  if (tipoDe(s.ejercicio_id) === "fuerza" && esMaxSinDato(s) && !s.max_tiempo) fila.max_reps = true;   // «máx reps» de antes, sin marca
   if (ent.campos[0] === "kg" && ent.campos[1] === "reps") {
     const kg = parseFloat((a.value.trim() || "0").replace(",", ".")), reps = parseInt(b.value, 10);
     if (!(kg >= 0)) { aviso("Revisa el peso."); a.focus(); return; }
@@ -5827,7 +5834,7 @@ $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); 
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
 // VERSION_APP es interna (sube en cada publicación para que los móviles se actualicen); la que se ve es siempre la 26
-const VERSION_APP = "v100" + (BETA ? " beta" : "");
+const VERSION_APP = "v101" + (BETA ? " beta" : "");
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";
