@@ -723,7 +723,7 @@ const dias = DIAS.map((_, i) => {
   ed.addEventListener("blur", () => col.classList.remove("escribiendo"));
   col.querySelector(".add-ej").addEventListener("click", () => abrirSelector(dia));
   col.querySelector(".add-bloque").addEventListener("click", () => abrirBloque(dia));
-  col.querySelector(".add-entreno").addEventListener("click", () => nuevoEntreno(dia));
+  col.querySelector(".add-entreno").addEventListener("click", () => elegirNuevoEntreno(dia));
   col.querySelector(".add-parte-btn").addEventListener("click", () => nuevaParte(dia, ""));
   col.querySelector(".menu-btn").addEventListener("click", () => menuDia(dia));
   return dia;
@@ -1030,6 +1030,15 @@ function moverAParte(dia, grupo, clave, espera) {
   } })));
 }
 // «+ Entreno»: otro entreno el mismo día (por ejemplo, si doblas), separado y con sus propios ejercicios
+// «+ Entreno»: uno vacío (con nombre) o uno guardado en una de tus listas
+function elegirNuevoEntreno(dia) {
+  const ls = vivos("listas").filter(l => entrenosDeLista(l).length);
+  if (!ls.length) { nuevoEntreno(dia); return; }
+  abrirMenu("+ Entreno en el " + NOMBRES[dia.i].toLowerCase(), "", [
+    { texto: "Entreno vacío (le pones nombre)…", accion: () => nuevoEntreno(dia) },
+    ...ls.sort((a, b) => a.nombre.localeCompare(b.nombre, "es")).map(l => ({ texto: "Desde la lista «" + l.nombre + "»…", accion: () => elegirDeLista(l, (p, k) => ponerEnDia(l, p, k, dia.id)) }))
+  ]);
+}
 async function nuevoEntreno(dia) {
   const existentes = [...new Set(seriesDelDia(dia.id).map(s => s.grupo || "").concat(sesionesVacias[dia.id] || []))];
   const n = await pedirNombre("Nombre del nuevo entreno", existentes.length ? "Entreno " + (existentes.length + 1) : "Entreno 2", "Por ejemplo «Mañana», «Tarde», «Carrera» o «Gimnasio». Tendrá sus propios ejercicios y bloques.");
@@ -2403,9 +2412,21 @@ function pintarCatalogo() {
 let catAbiertas = leer("catalogo-abiertas-v1") || {};
 
 // ---------- Listas de entrenamientos: cada lista ordena entrenamientos guardados (plantillas) para elegir y poner en un día ----------
-// La lista guarda los id de sus entrenamientos en orden y cuál toca después («siguiente»), para rotar A, B, C…
+// items: en orden, id de entrenamiento (string) o separador de semana/bloque ({ sep: id, titulo }). Un entrenamiento puede repetirse
+// en varias semanas. «siguiente» es la posición (contando solo entrenamientos) del que toca después, para rotar A, B, C…
 let listasAbiertas = leer("listas-abiertas-v1") || {};
-const entrenosDeLista = l => (l.items || []).map(id => db.plantillas[id]).filter(p => p && !p.borrado);
+const esSep = x => !!(x && typeof x === "object" && x.sep);
+const entrenosDeLista = l => (l.items || []).filter(x => typeof x === "string").map(id => db.plantillas[id]).filter(p => p && !p.borrado);
+// Entrenamientos con su posición (k) y la semana/bloque a la que pertenecen
+function recorrerLista(l) {
+  const out = []; let sep = null, k = 0;
+  (l.items || []).forEach((x, i) => {
+    if (esSep(x)) { sep = x; return; }
+    const p = db.plantillas[x];
+    if (p && !p.borrado) out.push({ p, k: k++, i, sep });
+  });
+  return out;
+}
 function guardarLista(l, cambios) { cambiar("listas", { ...l, ...cambios }); pintarListas(); }
 async function nuevaLista(alCrear) {
   const n = await pedirNombre("Nueva lista de entrenamientos", "", "Por ejemplo «Fuerza 3 días», «Torso / Pierna», «Pretemporada» o «Carrera».");
@@ -2416,13 +2437,23 @@ async function nuevaLista(alCrear) {
   pintarListas();
   if (alCrear) alCrear(db.listas[l.id]);
 }
-// Elegir una lista (o crear una) para meter algo
 function elegirLista(titulo, alElegir) {
   const ls = vivos("listas").sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
   abrirMenu(titulo, "", ls.map(l => ({ texto: l.nombre + " · " + entrenosDeLista(l).length + " entrenamientos", accion: () => alElegir(l) }))
     .concat([{ texto: "+ Nueva lista…", accion: () => nuevaLista(alElegir) }]));
 }
-// Guarda las series de un día (o de un entreno) como entrenamiento y lo añade al final de una lista
+// Elegir un entrenamiento de una lista (con su semana o bloque delante); el siguiente va marcado
+function elegirDeLista(l, alElegir) {
+  const rec = recorrerLista(l), sig = rec.length ? n0(l.siguiente) % rec.length : -1;
+  abrirMenu("«" + l.nombre + "»", rec.length ? "El marcado con ▶ es el que toca" : "Lista vacía", rec.map(x => ({
+    texto: (x.k === sig ? "▶ " : "") + (x.sep ? x.sep.titulo + " · " : "") + x.p.nombre + " · " + resumenItems(x.p.items || []), accion: () => alElegir(x.p, x.k) })));
+}
+// Inserta en la lista (al final o detrás de una posición de items)
+function insertarEnLista(l, valor, tras) {
+  const fresca = db.listas[l.id], items = (fresca.items || []).slice();
+  if (tras === undefined || tras < 0) items.push(valor); else items.splice(tras + 1, 0, valor);
+  guardarLista(fresca, { items });
+}
 async function guardarEnLista(nombreSugerido, series) {
   elegirLista("¿En qué lista lo guardo?", async l => {
     const nombre = await pedirNombre("Nombre del entrenamiento", nombreSugerido, "Se guarda también en tus plantillas. Si ya hay una con este nombre, se reemplaza.");
@@ -2431,38 +2462,37 @@ async function guardarEnLista(nombreSugerido, series) {
     const existe = vivos("plantillas").find(p => norm(p.nombre) === norm(nombre));
     const id = existe ? existe.id : nuevoId();
     cambiar("plantillas", { id, nombre, items, borrado: false });
-    const fresca = db.listas[l.id];
-    if (!(fresca.items || []).includes(id)) guardarLista(fresca, { items: (fresca.items || []).concat(id) });
+    insertarEnLista(l, id);
     avisoDeshacer("«" + nombre + "» guardado en la lista «" + l.nombre + "»", null);
   });
 }
-// Pone un entrenamiento de la lista en un día; el siguiente de la lista pasa a ser el de después
-function ponerEntrenoDeLista(l, p) {
-  elegirDiaDestino(lunesVista(), "¿En qué día pongo «" + p.nombre + "»?", f => {
-    pegarItems(f, p.items, p.nombre);
-    const ids = entrenosDeLista(l).map(x => x.id), k = ids.indexOf(p.id);
-    cambiar("listas", { ...db.listas[l.id], siguiente: ids.length ? (k + 1) % ids.length : 0 });
-    persistir();
-    irADia(f, "«" + p.nombre + "» puesto el " + NOMBRES[(deIso(f).getDay() + 6) % 7].toLowerCase() + " " + fmt(deIso(f)));
-  });
+// Pone el entrenamiento k de la lista en un día; el siguiente pasa a ser el de después
+function ponerEnDia(l, p, k, f) {
+  pegarItems(f, p.items, p.nombre);
+  const n = recorrerLista(db.listas[l.id]).length;
+  cambiar("listas", { ...db.listas[l.id], siguiente: n ? (k + 1) % n : 0 });
+  persistir();
+  irADia(f, "«" + p.nombre + "» puesto el " + NOMBRES[(deIso(f).getDay() + 6) % 7].toLowerCase() + " " + fmt(deIso(f)));
 }
+const ponerEntrenoDeLista = (l, p, k) => elegirDiaDestino(lunesVista(), "¿En qué día pongo «" + p.nombre + "»?", f => ponerEnDia(l, p, k, f));
 function pintarListas() {
   const cont = $("listasCont");
   if (!cont) return;
   cont.textContent = "";
   const ls = vivos("listas").sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
   if (!ls.length) {
-    cont.innerHTML = '<p class="vacio-lista">Aquí guardas tus entrenamientos en listas (por ejemplo «Fuerza 3 días» con Torso, Pierna y Full body), los ordenas y, cuando quieras, pones uno en un día. Crea una con «+ Nueva lista», o guarda un día desde su ⋯ → «Guardar en una lista…».</p>';
+    cont.innerHTML = '<p class="vacio-lista">Aquí guardas tus entrenamientos en listas (por ejemplo «Fuerza 3 días» con Torso, Pierna y Full body), los ordenas por semanas o bloques y, cuando quieras, pones uno en un día. Crea una con «+ Nueva lista», o guarda un día desde su ⋯ → «Guardar en una lista…».</p>';
     return;
   }
   ls.forEach(l => {
-    const ents = entrenosDeLista(l), abierta = listasAbiertas[l.id] !== false;
-    const sig = ents.length ? n0(l.siguiente) % ents.length : -1;
+    const rec = recorrerLista(l), abierta = listasAbiertas[l.id] !== false;
+    const sig = rec.length ? n0(l.siguiente) % rec.length : -1;
+    const nSem = (l.items || []).filter(esSep).length;
     const sec = document.createElement("section");
     sec.className = "cat-sec lista-sec" + (abierta ? "" : " cerrada");
-    sec.innerHTML = '<div class="lista-cab"><button type="button" class="sec-toggle"><span class="flecha-dia" aria-hidden="true">▸</span><h3></h3><span class="sec-n"></span></button><button type="button" class="menu-btn">⋯</button></div><div class="sec-cuerpo"><div class="sec-cuerpo-in"><div class="lista-ents"></div><div class="add-fila"><button type="button" class="add-ej">+ Añadir entrenamiento</button></div></div></div>';
+    sec.innerHTML = '<div class="lista-cab"><button type="button" class="sec-toggle"><span class="flecha-dia" aria-hidden="true">▸</span><h3></h3><span class="sec-n"></span></button><button type="button" class="menu-btn">⋯</button></div><div class="sec-cuerpo"><div class="sec-cuerpo-in"><div class="lista-ents"></div><div class="add-fila"><button type="button" class="add-ej">+ Entrenamiento</button><button type="button" class="add-ej">+ Semana o bloque</button></div></div></div>';
     sec.querySelector("h3").textContent = l.nombre;
-    sec.querySelector(".sec-n").textContent = "· " + ents.length;
+    sec.querySelector(".sec-n").textContent = "· " + rec.length + (nSem ? " · " + nSem + (nSem === 1 ? " semana/bloque" : " semanas/bloques") : "");
     const boton = sec.querySelector(".sec-toggle"), cuerpo = sec.querySelector(".sec-cuerpo");
     boton.setAttribute("aria-expanded", String(abierta)); cuerpo.inert = !abierta;
     boton.addEventListener("click", () => {
@@ -2470,17 +2500,20 @@ function pintarListas() {
       sec.classList.toggle("cerrada", !abrir); boton.setAttribute("aria-expanded", String(abrir)); cuerpo.inert = !abrir;
       listasAbiertas[l.id] = abrir; escribir("listas-abiertas-v1", listasAbiertas);
     });
-    const anadir = () => elegirPlantilla("Añadir a «" + l.nombre + "»", p => {
-      const fresca = db.listas[l.id];
-      if ((fresca.items || []).includes(p.id)) { avisoDeshacer("«" + p.nombre + "» ya está en la lista", null); return; }
-      guardarLista(fresca, { items: (fresca.items || []).concat(p.id) });
-    });
-    sec.querySelector(".add-ej").addEventListener("click", anadir);
+    const anadir = tras => elegirPlantilla("Añadir a «" + l.nombre + "»", p => insertarEnLista(l, p.id, tras));
+    const nuevaSemana = async tras => {
+      const n = await pedirNombre("Nombre de la semana o bloque", "Semana " + (nSem + 1), "Por ejemplo «Semana 1», «Semana 4 · descarga», «Bloque de fuerza» o «Pretemporada».");
+      if (n) insertarEnLista(l, { sep: nuevoId(), titulo: n }, tras);
+    };
+    const [bEnt, bSem] = sec.querySelectorAll(":scope > .sec-cuerpo .add-fila > .add-ej");
+    bEnt.addEventListener("click", () => anadir());
+    bSem.addEventListener("click", () => nuevaSemana());
     const menu = sec.querySelector(".lista-cab .menu-btn");
     menu.setAttribute("aria-label", "Opciones de la lista " + l.nombre);
-    menu.addEventListener("click", () => abrirMenu(l.nombre, ents.length + (ents.length === 1 ? " entrenamiento" : " entrenamientos"), [
-      { texto: "+ Añadir entrenamiento…", accion: anadir },
-      ents.length && { texto: "Poner el siguiente («" + ents[sig].nombre + "») en un día…", accion: () => ponerEntrenoDeLista(l, ents[sig]) },
+    menu.addEventListener("click", () => abrirMenu(l.nombre, rec.length + (rec.length === 1 ? " entrenamiento" : " entrenamientos"), [
+      { texto: "+ Añadir entrenamiento…", accion: () => anadir() },
+      { texto: "+ Añadir semana o bloque…", accion: () => nuevaSemana() },
+      rec.length && { texto: "Poner el siguiente («" + rec[sig].p.nombre + "») en un día…", accion: () => ponerEntrenoDeLista(l, rec[sig].p, rec[sig].k) },
       { texto: "Cambiar nombre…", accion: async () => { const n = await pedirNombre("Nombre de la lista", l.nombre); if (n) guardarLista(db.listas[l.id], { nombre: n }); } },
       { texto: "Eliminar lista", peligro: true, confirmar: "Los entrenamientos siguen en tus plantillas", accion: () => {
         const antes = [["listas", { ...l }]];
@@ -2489,43 +2522,88 @@ function pintarListas() {
       } }
     ]));
     const caja = sec.querySelector(".lista-ents");
-    if (!ents.length) caja.innerHTML = '<p class="vacio-lista">Lista vacía. Añade entrenamientos guardados con «+ Añadir entrenamiento», o guarda un día desde su ⋯.</p>';
-    ents.forEach((p, k) => {
+    if (!(l.items || []).length) caja.innerHTML = '<p class="vacio-lista">Lista vacía. Añade entrenamientos con «+ Entrenamiento» (o guarda un día desde su ⋯) y, si quieres, sepáralos en semanas o bloques con «+ Semana o bloque».</p>';
+    // Todo (entrenamientos y separadores) se ordena junto con el asa ≡: lo que quede debajo de una semana pasa a ella
+    const hermanos = () => [...caja.querySelectorAll(":scope > .lista-ent, :scope > .lista-sep")];
+    const soltar = n => {
+      const fresca = db.listas[l.id], items = fresca.items || [], actual = recorrerLista(fresca)[sig];
+      const nuevo = n.map(x => items[+x.dataset.i]);
+      const conservar = items.filter((x, i) => !n.some(y => +y.dataset.i === i));   // lo que no se pinta (entrenos borrados) se queda al final
+      const todo = nuevo.concat(conservar);
+      // El «siguiente» sigue siendo el mismo entrenamiento tras moverlo
+      const pos = actual ? n.findIndex(y => +y.dataset.i === actual.i) : -1;
+      const nuevoSig = pos < 0 ? 0 : nuevo.slice(0, pos).filter(y => typeof y === "string" && db.plantillas[y] && !db.plantillas[y].borrado).length;
+      guardarLista(fresca, { items: todo, siguiente: Math.max(0, nuevoSig) });
+    };
+    const finSeccion = i => { const its = l.items || []; let j = i; while (j + 1 < its.length && !esSep(its[j + 1])) j++; return j; };
+    let k = 0;
+    (l.items || []).forEach((x, i) => {
+      if (esSep(x)) {
+        const fs = document.createElement("div");
+        fs.className = "lista-sep";
+        fs.dataset.i = i;
+        fs.innerHTML = '<span class="ls-tit"></span><span class="ls-n"></span><button type="button" class="menu-btn">⋯</button>';
+        fs.querySelector(".ls-tit").textContent = x.titulo;
+        const ents = (() => { let c = 0, j = i + 1; const its = l.items || []; while (j < its.length && !esSep(its[j])) { if (db.plantillas[its[j]] && !db.plantillas[its[j]].borrado) c++; j++; } return c; })();
+        fs.querySelector(".ls-n").textContent = ents + (ents === 1 ? " entrenamiento" : " entrenamientos");
+        fs.querySelector(".menu-btn").addEventListener("click", () => abrirMenu(x.titulo, "", [
+          { texto: "+ Añadir entrenamiento aquí…", accion: () => anadir(finSeccion(i)) },
+          { texto: "Duplicar (copia con los mismos entrenamientos)", accion: async () => {
+            const n = await pedirNombre("Nombre de la copia", x.titulo.replace(/\d+/, d => String(+d + 1)) === x.titulo ? x.titulo + " (copia)" : x.titulo.replace(/\d+/, d => String(+d + 1)));
+            if (!n) return;
+            const its = (db.listas[l.id].items || []).slice(), fin = finSeccion(i);
+            its.splice(fin + 1, 0, { sep: nuevoId(), titulo: n }, ...its.slice(i + 1, fin + 1));
+            guardarLista(db.listas[l.id], { items: its });
+          } },
+          { texto: "Cambiar nombre…", accion: async () => {
+            const n = await pedirNombre("Nombre de la semana o bloque", x.titulo);
+            if (!n) return;
+            const its = (db.listas[l.id].items || []).map(y => esSep(y) && y.sep === x.sep ? { ...y, titulo: n } : y);
+            guardarLista(db.listas[l.id], { items: its });
+          } },
+          { texto: "Quitar la separación (los entrenamientos se quedan)", accion: () => {
+            const fresca = db.listas[l.id], antes = [["listas", { ...fresca }]];
+            guardarLista(fresca, { items: (fresca.items || []).filter(y => !(esSep(y) && y.sep === x.sep)) });
+            avisoDeshacer("«" + x.titulo + "» quitada", antes);
+          } }
+        ]));
+        fs.appendChild(asaArrastre(fs, hermanos, soltar, x.titulo));
+        caja.appendChild(fs);
+        return;
+      }
+      const p = db.plantillas[x];
+      if (!p || p.borrado) return;
+      const kk = k++;
       const fila = document.createElement("div");
-      fila.className = "lista-ent" + (k === sig ? " es-siguiente" : "");
-      fila.dataset.pid = p.id;
+      fila.className = "lista-ent" + (kk === sig ? " es-siguiente" : "");
+      fila.dataset.i = i;
       fila.innerHTML = '<div class="le-cab"><span class="le-n"></span><button type="button" class="le-nombre"><span class="le-tit"></span><span class="le-res"></span></button><button type="button" class="anadir le-dia">+ Día</button><button type="button" class="menu-btn">⋯</button></div><div class="le-prev" hidden></div>';
-      fila.querySelector(".le-n").textContent = k + 1;
+      fila.querySelector(".le-n").textContent = kk + 1;
       fila.querySelector(".le-tit").textContent = p.nombre;
-      if (k === sig && ents.length > 1) { const b = document.createElement("span"); b.className = "le-sig"; b.textContent = "siguiente"; fila.querySelector(".le-tit").appendChild(b); }
+      if (kk === sig && rec.length > 1) { const b = document.createElement("span"); b.className = "le-sig"; b.textContent = "siguiente"; fila.querySelector(".le-tit").appendChild(b); }
       fila.querySelector(".le-res").textContent = resumenItems(p.items || []);
-      // Tocar el nombre despliega sus ejercicios
       const prev = fila.querySelector(".le-prev");
       fila.querySelector(".le-nombre").addEventListener("click", () => {
         if (!prev.childNodes.length) prev.appendChild(listaItems(p.items || []));
         prev.hidden = !prev.hidden;
       });
       fila.querySelector(".le-dia").setAttribute("aria-label", "Poner «" + p.nombre + "» en un día");
-      fila.querySelector(".le-dia").addEventListener("click", () => ponerEntrenoDeLista(l, p));
+      fila.querySelector(".le-dia").addEventListener("click", () => ponerEntrenoDeLista(l, p, kk));
       const m = fila.querySelector(".le-cab .menu-btn");
       m.setAttribute("aria-label", "Opciones de " + p.nombre);
       m.addEventListener("click", () => abrirMenu(p.nombre, resumenItems(p.items || []), [
-        { texto: "Poner en un día…", accion: () => ponerEntrenoDeLista(l, p) },
-        k !== sig && { texto: "Marcar como el siguiente", accion: () => guardarLista(db.listas[l.id], { siguiente: k }) },
-        { texto: "Añadir también a otra lista…", accion: () => elegirLista("¿A qué lista?", l2 => { const f2 = db.listas[l2.id]; if (!(f2.items || []).includes(p.id)) guardarLista(f2, { items: (f2.items || []).concat(p.id) }); }) },
+        { texto: "Poner en un día…", accion: () => ponerEntrenoDeLista(l, p, kk) },
+        kk !== sig && { texto: "Marcar como el siguiente", accion: () => guardarLista(db.listas[l.id], { siguiente: kk }) },
+        { texto: "Repetir debajo", accion: () => insertarEnLista(l, p.id, i) },
+        { texto: "Añadir también a otra lista…", accion: () => elegirLista("¿A qué lista?", l2 => insertarEnLista(l2, p.id)) },
         { texto: "Quitar de la lista", accion: () => {
           const fresca = db.listas[l.id], antes = [["listas", { ...fresca }]];
-          guardarLista(fresca, { items: (fresca.items || []).filter(x => x !== p.id) });
+          const its = (fresca.items || []).slice(); its.splice(i, 1);
+          guardarLista(fresca, { items: its, siguiente: kk < sig ? Math.max(0, sig - 1) : sig });
           avisoDeshacer("«" + p.nombre + "» quitado de la lista (sigue en tus plantillas)", antes);
         } }
       ]));
-      // Ordenar con el asa ≡ (o con las flechas del teclado)
-      if (ents.length > 1) fila.querySelector(".le-cab").appendChild(asaArrastre(fila, () => [...caja.querySelectorAll(":scope > .lista-ent")], n => {
-        const fresca = db.listas[l.id], actual = entrenosDeLista(fresca)[sig];
-        const orden = n.map(x => x.dataset.pid), resto = (fresca.items || []).filter(id => !orden.includes(id));
-        const nuevo = orden.concat(resto);
-        guardarLista(fresca, { items: nuevo, siguiente: actual ? Math.max(0, orden.indexOf(actual.id)) : 0 });
-      }, p.nombre));
+      if ((l.items || []).length > 1) fila.querySelector(".le-cab").appendChild(asaArrastre(fila, hermanos, soltar, p.nombre));
       caja.appendChild(fila);
     });
     cont.appendChild(sec);
@@ -5538,7 +5616,7 @@ $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); 
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
 // VERSION_APP es interna (sube en cada publicación para que los móviles se actualicen); la que se ve es siempre la 26
-const VERSION_APP = "v82" + (BETA ? " beta" : "");
+const VERSION_APP = "v83" + (BETA ? " beta" : "");
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";

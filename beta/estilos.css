@@ -1154,6 +1154,10 @@ h1 { color: var(--titulo); }
 .le-sig { margin-left: 8px; padding: 1px 6px; border-radius: 6px; background: var(--accent-soft); color: var(--accent); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; vertical-align: 1px; }
 .le-dia { flex: none; padding: 6px 10px; font-size: 13px; }
 .le-prev { padding: 4px 0 4px 2em; }
+.lista-sep { display: flex; align-items: center; gap: 8px; margin-top: 6px; padding: 6px 8px; border-radius: 8px; background: var(--accent-soft); }
+.lista-sep:first-child { margin-top: 0; }
+.ls-tit { font-family: var(--display); font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--accent); }
+.ls-n { flex: 1; font-size: 12px; color: var(--muted); }
 .lista-sec .menu-btn, .lista-sec .asa { opacity: 1 !important; }
 @media (max-width: 760px) { .le-dia { min-height: 40px; } .le-nombre { min-height: 40px; } }
 
