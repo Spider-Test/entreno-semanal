@@ -873,6 +873,7 @@ function menuDia(dia) {
 function cabeceraParte(dia, grupo, p, color, nNombradas, partes, seriesItem) {
   const cab = document.createElement("div");
   cab.className = "parte-cab" + color;
+  cab.dataset.parte = p.nombre;
   cab.innerHTML = '<span class="p-nombre"></span><span class="g-prog"></span><button type="button" class="menu-btn">⋯</button>';
   cab.querySelector(".p-nombre").textContent = p.nombre;
   const ss = p.ids.flatMap(seriesItem);
@@ -936,6 +937,14 @@ async function nuevaParte(dia, grupo) {
   if (!hay.includes(n)) { const k = dia.id + "|" + grupo; (partesVacias[k] = partesVacias[k] || []).push(n); guardarSesiones(); }
   if (dia.col.classList.contains("plegado")) plegarDia(dia);
   pintarDia(dia);
+}
+// Cambia la parte de un ejercicio o bloque (sin repintar)
+function ponerParte(dia, grupo, clave, espera, x) {
+  const antes = espera ? esperaParte[dia.id + "|" + clave] || "" : (seriesDeItem(dia.id, grupo, clave)[0] || {}).seccion || "";
+  // La parte que se queda sin nada no desaparece: queda vacía para poder volver a llenarla
+  if (antes && antes !== x) { const k = dia.id + "|" + grupo; if (!(partesVacias[k] || []).includes(antes)) (partesVacias[k] = partesVacias[k] || []).push(antes); guardarSesiones(); }
+  if (espera) { if (x) esperaParte[dia.id + "|" + clave] = x; else delete esperaParte[dia.id + "|" + clave]; guardarSesiones(); }
+  else { seriesDeItem(dia.id, grupo, clave).forEach(sr => cambiar("series", { ...sr, seccion: x }, true)); persistir(); }
 }
 // Pasar un ejercicio o bloque a otra parte del mismo entreno
 function moverAParte(dia, grupo, clave, espera) {
@@ -1161,7 +1170,12 @@ function pintarDia(dia) {
     });
     // Ejercicios (también los que aún no tienen series) y bloques se mueven dentro de la sesión, en un único orden
     const movibles = () => [...caja.querySelectorAll(":scope > .bloque[data-clave]")];
-    const soltar = n => {
+    const soltar = (n, movido) => {
+      // Si al arrastrar queda entre los ejercicios de otra parte, pasa a esa parte (la del de encima o, si es el primero, la del de debajo)
+      if (movido && caja.querySelector(":scope > .parte-cab")) {
+        const i = n.indexOf(movido), ref = n[i - 1] || n[i + 1], dest = ref ? ref.dataset.parte || "" : movido.dataset.parte || "";
+        if (dest !== (movido.dataset.parte || "")) ponerParte(dia, g.nombre, movido.dataset.clave, !!movido.dataset.espera, dest);
+      }
       // Los que aún no tienen series recuerdan delante de qué quedan; los demás reparten su «orden»
       n.forEach((x, k) => {
         if (!x.dataset.espera) return;
@@ -1181,7 +1195,16 @@ function pintarDia(dia) {
     const otrasSesiones = [...new Set(grupos.map(x => x.nombre))].filter(x => x !== g.nombre);
     movibles().forEach(el => {
       const clave = el.dataset.clave, nombre = clave.startsWith("b:") ? "Bloque" : nombreEj(clave), espera = !!el.dataset.espera;
-      if (movibles().length > 1) el.querySelector(".bloque-cab").appendChild(asaArrastre(el, movibles, soltar, nombre));
+      // Arrastrar encima de la cabecera de una parte lo mete en ella, al final
+      const zonasParte = { lista: () => [...caja.querySelectorAll(":scope > .parte-cab")].filter(z => z.dataset.parte !== (el.dataset.parte || "")), alSoltar: z => {
+        const dest = z.dataset.parte, l = movibles().filter(x => x !== el);
+        let k = -1; l.forEach((x, j) => { if ((x.dataset.parte || "") === dest) k = j; });
+        l.splice(k < 0 ? l.length : k + 1, 0, el);   // parte vacía: da igual dónde, se pinta dentro de ella
+        ponerParte(dia, g.nombre, clave, espera, dest);
+        soltar(l);
+        setEstado((clave.startsWith("b:") ? "Bloque" : nombre) + " movido a «" + dest + "»");
+      } };
+      if (movibles().length > 1 || zonasParte.lista().length) el.querySelector(".bloque-cab").appendChild(asaArrastre(el, movibles, soltar, nombre, zonasParte));
       if (clave.startsWith("b:")) return;
       const m = document.createElement("button");
       m.type = "button"; m.className = "menu-btn"; m.textContent = "⋯";
@@ -4504,7 +4527,9 @@ function moverGrupo(fecha, nombre, paso) {
   reordenar(lista.map(g => g.items.flatMap(x => x.series)), "Sesión movida");
 }
 // Asa ≡: se arrastra (dedo o ratón) con vista en vivo, o se mueve con las flechas del teclado
-function asaArrastre(el, hermanos, alSoltar, nombre) {
+// zonas (opcional): { lista: () => [elementos], alSoltar: zona => … } — soltar encima de una (p. ej. la cabecera
+// de «Calentamiento») mete el elemento dentro, como una app en una carpeta
+function asaArrastre(el, hermanos, alSoltar, nombre, zonas) {
   const asa = document.createElement("button");
   asa.type = "button";
   asa.className = "asa";
@@ -4528,8 +4553,9 @@ function asaArrastre(el, hermanos, alSoltar, nombre) {
     if (e.button > 0) return;
     e.preventDefault();
     e.stopPropagation();
-    const lista = hermanos(), idx = lista.indexOf(el);
-    if (lista.length < 2 || idx < 0) return;
+    const lista = hermanos(), idx = lista.indexOf(el), zl = zonas ? zonas.lista() : [];
+    if ((lista.length < 2 && !zl.length) || idx < 0) return;
+    let zona = null;
     try { asa.setPointerCapture(e.pointerId); } catch {}
     arrastreActivo = true;
     const y0 = scrollY, cajas = lista.map(x => { const r = x.getBoundingClientRect(); return { top: r.top + y0, alto: r.height }; });
@@ -4557,8 +4583,12 @@ function asaArrastre(el, hermanos, alSoltar, nombre) {
       else if (dedoY > abajo - 48) scrollBy(0, Math.min(14, dedoY - (abajo - 48)));
       const dy = dedoY + scrollY - inicioY, centro = cajas[idx].top + cajas[idx].alto / 2 + dy;
       destino = idx;
+      // ¿El dedo está encima de una zona? Entonces se resalta y los demás no se apartan
+      const z = zl.find(x => { const r = x.getBoundingClientRect(); return dedoY >= r.top - 6 && dedoY <= r.bottom + 6; }) || null;
+      if (z !== zona) { if (zona) zona.classList.remove("zona-destino"); zona = z; if (zona) zona.classList.add("zona-destino"); el.classList.toggle("sobre-zona", !!zona); }
       lista.forEach((x, k) => {
         if (k === idx) return;
+        if (zona) { x.style.transform = ""; return; }
         const medio = cajas[k].top + cajas[k].alto / 2;
         let mueve = 0;
         if (k < idx && centro < medio) { mueve = paso; destino--; }
@@ -4577,12 +4607,14 @@ function asaArrastre(el, hermanos, alSoltar, nombre) {
       asa.removeEventListener("pointerup", fin);
       asa.removeEventListener("pointercancel", fin);
       lista.forEach(x => { x.style.transform = ""; x.classList.remove("apartandose"); });
-      el.classList.remove("arrastrando");
+      el.classList.remove("arrastrando", "sobre-zona");
+      if (zona) zona.classList.remove("zona-destino");
+      if (ev.type !== "pointercancel" && zona) { el.style.transform = ""; zonas.alSoltar(zona); return; }
       if (ev.type === "pointercancel" || destino === idx) { if (repintarLuego) pintarBloques(true); return; }
       const nuevo = lista.slice();
       nuevo.splice(idx, 1);
       nuevo.splice(destino, 0, el);
-      alSoltar(nuevo);
+      alSoltar(nuevo, el);
     };
     asa.addEventListener("pointermove", mover);
     asa.addEventListener("pointerup", fin);
