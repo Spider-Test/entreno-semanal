@@ -714,6 +714,7 @@ function abrirMenu(titulo, detalle, opciones, extra) {
         return;
       }
       if (!o.mantener) $("menu").close();
+      ultimoTocado = null;   // mover, borrar, pegar…: que la pantalla no salte para «sujetar» el ejercicio
       o.accion();
     });
     cont.appendChild(b);
@@ -1313,7 +1314,7 @@ document.addEventListener("pointerdown", ev => { const b = ev.target.closest && 
 function anclaVista() {
   if (!ultimoTocado || $("vistaSemana").hidden) return null;
   const el = buscarTocado();
-  if (!el) return null;
+  if (!el || !el.querySelector("form.nueva-serie:not([hidden])")) return null;
   const top = el.getBoundingClientRect().top;
   return top > -200 && top < innerHeight ? { top } : null;
 }
@@ -1374,12 +1375,12 @@ function pintarDiaSinAncla(dia) {
     if (g.nombre || varios) {
       const cab = document.createElement("div");
       cab.className = "grupo-cab";
-      cab.innerHTML = varios
+      cab.innerHTML = true   // cualquier entreno con cabecera se puede plegar (también si es el único del día)
         ? '<button type="button" class="g-nombre g-toggle"><span class="flecha-dia" aria-hidden="true">▸</span><span class="gn-txt"></span><span class="g-res"></span></button><span class="g-prog"></span><button type="button" class="menu-btn">⋯</button>'
         : '<span class="g-nombre"><span class="gn-txt"></span></span><span class="g-prog"></span><button type="button" class="menu-btn">⋯</button>';
       cab.querySelector(".gn-txt").textContent = g.nombre || "Entreno 1";
       const deG = delDia.filter(s => (s.grupo || "") === g.nombre);
-      if (varios) {
+      {   // plegar o desplegar el entreno tocando su nombre
         // Varios entrenos en el día: cada uno se pliega o despliega tocando su nombre (se recuerda en este dispositivo)
         const clavePl = dia.id + "|" + g.nombre, tg = cab.querySelector(".g-toggle");
         const nombres = [...new Set(g.ids.map(id => id.startsWith("b:") ? "Bloque" : nombreEj(id)).filter(Boolean))];
@@ -1628,7 +1629,7 @@ function bloque(dia, id, series, grupo, parte) {
           '<span class="kg-par">(</span>' + paso('<input class="in-a" inputmode="decimal" placeholder="peso" aria-label="Peso en kg" autocomplete="off" enterkeyhint="next">') + '<button type="button" class="modo" aria-label="Cambiar entre kg y % del 1RM">kg</button><span class="kg-par">)</span>') +
       '</div>' + (dist ? '<div class="ns-extra"><span class="calc"></span></div>' : mov ? '<div class="ns-extra"><label class="lado-op"><input type="checkbox" class="por-lado"> Por lado (izq. y der.)</label></div>' : '<div class="ns-extra"><span class="calc"></span><span class="ops-fuerza"><button type="button" class="medida-btn" aria-label="Cómo se mide la serie">Reps ▾</button><label class="lado-op"><input type="checkbox" class="por-lado"> Por lado</label></span><span class="seg-medida" role="group" aria-label="Cómo se mide la serie" hidden><button type="button" data-m="reps">Reps</button><button type="button" data-m="t">⏱ Tiempo</button><button type="button" data-m="maxr">Máx. reps</button><button type="button" data-m="maxt">Máx. tiempo</button><input type="checkbox" class="es-max" hidden><input type="checkbox" class="por-t" hidden></span><label class="bilbo-op" hidden><input type="checkbox" class="es-bilbo"> <span></span></label></div>') +
       '<div class="ns-fila ns-desc"><input class="in-c" inputmode="decimal" placeholder="⏱ descanso" title="Descanso tras la serie: 1,30 (minutos), 90 (segundos) o 300 m" aria-label="Descanso o recuperación después de la serie: 1,30, 90 o 300 m" autocomplete="off" enterkeyhint="done">' +
-      '<button class="anadir ok">OK</button></div>' +
+      '<button type="button" class="cancelar-form" aria-label="Cancelar: dejarlo como estaba">Cancelar</button><button class="anadir ok">OK</button></div>' +
       '<button type="button" class="enlace cambiar-ej-btn" hidden>⇄ Cambiar ejercicio</button><label class="cambiar-ej" hidden>Ejercicio <select class="otro-ej" aria-label="Cambiar el ejercicio (se mantienen las series)"></select></label>' +
       '<button type="button" class="enlace desmarcar" hidden>↺ Marcar como pendiente</button>' +
     '</form>';
@@ -1719,10 +1720,11 @@ function bloque(dia, id, series, grupo, parte) {
     if (dentro(ev.relatedTarget)) return;
     setTimeout(() => {
       if (formEl.hidden || dentro(document.activeElement) || !b.isConnected) return;
-      if (!(modoForm === "editar" || (modoForm === "grupo" && series.length))) return;
-      if (foto === null || valoresForm() === foto) return;
-      foto = null;
-      formEl.requestSubmit();
+      // Te vas a otro sitio sin pulsar OK: si has escrito algo válido se guarda solo; si no has cambiado nada, se cierra
+      const cambiado = foto !== null && valoresForm() !== foto;
+      const hayDato = mov || dist ? !!(fa.value.trim() || fb.value.trim()) : !!(fb.value.trim() || (b.querySelector(".es-max") || {}).checked);
+      if (cambiado && hayDato) { foto = null; formEl.requestSubmit(); return; }
+      if (series.length && (modoForm === "editar" || modoForm === "grupo" || modoForm === "una") && !cambiado) { delete borradores[dia.id + "|" + (grupo || "") + "|" + id + "|" + (parte || "")]; pintarBloques(true); }
     }, 200);
   });
 
@@ -1972,7 +1974,7 @@ function bloque(dia, id, series, grupo, parte) {
     mas.className = "enlace mas-serie";
     mas.textContent = "+ Serie";
     mas.setAttribute("aria-label", "Añadir otra serie de " + (ej.nombre || "este ejercicio"));
-    mas.addEventListener("click", () => { abrirForm(); ponerModoForm("una"); fa.focus(); });
+    mas.addEventListener("click", () => { abrirForm(); ponerModoForm("una"); tomarFoto(); fa.focus(); });
     ol.after(mas);
   }
   // Calentamiento sugerido antes de la primera serie efectiva (hoy y sin haber empezado)
@@ -2006,7 +2008,15 @@ function bloque(dia, id, series, grupo, parte) {
     fa.value = bor.a; fb.value = bor.b; fc.value = bor.c; vecesEl.value = bor.v;
     if (b.querySelector(".por-lado")) b.querySelector(".por-lado").checked = bor.lado;
     b.classList.add("con-borrador");
+    foto = "";   // lo que quedó escrito se guardará al salir
   }
+  if (!series.length && foto === null) tomarFoto();
+  // Cancelar: se descarta lo escrito y queda como estaba (con series, se cierra; recién añadido, se vacía)
+  b.querySelector(".cancelar-form").addEventListener("click", () => {
+    foto = null;
+    delete borradores[dia.id + "|" + (grupo || "") + "|" + id + "|" + (parte || "")];
+    pintarBloques(true);
+  });   // ejercicio recién añadido: al salir, si has escrito algo, se crean sus series
   [fa, fb, fc, vecesEl].forEach(x => x.addEventListener("input", guardarBor));
   formEl.addEventListener("change", guardarBor);
   [fa, fb, fc].forEach((inp, k, todos) => {
@@ -2921,7 +2931,19 @@ $("nuevoEj").addEventListener("click", () => {
 
 // ---------- Ficha del ejercicio: tipo, vídeo, récords, progreso e historial ----------
 let detalleId = null;
+// Tramo del vídeo: el inicio que trae el enlace de YouTube (?t=90, ?t=1m30s, &start=) y el final (&end=), o un tramo
+// escrito detrás del enlace con un espacio: «https://youtu.be/xxxx 1:30-2:15» (desde 1:30 hasta 2:15)
+function tramoYoutube(u) {
+  const seg = t => { t = String(t || "").trim(); if (!t) return 0; if (/^\d+$/.test(t)) return +t; const m = t.match(/^(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?$/); if (m && (m[1] || m[2] || m[3])) return (+m[1] || 0) * 3600 + (+m[2] || 0) * 60 + (+m[3] || 0); const p = t.split(":").map(Number); return p.some(isNaN) ? 0 : p.reduce((a, x) => a * 60 + x, 0); };
+  let inicio = 0, fin = 0;
+  const partes = String(u || "").trim().split(/\s+/), extra = partes.slice(1).join(" ");
+  try { const x = new URL(partes[0]); inicio = seg(x.searchParams.get("t") || x.searchParams.get("start")); fin = seg(x.searchParams.get("end")); } catch {}
+  const m = extra.match(/^(\d[\d:]*)\s*(?:-|a|hasta)\s*(\d[\d:]*)$/) || extra.match(/^(\d[\d:]*)$/);
+  if (m) { inicio = seg(m[1]); if (m[2]) fin = seg(m[2]); }
+  return { inicio, fin: fin > inicio ? fin : 0 };
+}
 function idYoutube(u) {
+  u = String(u || "").trim().split(/\s+/)[0];
   try {
     const x = new URL(u);
     if (/(^|\.)youtu\.be$/.test(x.hostname)) return x.pathname.slice(1).split("/")[0] || null;
@@ -2951,7 +2973,7 @@ function ponerVideo(cont, e) {
     b.addEventListener("click", ev => { ev.stopPropagation(); verVideo(e); });
     cont.appendChild(b);
     const a = document.createElement("a");
-    a.href = "https://www.youtube.com/watch?v=" + encodeURIComponent(yt); a.target = "_blank"; a.rel = "noopener"; a.className = "enlace";
+    a.href = "https://www.youtube.com/watch?v=" + encodeURIComponent(yt) + (tramoYoutube(e.video_url).inicio ? "&t=" + tramoYoutube(e.video_url).inicio + "s" : ""); a.target = "_blank"; a.rel = "noopener"; a.className = "enlace";
     a.textContent = "Abrir en YouTube";
     cont.appendChild(a);
   } else if (/^https?:\/\//i.test(e.video_url)) {
@@ -2966,7 +2988,7 @@ const esShort = u => /\/shorts\//i.test(u || "");
 // algunos vídeos); los Shorts se ven en vertical y completos
 function verVideo(e) {
   const yt = idYoutube(e.video_url);
-  if (!yt) { if (/^https?:\/\//i.test(e.video_url || "")) window.open(e.video_url, "_blank", "noopener"); return; }
+  if (!yt) { const u0 = String(e.video_url || "").trim().split(/\s+/)[0]; if (/^https?:\/\//i.test(u0)) window.open(u0, "_blank", "noopener"); return; }
   let d = document.getElementById("visorVideo");
   if (!d) {
     d = document.createElement("dialog");
@@ -2980,9 +3002,10 @@ function verVideo(e) {
   }
   d.classList.toggle("vertical", esShort(e.video_url));
   d.querySelector(".vv-tit").textContent = e.nombre || "Vídeo";
-  d.querySelector(".vv-yt").href = "https://www.youtube.com/watch?v=" + encodeURIComponent(yt);
+  d.querySelector(".vv-yt").href = "https://www.youtube.com/watch?v=" + encodeURIComponent(yt) + (tramoYoutube(e.video_url).inicio ? "&t=" + tramoYoutube(e.video_url).inicio + "s" : "");
   const f = document.createElement("iframe");
-  f.src = "https://www.youtube-nocookie.com/embed/" + encodeURIComponent(yt) + "?playsinline=1&rel=0&autoplay=1";
+  const tr = tramoYoutube(e.video_url);
+  f.src = "https://www.youtube-nocookie.com/embed/" + encodeURIComponent(yt) + "?playsinline=1&rel=0&autoplay=1" + (tr.inicio ? "&start=" + tr.inicio : "") + (tr.fin ? "&end=" + tr.fin : "");
   f.title = "Vídeo: " + (e.nombre || "");
   f.allow = "accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; fullscreen";
   f.allowFullscreen = true;
@@ -3288,7 +3311,7 @@ $("detNombre").addEventListener("change", () => {
   pintarVideo(db.ejercicios[detalleId]);
 });
 $("detVideo").addEventListener("change", () => {
-  let u = $("detVideo").value.trim();
+  let u = $("detVideo").value.trim().replace(/\s+/g, " ");
   if (u && !/^https?:\/\//i.test(u)) u = "https://" + u;
   $("detVideo").value = u;
   editarEjercicio({ video_url: u });
@@ -5470,6 +5493,7 @@ function asaArrastre(el, hermanos, alSoltar, nombre, zonas) {
     if (e.button > 0) return;
     e.preventDefault();
     e.stopPropagation();
+    ultimoTocado = null;   // al arrastrar, lo movido va a su nuevo sitio: no se «sujeta» la pantalla
     const lista = hermanos(), idx = lista.indexOf(el), zl = zonas ? zonas.lista() : [];
     if ((lista.length < 2 && !zl.length) || idx < 0) return;
     let zona = null;
@@ -5961,7 +5985,7 @@ $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); 
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
 // VERSION_APP es interna (sube en cada publicación para que los móviles se actualicen); la que se ve es siempre la 26
-const VERSION_APP = "v108" + (BETA ? " beta" : "");
+const VERSION_APP = "v114" + (BETA ? " beta" : "");
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";

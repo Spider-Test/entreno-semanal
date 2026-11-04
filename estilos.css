@@ -1272,6 +1272,29 @@ h1 { color: var(--titulo); }
 #detMedida { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
 #detMedida button { min-width: 0; padding-left: 4px; padding-right: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
+/* Ordenador, semana en 7 columnas: columnas estrechas sin letras sueltas ni cosas que se salgan */
+@media (min-width: 1240px) {
+  #vistaSemana:not(.solo-dia) .grupo, #vistaSemana:not(.solo-dia) .parte-caja, #vistaSemana:not(.solo-dia) .letra-caja { padding-left: 3px; padding-right: 3px; margin-left: 0; margin-right: 0; }
+  #vistaSemana:not(.solo-dia) .parte-caja > .parte-cab { margin: 0 -3px; padding: 4px 6px; }
+  #vistaSemana:not(.solo-dia) .bloque { padding-left: 7px; padding-right: 3px; }
+  #vistaSemana:not(.solo-dia) .bloque > .bloque-cab { flex-wrap: wrap; row-gap: 2px; }
+  #vistaSemana:not(.solo-dia) .bloque > .bloque-cab .ej-nombre, #vistaSemana:not(.solo-dia) .bloque > .bloque-cab .br-tit { flex: 1 1 100%; word-break: normal; overflow-wrap: break-word; hyphens: auto; }
+  #vistaSemana:not(.solo-dia) .bloque > .bloque-cab .ej-resumen { display: none; }
+  #vistaSemana:not(.solo-dia) .bloque > .bloque-cab .veces-cab { margin-left: 0; }
+  #vistaSemana:not(.solo-dia) .parte-cab .p-nombre, #vistaSemana:not(.solo-dia) .grupo-cab .gn-txt, #vistaSemana:not(.solo-dia) .letra-cab .l-nombres { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; font-size: 13px; }
+  #vistaSemana:not(.solo-dia) .p-toggle, #vistaSemana:not(.solo-dia) .g-toggle { min-width: 0; overflow: hidden; }
+  #vistaSemana:not(.solo-dia) .fila-fuerza, #vistaSemana:not(.solo-dia) .ops-fuerza, #vistaSemana:not(.solo-dia) .ns-principal { flex-wrap: wrap; row-gap: 4px; }
+  #vistaSemana:not(.solo-dia) .ns-desc.desc-en-ops { margin-left: 0; flex: 1 1 100%; justify-content: flex-start; }
+  #vistaSemana:not(.solo-dia) .series li { word-break: normal; overflow-wrap: break-word; }
+  #vistaSemana:not(.solo-dia) .bloque:not(:hover):not(:focus-within):has(.series li) .veces-cab { display: none !important; }
+  #vistaSemana:not(.solo-dia) .veces-cab { flex: 1 1 100%; order: 5; justify-content: flex-start; }
+  #vistaSemana:not(.solo-dia) .ns-desc.desc-en-ops .in-c { width: 56px; flex-basis: 56px; }
+}
+
+/* Cancelar, junto a OK */
+.cancelar-form { flex: none; border: 1px solid var(--line); background: var(--card); color: var(--muted); border-radius: 8px; padding: 0 10px; height: 38px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+@media (max-width: 760px) { .cancelar-form { padding: 0 8px; } .ns-desc.desc-en-ops .in-c { width: 54px; flex-basis: 54px; } }
+
 /* Arrastrar un ejercicio o bloque encima de la cabecera de una parte: entra en ella (como una carpeta) */
 .parte-cab { transition: transform 0.15s, box-shadow 0.15s; }
 .parte-cab.zona-destino { transform: scale(1.03); box-shadow: 0 0 0 3px var(--pc), 0 6px 18px rgba(0, 0, 0, 0.18); }
