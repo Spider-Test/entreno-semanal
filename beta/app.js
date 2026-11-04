@@ -41,12 +41,12 @@ const TABLAS = {
   ciclos: { clave: "id", conflicto: "id", campos: ["id", "ejercicio_id", "numero", "rm_inicio", "peso_inicial", "incremento", "reps_reset", "importadas", "cerrado", "borrado", "actualizado"] },
   plantillas: { clave: "id", conflicto: "id", campos: ["id", "nombre", "items", "borrado", "actualizado"] },
   mesociclos: { clave: "id", conflicto: "id", campos: ["id", "nombre", "inicio", "semanas", "dias", "progresion", "descarga", "notas", "borrado", "actualizado"] },
-  series: { clave: "id", conflicto: "id", campos: ["id", "fecha", "ejercicio_id", "orden", "peso", "reps", "distancia", "tiempo", "descanso", "hecha", "grupo", "meso_id", "bloque_id", "ronda", "rec_dist", "pct", "ciclo_id", "calentamiento", "desnivel_pos", "desnivel_neg", "ritmo_ajustado", "fc_media", "fc_max", "cadencia", "fc_pico", "fc_hist", "seccion", "por_lado", "nota", "letra_nueva", "borrado", "actualizado"] },
+  series: { clave: "id", conflicto: "id", campos: ["id", "fecha", "ejercicio_id", "orden", "peso", "reps", "distancia", "tiempo", "descanso", "hecha", "grupo", "meso_id", "bloque_id", "ronda", "rec_dist", "pct", "ciclo_id", "calentamiento", "desnivel_pos", "desnivel_neg", "ritmo_ajustado", "fc_media", "fc_max", "cadencia", "fc_pico", "fc_hist", "seccion", "por_lado", "nota", "letra_nueva", "max_tiempo", "borrado", "actualizado"] },
   entrenos: { clave: "fecha", conflicto: "user_id,fecha", campos: ["fecha", "html", "texto", "rpe", "sensacion", "actualizado"] },
   molestias: { clave: "id", conflicto: "id", campos: ["id", "zona", "descripcion", "inicio", "estado", "borrado", "actualizado"] },
   carreras: { clave: "id", conflicto: "id", campos: ["id", "nombre", "fecha", "lugar", "distancia", "tiempo", "chip", "pos_general", "total_general", "categoria", "pos_categoria", "total_categoria", "desnivel_pos", "fc_media", "notas", "enlace", "previsto", "borrado", "actualizado"] }
 };
-const DEFECTOS = { seccion: "", por_lado: false, nota: "", letra_nueva: false, fecha: null, lugar: "", categoria: "", enlace: "", fc_hist: [], tipo: "fuerza", hecha: true, grupo: "", meso_id: "", bloque_id: "", ciclo_id: "", importadas: [], cerrado: false, compartido: false, items: [], dias: {}, descarga: {}, zonas: [], calentamiento: false, inicio: null, zona: "", descripcion: "", estado: "activa", nombre: "", video_url: "", notas: "", html: "", texto: "", sensacion: "", borrado: false };
+const DEFECTOS = { seccion: "", por_lado: false, nota: "", letra_nueva: false, max_tiempo: false, fecha: null, lugar: "", categoria: "", enlace: "", fc_hist: [], tipo: "fuerza", hecha: true, grupo: "", meso_id: "", bloque_id: "", ciclo_id: "", importadas: [], cerrado: false, compartido: false, items: [], dias: {}, descarga: {}, zonas: [], calentamiento: false, inicio: null, zona: "", descripcion: "", estado: "activa", nombre: "", video_url: "", notas: "", html: "", texto: "", sensacion: "", borrado: false };
 let sesion = leer("sesion-v1");                 // {access_token, refresh_token, expires_at, user_id, email}
 let perfil = leer("perfil-v1");                 // {aprobado, es_admin, email}
 let usuarios = [];                              // solo para el administrador
@@ -179,7 +179,7 @@ const esDistancia = tipo => tipo === "carrera" || tipo === "natacion";
 function adivinarTipo(nombre) {
   const n = norm(nombre);
   if (/(movilidad|estiramiento|estirar|stretch|yoga|foam|rulo|apertura de cadera|gato.?camello|rotaciones? de|circunduccion|pigeon|paloma|cobra|90.?90|world.?s greatest)/.test(n)) return "movilidad";
-  if (/(nad|natac|crol|braza|mariposa|piscina|estilos|patada|pull ?buoy)/.test(n)) return "natacion";
+  if (/(^|\s)(nad|natac|crol|braza|mariposa|piscina|estilos|patada|pull ?buoy)/.test(n)) return "natacion";   // al principio de palabra: «inclinado» no es natación
   if (/(carrera|correr|rodaje|tirada|sprint|series de|fartlek|cuesta|trote|running|\d+ ?m\b|\d+ ?km\b)/.test(n) || /^\d+$/.test(n)) return "carrera";
   return "fuerza";
 }
@@ -313,7 +313,8 @@ function serieTexto(s) {
     return (partes.join(" · ") || "—") + (s.por_lado ? " por lado" : "");
   }
   const kg = pesoMostrado(s), reps = n0(s.reps) > 0 ? n0(s.reps) : "máx";
-  if (n0(s.tiempo) > 0 && !(n0(s.reps) > 0)) return (kg > 0 ? num(kg) + " kg · " : "") + fmtDuracion(s.tiempo);   // por tiempo: bici, plancha…
+  if (s.max_tiempo && !(n0(s.tiempo) > 0) && !(n0(s.reps) > 0)) return (kg > 0 ? num(kg) + " kg · " : "") + "máx tiempo";   // aguantar el máximo
+  if (n0(s.tiempo) > 0 && !(n0(s.reps) > 0)) return (kg > 0 ? num(kg) + " kg · " : "") + fmtSegs(s.tiempo);   // por tiempo: bici, plancha, isométricos…
   return (s.ciclo_id ? "Bilbo · " : "") + (n0(s.pct) > 0 ? num(s.pct) + " % · " : "") + (kg > 0 ? num(kg) + " kg × " + reps : reps + " reps");
 }
 const descTexto = s => n0(s.rec_dist) > 0 ? "rec. " + fmtDist(s.rec_dist) : n0(s.descanso) > 0 ? "desc. " + fmtTiempo(s.descanso) : "";
@@ -638,6 +639,7 @@ const AYUDA_NOTA = "Por ejemplo «Tempo 3-2-1-2», «Banda roja», «EEP 2 (en r
 // Pone la misma descripción a todas las series de un ejercicio (o de un tramo de un bloque) en ese día
 // Ejercicios aún sin series: su descripción espera aquí (en este dispositivo) hasta que se apunte la primera serie
 let esperaNota = leer("espera-nota-v1") || {};
+const borradores = {};   // lo escrito en un ejercicio sin pulsar OK (se conserva al repintar el día)
 let esperaLetra = leer("espera-letra-v1") || {};
 // Marca que un ejercicio o bloque empieza una letra nueva (C1…) o sigue la anterior (B3…)
 function ponerLetraNueva(dia, grupo, clave, espera, v) {
@@ -812,7 +814,7 @@ document.addEventListener("selectionchange", () => {
 const seriesDelDia = fecha => (indiceSeries().porFecha[fecha] || []).slice();
 // Convierte series en una lista de ejercicios con sus series (para copiar o guardar como plantilla)
 // Los bloques se guardan como tramos con una serie por ronda: { bloque: true, tramos: [{ ejercicio_id, series: [ronda 1, ronda 2…] }] }
-const valores = s => ({ peso: n0(s.peso), reps: s.ciclo_id ? 0 : n0(s.reps), distancia: n0(s.distancia), tiempo: n0(s.tiempo), descanso: n0(s.descanso), rec_dist: n0(s.rec_dist), pct: n0(s.pct), bilbo: !!s.ciclo_id, calentamiento: !!s.calentamiento, por_lado: !!s.por_lado, nota: s.nota || "", letra_nueva: !!s.letra_nueva });
+const valores = s => ({ peso: n0(s.peso), reps: s.ciclo_id ? 0 : n0(s.reps), distancia: n0(s.distancia), tiempo: n0(s.tiempo), descanso: n0(s.descanso), rec_dist: n0(s.rec_dist), pct: n0(s.pct), bilbo: !!s.ciclo_id, calentamiento: !!s.calentamiento, por_lado: !!s.por_lado, nota: s.nota || "", letra_nueva: !!s.letra_nueva, max_tiempo: !!s.max_tiempo });
 function itemsDe(series) {
   const items = [], bloques = {};
   series.forEach(s => {
@@ -839,7 +841,7 @@ function pegarItems(fecha, items, grupo, mesoId, masKg) {
   const nueva = (ejercicio_id, v, extra) => cambiar("series", Object.assign({
     id: nuevoId(), fecha, ejercicio_id, orden: orden++,
     peso: n0(v.peso) > 0 ? Math.max(0, n0(v.peso) + n0(masKg)) : 0, reps: n0(v.reps), distancia: n0(v.distancia), tiempo: n0(v.tiempo),
-    descanso: n0(v.descanso), rec_dist: n0(v.rec_dist), pct: n0(v.pct), ciclo_id: v.bilbo ? "auto" : "", calentamiento: !!v.calentamiento, por_lado: !!v.por_lado, nota: v.nota || "", letra_nueva: !!v.letra_nueva, hecha: false, meso_id: mesoId || "", bloque_id: "", ronda: 0, borrado: false
+    descanso: n0(v.descanso), rec_dist: n0(v.rec_dist), pct: n0(v.pct), ciclo_id: v.bilbo ? "auto" : "", calentamiento: !!v.calentamiento, por_lado: !!v.por_lado, nota: v.nota || "", letra_nueva: !!v.letra_nueva, max_tiempo: !!v.max_tiempo, hecha: false, meso_id: mesoId || "", bloque_id: "", ronda: 0, borrado: false
   }, extra), true);
   items.forEach(it => {
     const g = grupo !== undefined ? grupo : (it.grupo || "");
@@ -1086,28 +1088,50 @@ async function abrirCompartido(texto) {
     const x = c.items[0], lunesP = lunesVista();
     const vista = document.createElement("div");
     x.plantillas.forEach(p => vista.appendChild(desplegableItems(p.nombre, p.items)));
-    abrirMenu("«" + c.nombre + "»", "Compartido por " + (c.autor || "un amigo") + ". Toca cada plantilla para ver sus ejercicios.",
-      [{ texto: "Guardar en mis plantillas", accion: () => guardarPaqueteCompartido(c) }].concat(NOMBRES.map((n, i) => ({ texto: "Añadir al " + n + " " + fmt(sumarDias(lunesP, i)), accion: () => {
-        x.plantillas.forEach(p => pegarItems(iso(sumarDias(lunesP, i)), desdeCompartido(p.items), p.nombre)); persistir(); verPestana("semana");
-      } }))), vista);
+    abrirMenu("«" + c.nombre + "»", "Compartido por " + (c.autor || "un amigo") + ". Solo lo estás viendo: toca cada plantilla para ver sus ejercicios. No se añade nada hasta que tú quieras.",
+      [{ texto: "+ Añadir a mi rutina…", accion: () => abrirMenu("¿Cómo lo añado?", "«" + c.nombre + "»", [
+        { texto: "Guardar en mis plantillas", accion: () => guardarPaqueteCompartido(c) },
+        { texto: "Ponerlas en un día…", accion: () => elegirDiaDestino(lunesP, "¿En qué día pongo «" + c.nombre + "»?", f => {
+          x.plantillas.forEach(p => pegarItems(f, desdeCompartido(p.items), p.nombre)); persistir(); irADia(f, "«" + c.nombre + "» añadido");
+        }) }
+      ]) }, { texto: "Solo mirar (cerrar)", accion: () => {} }], vista);
     return;
   }
   // Un mesociclo entero: vista previa y guardarlo con sus plantillas
   if (c.items[0] && c.items[0].mesociclo) {
     const x = c.items[0], mm = x.mesociclo;
     abrirMenu("Mesociclo «" + c.nombre + "»", "Compartido por " + (c.autor || "un amigo") + " · " + n0(mm.semanas) + " semanas" + (n0(mm.progresion) ? " · +" + num(mm.progresion) + " kg/semana" : "") +
-      ". Toca cada día para ver sus ejercicios. Se guardan en tus plantillas y mesociclos; después eliges cuándo empieza.",
-      [{ texto: "Guardar en mis mesociclos", accion: () => guardarMesoCompartido(c) }], vistaMesoCompartido(x));
+      ". Solo lo estás viendo: toca cada día para ver sus ejercicios. Si lo añades, se guarda en tus plantillas y mesociclos y después eliges cuándo empieza.",
+      [{ texto: "+ Añadir a mis mesociclos", accion: () => guardarMesoCompartido(c) }, { texto: "Solo mirar (cerrar)", accion: () => {} }], vistaMesoCompartido(x));
     return;
   }
+  // Un entrenamiento: primero solo se ve; «Añadir a mi rutina» deja elegir día o guardarlo como plantilla
   const lunes = lunesVista();
-  const nombres = c.items.map(it => it.bloque ? "(" + it.tramos.map(t => t.ejercicio).join(" + ") + ")" : it.ejercicio).join(", ");
-  abrirMenu("«" + c.nombre + "»", "Compartido por " + (c.autor || "un amigo") + ": " + nombres + " · " + contarSeries(c.items) + " series. ¿Dónde lo añado?",
-    NOMBRES.map((n, i) => ({ texto: "Añadir al " + n + " " + fmt(sumarDias(lunes, i)), accion: () => {
-      pegarItems(iso(sumarDias(lunes, i)), desdeCompartido(c.items), c.nombre); persistir(); verPestana("semana");
-    } })).concat([{ texto: "Guardar como plantilla", accion: () => {
-      cambiar("plantillas", { id: nuevoId(), nombre: c.nombre, items: desdeCompartido(c.items), borrado: false }); pintarPlan(); setEstado("Plantilla «" + c.nombre + "» guardada");
-    } }]), desplegableItems("Ejercicios", c.items, true));
+  abrirMenu("«" + c.nombre + "»", "Compartido por " + (c.autor || "un amigo") + " · " + contarSeries(c.items) + " series. Solo lo estás viendo: no se añade nada hasta que tú quieras.",
+    [{ texto: "+ Añadir a mi rutina…", accion: () => abrirMenu("¿Cómo lo añado?", "«" + c.nombre + "»", [
+      { texto: "Ponerlo en un día…", accion: () => elegirDiaDestino(lunes, "¿En qué día pongo «" + c.nombre + "»?", f => {
+        pegarItems(f, desdeCompartido(c.items), c.nombre); persistir(); irADia(f, "«" + c.nombre + "» añadido");
+      }) },
+      { texto: "Guardar como plantilla", accion: () => {
+        cambiar("plantillas", { id: nuevoId(), nombre: c.nombre, items: desdeCompartido(c.items), borrado: false }); pintarPlan(); setEstado("Plantilla «" + c.nombre + "» guardada");
+      } }
+    ]) }, { texto: "Solo mirar (cerrar)", accion: () => {} }], desplegableItems("Ejercicios", c.items, true));
+}
+// Elegir un día de una semana (con ‹ y › para cambiar de semana)
+function elegirDiaDestino(lunes, titulo, alElegir) {
+  const hoyIso = iso(new Date());
+  abrirMenu(titulo, "Semana del " + fmt(lunes) + " al " + fmt(sumarDias(lunes, 6)), [
+    { texto: "‹ Semana anterior", accion: () => elegirDiaDestino(sumarDias(lunes, -7), titulo, alElegir) },
+    ...NOMBRES.map((n, i) => { const f = iso(sumarDias(lunes, i)); return { texto: n + " " + fmt(sumarDias(lunes, i)) + (f === hoyIso ? " · hoy" : ""), accion: () => alElegir(f) }; }),
+    { texto: "Semana siguiente ›", accion: () => elegirDiaDestino(sumarDias(lunes, 7), titulo, alElegir) }
+  ]);
+}
+// Lleva la semana al día donde se ha añadido algo
+function irADia(f, aviso) {
+  desplazamiento = Math.round((lunesDe(deIso(f)) - lunesDe(new Date())) / 6048e5);
+  verPestana("semana");
+  pintarSemana();
+  if (aviso) setEstado(aviso);
 }
 
 // ---------- Ejercicios de cada día ----------
@@ -1266,6 +1290,9 @@ function pintarDia(dia) {
         if (sig) esperaAntes[dia.id + "|" + x.dataset.clave] = sig.dataset.clave; else delete esperaAntes[dia.id + "|" + x.dataset.clave];
       });
       escribir("espera-antes-v1", esperaAntes);
+      // El orden entre los que aún no tienen series sale de su lista: se guarda tal como han quedado
+      const ordenEsp = n.filter(x => x.dataset.espera).map(x => x.dataset.clave);
+      if (ordenEsp.length > 1 && enEspera[dia.id]) { enEspera[dia.id] = ordenEsp.concat(enEspera[dia.id].filter(x => !ordenEsp.includes(x))); guardarEspera(); }
       reordenar(n.filter(x => !x.dataset.espera).map(x => seriesDeItem(dia.id, g.nombre, x.dataset.clave)), "Ejercicio movido");
       pintarBloques(true);
     };
@@ -1371,16 +1398,16 @@ function bloque(dia, id, series, grupo, parte) {
   b.innerHTML = '<div class="bloque-cab"><button type="button" class="ej-nombre"></button><button type="button" class="quitar" aria-label="Quitar ejercicio">✕</button></div>' +
     '<ol class="series"></ol>' +
     '<form class="nueva-serie">' +
+      '<div class="ns-fila ns-series"><label class="veces-l">Series <button type="button" class="v-menos" aria-label="Una serie menos">−</button><input class="veces" inputmode="numeric" pattern="[0-9]*" value="1" aria-label="Cuántas series iguales" autocomplete="off" enterkeyhint="next"><button type="button" class="v-mas" aria-label="Una serie más">+</button></label></div>' +
       '<div class="ns-fila">' + (dist
         ? '<button type="button" class="modo-dist" aria-label="Cambiar entre metros y tiempo">m</button>' + paso('<input class="in-a" inputmode="decimal" placeholder="' + UD() + '" aria-label="Distancia en ' + UD() + '" autocomplete="off" enterkeyhint="next">') +
           paso('<input class="in-b" inputmode="decimal" placeholder="tiempo 3,40" aria-label="Tiempo (minutos y segundos)" autocomplete="off" enterkeyhint="next">')
         : mov ? paso('<input class="in-a" inputmode="numeric" pattern="[0-9]*" placeholder="reps" aria-label="Repeticiones (opcional si pones tiempo)" autocomplete="off" enterkeyhint="next">') +
           '<span class="por">o</span>' + paso('<input class="in-b" inputmode="decimal" placeholder="tiempo 45 s" aria-label="Tiempo: 45 son segundos, 2 min o 1,30" autocomplete="off" enterkeyhint="next">')
         : '<button type="button" class="modo" aria-label="Cambiar entre kg y % del 1RM">kg</button>' + paso('<input class="in-a" inputmode="decimal" placeholder="kg" aria-label="Peso en kg" autocomplete="off" enterkeyhint="next">') +
-          '<span class="por">×</span>' + paso('<input class="in-b" inputmode="numeric" pattern="[0-9]*" placeholder="reps" aria-label="Repeticiones" autocomplete="off" enterkeyhint="next">')) +
-      '</div>' + (dist ? '<div class="ns-extra"><span class="calc"></span></div>' : mov ? '<div class="ns-extra"><label class="lado-op"><input type="checkbox" class="por-lado"> Por lado (izq. y der.)</label></div>' : '<div class="ns-extra"><span class="calc"></span><label class="bilbo-op" hidden><input type="checkbox" class="es-bilbo"> <span></span></label></div>') +
+          '<span class="por">×</span>' + paso('<input class="in-b" inputmode="numeric" placeholder="reps" aria-label="Repeticiones (o «máx»)" autocomplete="off" enterkeyhint="next">')) +
+      '</div>' + (dist ? '<div class="ns-extra"><span class="calc"></span></div>' : mov ? '<div class="ns-extra"><label class="lado-op"><input type="checkbox" class="por-lado"> Por lado (izq. y der.)</label></div>' : '<div class="ns-extra"><span class="calc"></span><span class="ops-fuerza"><label class="lado-op max-op"><input type="checkbox" class="es-max"> Al máximo (máx. reps o tiempo)</label><label class="lado-op por-t-op"><input type="checkbox" class="por-t"> ⏱ Por tiempo (isométrico)</label></span><label class="bilbo-op" hidden><input type="checkbox" class="es-bilbo"> <span></span></label></div>') +
       '<div class="ns-fila"><input class="in-c" inputmode="decimal" placeholder="⏱ descanso 1,30 o 300 m" aria-label="Descanso o recuperación después de la serie (tiempo o metros)" autocomplete="off" enterkeyhint="done">' +
-      '<label class="veces-l"><span aria-hidden="true">×</span><input class="veces" inputmode="numeric" pattern="[0-9]*" value="1" aria-label="Cuántas series iguales" autocomplete="off" enterkeyhint="done"></label>' +
       '<button class="anadir ok">OK</button></div>' +
       '<label class="cambiar-ej" hidden>Ejercicio <select class="otro-ej" aria-label="Cambiar el ejercicio (se mantienen las series)"></select></label>' +
       '<button type="button" class="enlace desmarcar" hidden>↺ Marcar como pendiente</button>' +
@@ -1401,7 +1428,7 @@ function bloque(dia, id, series, grupo, parte) {
   if (dolor.length) { const m = document.createElement("span"); m.className = "molestia-tag"; m.textContent = "⚠ " + dolor.map(x => x.zona).join(", "); m.title = dolor.map(x => x.zona + (x.descripcion ? ": " + x.descripcion : "")).join(" · "); nom.appendChild(m); }
   nom.setAttribute("aria-label", series.length ? "Editar " + (ej.nombre || "ejercicio") + ": valores, número de series o ejercicio" : "Ver " + (ej.nombre || "ejercicio") + ": vídeo, récords e historial");
   // Con series: tocar el nombre abre (o cierra sin guardar) la edición del ejercicio; sin series, su ficha
-  nom.addEventListener("click", () => !series.length ? abrirDetalle(id) : formEl.hidden ? abrirGrupo() : pintarBloques(true));
+  nom.addEventListener("click", () => !series.length ? abrirDetalle(id) : formEl.hidden ? abrirGrupo() : (delete borradores[dia.id + "|" + (grupo || "") + "|" + id], pintarBloques(true)));
   const notaB = notaDe(series) || (!series.length ? esperaNota[dia.id + "|" + id] || "" : "");
   const pedirNotaB = () => editarNota(dia, series, "Descripción de " + (ej.nombre || "el ejercicio"), id);
   if (notaB) b.querySelector(".bloque-cab").after(lineaNota(notaB, pedirNotaB));
@@ -1434,14 +1461,17 @@ function bloque(dia, id, series, grupo, parte) {
   }
   // El formulario tiene tres usos: «grupo» (×N series iguales y OK, también para editarlas todas), «una» (+ Serie suelta) y «editar» (una serie)
   let modoForm = "grupo";
+  b.querySelector(".v-menos").addEventListener("click", () => { vecesEl.value = Math.max(1, (parseInt(vecesEl.value, 10) || 1) - 1); vecesEl.dispatchEvent(new Event("input")); });
+  b.querySelector(".v-mas").addEventListener("click", () => { vecesEl.value = Math.min(50, (parseInt(vecesEl.value, 10) || 0) + 1); vecesEl.dispatchEvent(new Event("input")); });
   const vecesEl = b.querySelector(".veces"), cambiarEl = b.querySelector(".cambiar-ej"), otroEj = b.querySelector(".otro-ej");
   const ponerModoForm = m => {
     modoForm = m;
-    b.querySelector(".veces-l").hidden = m !== "grupo";
+    b.querySelector(".ns-series").hidden = m !== "grupo";
     cambiarEl.hidden = !(m === "grupo" && series.length);
     if (m !== "editar") boton.textContent = m === "grupo" ? "OK" : "+ Añadir serie";
     boton.setAttribute("aria-label", m === "grupo" ? (series.length ? "OK: guardar los cambios en las series" : "OK: crear las series") : m === "una" ? "Añadir una serie suelta" : "Guardar la serie");
     if (m !== "editar") { editando = null; b.querySelector(".desmarcar").hidden = true; ol.querySelectorAll("li").forEach(x => x.classList.remove("editando")); }
+    else delete borradores[dia.id + "|" + (grupo || "") + "|" + id];   // editar una serie concreta descarta el borrador
   };
   const abrirForm = () => { formEl.hidden = false; const m = b.querySelector(".mas-serie"); if (m) m.hidden = true; };
   function abrirGrupo() {
@@ -1457,6 +1487,30 @@ function bloque(dia, id, series, grupo, parte) {
   b.abrirEdicion = abrirGrupo;
 
   const fa = b.querySelector(".in-a"), fb = b.querySelector(".in-b"), fc = b.querySelector(".in-c"), boton = b.querySelector(".anadir");
+  // Fuerza por tiempo (isométricos: plancha, sentadilla isométrica…): el segundo campo pasa a ser el tiempo
+  const chkT = b.querySelector(".por-t");
+  const enTiempo = () => !!(chkT && chkT.checked);
+  const segTxt = t => n0(t) > 0 ? (n0(t) < 60 ? String(n0(t)) : fmtTiempo(t)) : "";
+  const ponerPorT = t => {
+    if (!chkT) return;
+    chkT.checked = t;
+    fb.placeholder = t ? "tiempo 45 s" : "reps";
+    fb.inputMode = t ? "decimal" : "numeric";
+    fb.setAttribute("aria-label", t ? "Tiempo: 45 son segundos, 2 min o 1,30" : "Repeticiones");
+    const por = fb.closest(".ns-fila").querySelector(".por"); if (por) por.textContent = t ? "·" : "×";
+  };
+  if (chkT) chkT.addEventListener("change", () => { fb.value = ""; ponerPorT(chkT.checked); ponerMax(enMax()); if (!enMax()) fb.focus(); });
+  // Máximas repeticiones (AMRAP / al fallo): sin número; la serie queda como «máx»
+  const chkMax = b.querySelector(".es-max");
+  const enMax = () => !!(chkMax && chkMax.checked);
+  const ponerMax = m => {
+    if (!chkMax) return;
+    chkMax.checked = m;
+    if (m) fb.value = "";
+    fb.disabled = m;
+    fb.placeholder = m ? (enTiempo() ? "máx tiempo" : "máx") : enTiempo() ? "tiempo 45 s" : "reps";
+  };
+  if (chkMax) chkMax.addEventListener("change", () => ponerMax(chkMax.checked));
   const modo = b.querySelector(".modo"), calc = b.querySelector(".calc"), opBilbo = b.querySelector(".bilbo-op"), chkBilbo = b.querySelector(".es-bilbo");
   let enPct = false;
   // Carrera y natación: por metros (con tiempo opcional) o por tiempo (con metros opcionales)
@@ -1481,7 +1535,7 @@ function bloque(dia, id, series, grupo, parte) {
   b.querySelectorAll(".paso").forEach(p => {
     const inp = p.querySelector("input");
     p.querySelectorAll("button").forEach(x => x.addEventListener("click", () => {
-      const clase = mov ? (inp === fa ? "reps" : "s") : inp === fa ? (dist ? (porTiempo ? "t" : "m") : (enPct ? "pct" : "kg")) : (dist ? (porTiempo ? "m" : "t") : "reps");
+      const clase = mov ? (inp === fa ? "reps" : "s") : !dist && inp === fb && enTiempo() ? "s" : inp === fa ? (dist ? (porTiempo ? "t" : "m") : (enPct ? "pct" : "kg")) : (dist ? (porTiempo ? "m" : "t") : "reps");
       ajustarCampo(inp, clase, x.classList.contains("mas") ? 1 : -1);
       pintarCalc();
     }));
@@ -1522,8 +1576,17 @@ function bloque(dia, id, series, grupo, parte) {
       fb.value = t ? m : ti;
     }
     else if (mov) { fa.value = n0(s.reps) || ""; fb.value = n0(s.tiempo) > 0 ? (n0(s.tiempo) < 60 ? String(n0(s.tiempo)) : fmtTiempo(s.tiempo)) : ""; b.querySelector(".por-lado").checked = !!s.por_lado; }
-    else if (n0(s.pct) > 0 && !s.ciclo_id) { ponerModo(true); fa.value = num(s.pct); fb.value = n0(s.reps) || ""; }
-    else { ponerModo(false); const kg = pesoMostrado(s); fa.value = kg > 0 ? num(kg) : ""; fb.value = n0(s.reps) || ""; }
+    else {
+      const t = (n0(s.tiempo) > 0 || !!s.max_tiempo) && !(n0(s.reps) > 0);
+      ponerPorT(t);
+      if (n0(s.pct) > 0 && !s.ciclo_id) { ponerModo(true); fa.value = num(s.pct); }
+      else { ponerModo(false); const kg = pesoMostrado(s); fa.value = kg > 0 ? num(kg) : ""; }
+      fb.value = t ? segTxt(s.tiempo) : n0(s.reps) || "";
+      const esMax = !(n0(s.reps) > 0) && !(n0(s.tiempo) > 0) && !s.ciclo_id;
+      // Completar una serie «máx» pendiente: se apunta lo que salió (reps o segundos)
+      if (esMax && modoForm === "editar" && !hecha(s)) { ponerMax(false); fb.placeholder = t ? "¿cuántos segundos?" : "¿cuántas reps?"; }
+      else ponerMax(esMax);
+    }
     fc.value = conRec ? recTexto(s) : "";
     pintarCalc();
   };
@@ -1635,6 +1698,23 @@ function bloque(dia, id, series, grupo, parte) {
   if (ult) rellenarCon(ult, ult === pendiente || ult === ultDelDia);
   else if (dist && distDeNombre(ej.nombre)) fa.value = distCampo(distDeNombre(ej.nombre));
   if (chkBilbo && pendiente && pendiente.ciclo_id) { chkBilbo.checked = true; fb.value = ""; fb.placeholder = "reps máx"; }
+  // Borrador: lo escrito sin pulsar OK no se pierde aunque el día se vuelva a pintar (al añadir o mover otro ejercicio)
+  const claveBor = dia.id + "|" + (grupo || "") + "|" + id;
+  const guardarBor = () => {
+    if (modoForm === "editar" || formEl.hidden) { delete borradores[claveBor]; return; }
+    borradores[claveBor] = { a: fa.value, b: fb.value, c: fc.value, v: vecesEl.value, modo: modoForm, t: enTiempo(), max: enMax(), lado: !!(b.querySelector(".por-lado") || {}).checked };
+  };
+  const bor = borradores[claveBor];
+  if (bor) {
+    if (formEl.hidden) { abrirForm(); ponerModoForm(bor.modo === "una" ? "una" : "grupo"); }
+    ponerPorT(!!bor.t);
+    ponerMax(!!bor.max);
+    fa.value = bor.a; fb.value = bor.b; fc.value = bor.c; vecesEl.value = bor.v;
+    if (b.querySelector(".por-lado")) b.querySelector(".por-lado").checked = bor.lado;
+    b.classList.add("con-borrador");
+  }
+  [fa, fb, fc, vecesEl].forEach(x => x.addEventListener("input", guardarBor));
+  formEl.addEventListener("change", guardarBor);
   [fa, fb, fc].forEach((inp, k, todos) => {
     inp.addEventListener("focus", () => inp.select());
     if (k < 2) inp.addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); todos[k + 1].focus(); } });
@@ -1643,7 +1723,7 @@ function bloque(dia, id, series, grupo, parte) {
   const leerValores = () => {
     const rec = leerRecuperacion(fc.value);
     if (!rec) { fc.focus(); return null; }
-    const v = { peso: 0, reps: 0, pct: 0, ciclo_id: "", por_lado: false, distancia: 0, tiempo: 0, descanso: rec.descanso, rec_dist: rec.rec_dist };
+    const v = { peso: 0, reps: 0, pct: 0, ciclo_id: "", por_lado: false, max_tiempo: false, distancia: 0, tiempo: 0, descanso: rec.descanso, rec_dist: rec.rec_dist };
     if (dist) {
       const metros = porTiempo ? fb : fa, crono = porTiempo ? fa : fb;
       v.distancia = leerDist(metros.value);
@@ -1660,10 +1740,18 @@ function bloque(dia, id, series, grupo, parte) {
       const x = parseFloat((fa.value.trim() || "0").replace(",", "."));
       v.pct = enPct ? x : 0;
       v.peso = enPct ? kgDePct(id, x) : x;
-      v.reps = parseInt(fb.value, 10);
       v.ciclo_id = chkBilbo && chkBilbo.checked && ciclo ? ciclo.id : "";
       if (!(x >= 0) || (enPct && !v.peso)) { fa.focus(); return null; }
-      if (!(v.reps > 0)) { fb.focus(); return null; }
+      if (enTiempo()) {
+        v.reps = 0; v.ciclo_id = "";
+        if (enMax() || /^\s*m[aá]x/i.test(fb.value)) { v.tiempo = 0; v.max_tiempo = true; }   // aguantar el máximo
+        else { v.tiempo = leerSegs(fb.value); if (!(v.tiempo > 0)) { fb.focus(); return null; } }
+      } else if (enMax() || /^\s*(m[aá]x|amrap|fallo)/i.test(fb.value)) {
+        v.reps = 0;   // máximas repeticiones
+      } else {
+        v.reps = parseInt(fb.value, 10);
+        if (!(v.reps > 0)) { fb.focus(); return null; }
+      }
     }
     return v;
   };
@@ -1673,6 +1761,7 @@ function bloque(dia, id, series, grupo, parte) {
     e.preventDefault();
     const v = leerValores();
     if (!v) return;
+    delete borradores[dia.id + "|" + (grupo || "") + "|" + id];
     if (modoForm === "editar" && editando) {
       // Una serie concreta: se completa (o corrige) con lo escrito; hoy o antes queda hecha
       const fila = { ...editando, ...v, hecha: dia.id <= iso(new Date()) };
@@ -1896,11 +1985,14 @@ function tarjetaBloque(dia, bloqueId, series) {
     c.querySelector(".br-que").textContent = "R" + n0(s.ronda) + " · " + nombreEj(s.ejercicio_id);
     const mov = tipoDe(s.ejercicio_id) === "movilidad";
     fa.placeholder = dist ? UD() : mov ? "reps" : "kg"; fa.inputMode = mov ? "numeric" : "decimal"; fa.setAttribute("aria-label", dist ? "Distancia en " + UD() : mov ? "Repeticiones" : "Peso en kg");
-    fb.placeholder = dist ? "tiempo 3,40" : mov ? "tiempo 45 s" : "reps"; fb.inputMode = dist || mov ? "decimal" : "numeric"; fb.setAttribute("aria-label", dist ? "Tiempo (minutos y segundos)" : mov ? "Tiempo: 45 son segundos" : "Repeticiones");
+    fb.placeholder = dist ? "tiempo 3,40" : mov ? "tiempo 45 s" : "reps o máx"; fb.inputMode = dist || mov ? "decimal" : "text"; fb.setAttribute("aria-label", dist ? "Tiempo (minutos y segundos)" : mov ? "Tiempo: 45 son segundos" : "Repeticiones (o «máx»)");
     c.querySelector(".por").textContent = dist ? "" : mov ? "o" : "×";
+    const isoT = !dist && !mov && (n0(s.tiempo) > 0 || !!s.max_tiempo) && !(n0(s.reps) > 0);
+    form.dataset.isoT = isoT ? "1" : "";
+    if (isoT) { fb.placeholder = "tiempo 45 s"; fb.inputMode = "decimal"; fb.setAttribute("aria-label", "Tiempo: 45 son segundos"); c.querySelector(".por").textContent = "·"; }
     if (mov) { fa.value = n0(s.reps) || ""; fb.value = (n0(s.tiempo) > 0 ? (n0(s.tiempo) < 60 ? String(n0(s.tiempo)) : fmtTiempo(s.tiempo)) : ""); }
     else if (dist) { fa.value = distCampo(s.distancia); fb.value = n0(s.tiempo) > 0 ? fmtTiempo(s.tiempo) : ""; }
-    else { fa.value = pesoMostrado(s) > 0 ? num(pesoMostrado(s)) : ""; fb.value = n0(s.reps) || ""; }
+    else { fa.value = pesoMostrado(s) > 0 ? num(pesoMostrado(s)) : ""; fb.value = isoT ? (n0(s.tiempo) > 0 ? (n0(s.tiempo) < 60 ? String(n0(s.tiempo)) : fmtTiempo(s.tiempo)) : "máx") : n0(s.reps) || "máx"; }
     fc.value = recTexto(s);
     c.querySelectorAll("li").forEach(x => x.classList.remove("editando"));
     li.classList.add("editando");
@@ -1970,9 +2062,11 @@ function tarjetaBloque(dia, bloqueId, series) {
       if (!(fila.reps > 0) && !(fila.tiempo > 0)) { fa.focus(); return; }
     } else {
       fila.peso = parseFloat((fa.value.trim() || "0").replace(",", "."));
-      fila.reps = parseInt(fb.value, 10);
       if (!(fila.peso >= 0)) { fa.focus(); return; }
-      if (!(fila.reps > 0)) { fb.focus(); return; }
+      if (form.dataset.isoT && /^\s*m[aá]x/i.test(fb.value)) { fila.tiempo = 0; fila.reps = 0; fila.max_tiempo = true; }
+      else if (form.dataset.isoT) { fila.tiempo = leerSegs(fb.value); fila.reps = 0; fila.max_tiempo = false; if (!(fila.tiempo > 0)) { fb.focus(); return; } }
+      else if (/^\s*(m[aá]x|amrap|fallo)/i.test(fb.value)) fila.reps = 0;
+      else { fila.reps = parseInt(fb.value, 10); if (!(fila.reps > 0)) { fb.focus(); return; } }
     }
     cambiar("series", fila);
     terminar(fila);
@@ -2011,7 +2105,7 @@ function pintarTramos() {
     const [a, b, cc] = [".in-a", ".in-b", ".in-c"].map(x => fila.querySelector(x));
     const mov = tipoDe(t.ejercicio_id) === "movilidad";
     a.placeholder = dist ? UD() : mov ? "reps" : "kg"; a.inputMode = mov ? "numeric" : "decimal"; a.setAttribute("aria-label", dist ? "Distancia en " + UD() : mov ? "Repeticiones" : "Peso en kg");
-    b.placeholder = dist ? "tiempo" : mov ? "tiempo 45 s" : "reps"; b.inputMode = dist || mov ? "decimal" : "numeric"; b.setAttribute("aria-label", dist ? "Tiempo (puedes dejar los metros vacíos)" : mov ? "Tiempo: 45 son segundos" : "Repeticiones");
+    b.placeholder = dist ? "tiempo" : mov ? "tiempo 45 s" : "reps o máx"; b.inputMode = dist || mov ? "decimal" : "text"; b.setAttribute("aria-label", dist ? "Tiempo (puedes dejar los metros vacíos)" : mov ? "Tiempo: 45 son segundos" : "Repeticiones");
     fila.querySelector(".por").textContent = dist ? "" : mov ? "o" : "×";
     a.value = t.a; b.value = t.b; cc.value = t.c;
     a.addEventListener("input", () => { t.a = a.value; });
@@ -2052,9 +2146,9 @@ $("blqCrear").addEventListener("click", () => {
       if (isNaN(v.tiempo) || (!(v.reps > 0) && !(v.tiempo > 0))) { aviso.textContent = "Pon las repeticiones o el tiempo del tramo " + (k + 1) + "."; return; }
     } else {
       v.peso = parseFloat((String(t.a).trim() || "0").replace(",", "."));
-      v.reps = parseInt(t.b, 10);
+      v.reps = /^\s*(m[aá]x|amrap|fallo)/i.test(t.b) ? 0 : parseInt(t.b, 10);
       if (!(v.peso >= 0)) { aviso.textContent = "Revisa el peso del tramo " + (k + 1) + "."; return; }
-      if (!(v.reps > 0)) { aviso.textContent = "Pon las repeticiones del tramo " + (k + 1) + "."; return; }
+      if (!(v.reps > 0) && !/^\s*(m[aá]x|amrap|fallo)/i.test(t.b)) { aviso.textContent = "Pon las repeticiones del tramo " + (k + 1) + " (o «máx»)."; return; }
     }
     lista.push({ ejercicio_id: t.ejercicio_id, series: Array.from({ length: rondas }, () => ({ ...v })) });
   }
@@ -3907,7 +4001,7 @@ function leerValor(txt, tipo) {
   else if ((m = tok.match(/^(\d+)(s|seg|")$/))) v.tiempo = +m[1];
   else if (/^\d+[:'´’]\d{2}([:'´’]\d{2})?$/.test(tok)) v.tiempo = leerTiempo(tok);
   else if ((m = tok.match(/^(\d+)(?:-\d+)?(?:reps?)?$/))) v.reps = +m[1];
-  else if (/^(m[aá]x|amrap|fallo)/.test(tok)) v.reps = 0;
+  else if (/^(m[aá]x|amrap|fallo)/.test(tok)) { v.reps = 0; if (/^\s*m[aá]x\s*(s\b|seg|tiempo)/i.test(t)) v.max_tiempo = true; }
   else return { error: "no entiendo «" + tok + "» (usa 8, máx, 400m, 40min o 3:30)" };
   if (tipo === "movilidad") {
     if (v.distancia) return { error: "en movilidad las series van en repeticiones o tiempo (por ejemplo 2x10 por lado o 3x45s)" };
@@ -5075,7 +5169,7 @@ function pintarEntreno() {
   if (ent.calent) $("enCalentT").textContent = "¿Calentamiento? " + ent.calent.map(p => (p.barra ? "barra" : num(p.peso) + " kg") + " × " + p.reps).join(" · ");
   // Campos para apuntar lo que de verdad se hizo
   const mov = tipo === "movilidad";
-  ent.campos = dist ? (n0(s.distancia) > 0 ? ["m", "t"] : ["t", "m"]) : mov ? (n0(s.reps) > 0 || !(n0(s.tiempo) > 0) ? ["reps", "s"] : ["s", "reps"]) : ["kg", "reps"];
+  ent.campos = dist ? (n0(s.distancia) > 0 ? ["m", "t"] : ["t", "m"]) : !mov && (n0(s.tiempo) > 0 || s.max_tiempo) && !(n0(s.reps) > 0) ? ["kg", "s"] : mov ? (n0(s.reps) > 0 || !(n0(s.tiempo) > 0) ? ["reps", "s"] : ["s", "reps"]) : ["kg", "reps"];
   const etiqueta = { kg: "Peso (kg)", reps: "Repeticiones" + (mov && s.por_lado ? " por lado" : ""), m: enKm() ? "Kilómetros" : "Metros", t: "Tiempo", s: "Tiempo" + (s.por_lado ? " por lado" : "") + " (45 = segundos)" };
   const valor = c => c === "kg" ? (kg ? num(kg) : "") : c === "reps" ? (s.ciclo_id === "auto" && !hecha(s) ? "" : n0(s.reps) || "")
     : c === "m" ? distCampo(s.distancia) : c === "s" ? (n0(s.tiempo) > 0 ? (n0(s.tiempo) < 60 ? String(n0(s.tiempo)) : fmtTiempo(s.tiempo)) : "") : n0(s.tiempo) ? fmtTiempo(s.tiempo) : "";
@@ -5086,7 +5180,8 @@ function pintarEntreno() {
     $(inp).inputMode = c === "reps" ? "numeric" : "decimal";
     // En carrera, el ejemplo del tiempo es el objetivo de la serie (si lo hay), no un número cualquiera
     const obj = c === "t" && !hecha(s) ? objetivoSerie(s) : null;
-    $(inp).placeholder = c === "reps" && s.ciclo_id ? "máx" : c === "s" ? "45" : c === "t" ? (obj && obj.tiempo ? "obj. " + fmtTiempo(obj.tiempo) : "3:40") : "";
+    const esMaxE = !hecha(s) && !(n0(s.reps) > 0) && !(n0(s.tiempo) > 0);
+    $(inp).placeholder = c === "reps" && (s.ciclo_id || esMaxE) ? "máx: ¿cuántas?" : c === "s" ? (esMaxE ? "máx: ¿cuántos s?" : "45") : c === "t" ? (obj && obj.tiempo ? "obj. " + fmtTiempo(obj.tiempo) : "3:40") : "";
   });
   $("enHecha").textContent = hecha(s) ? "Guardar cambios" : "✓ Hecha";
   $("enDesmarcar").hidden = !hecha(s);
@@ -5110,7 +5205,7 @@ $("enHecha").addEventListener("click", () => {
   if (!ent.audio && window.AudioContext) { try { ent.audio = new AudioContext(); } catch {} }
   const a = $("enA"), b = $("enB"), aviso = t => { $("enAviso").textContent = t; };
   const fila = { ...s, hecha: true };
-  if (ent.campos[0] === "kg") {
+  if (ent.campos[0] === "kg" && ent.campos[1] === "reps") {
     const kg = parseFloat((a.value.trim() || "0").replace(",", ".")), reps = parseInt(b.value, 10);
     if (!(kg >= 0)) { aviso("Revisa el peso."); a.focus(); return; }
     if (!(reps > 0)) { aviso("Pon las repeticiones que has hecho."); b.focus(); return; }
@@ -5118,6 +5213,7 @@ $("enHecha").addEventListener("click", () => {
     if (s.ciclo_id === "auto") { const c = cicloActivo(s.ejercicio_id); fila.ciclo_id = c ? c.id : ""; }
   } else if (ent.campos.includes("s")) {
     const v = {}; v[ent.campos[0]] = a.value; v[ent.campos[1]] = b.value;
+    if (ent.campos[0] === "kg") { const kg = parseFloat((v.kg.trim() || "0").replace(",", ".")); if (!(kg >= 0)) { aviso("Revisa el peso."); a.focus(); return; } fila.peso = kg; }
     fila.reps = parseInt(v.reps, 10) || 0;
     fila.tiempo = leerSegs(v.s);
     if (isNaN(fila.tiempo)) { aviso("Revisa el tiempo (por ejemplo 45 o 1,30)."); return; }
@@ -5226,7 +5322,7 @@ $("enSalir").addEventListener("click", salirEntreno);
 $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); abrirRpe(d); });
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
-const VERSION_APP = "v67" + (BETA ? " beta" : "");
+const VERSION_APP = "v70" + (BETA ? " beta" : "");
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";
