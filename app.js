@@ -44,7 +44,7 @@ if (BETA) { document.documentElement.classList.add("beta"); document.title = "Fu
 // El orden importa al subir: primero ejercicios y plantillas, después las series que los usan.
 const TABLAS = {
   ejercicios: { clave: "id", conflicto: "id", campos: ["id", "user_id", "nombre", "tipo", "video_url", "notas", "rm", "compartido", "zonas", "borrado", "actualizado"] },
-  personales: { clave: "ejercicio_id", conflicto: "user_id,ejercicio_id", campos: ["ejercicio_id", "rm", "medida", "actualizado"] },
+  personales: { clave: "ejercicio_id", conflicto: "user_id,ejercicio_id", campos: ["ejercicio_id", "rm", "medida", "lado", "actualizado"] },
   ciclos: { clave: "id", conflicto: "id", campos: ["id", "ejercicio_id", "numero", "rm_inicio", "peso_inicial", "incremento", "reps_reset", "importadas", "cerrado", "borrado", "actualizado"] },
   plantillas: { clave: "id", conflicto: "id", campos: ["id", "nombre", "items", "borrado", "actualizado"] },
   mesociclos: { clave: "id", conflicto: "id", campos: ["id", "nombre", "inicio", "semanas", "dias", "progresion", "descarga", "notas", "borrado", "actualizado"] },
@@ -54,7 +54,7 @@ const TABLAS = {
   listas: { clave: "id", conflicto: "id", campos: ["id", "nombre", "items", "siguiente", "borrado", "actualizado"], opcional: true },
   carreras: { clave: "id", conflicto: "id", campos: ["id", "nombre", "fecha", "lugar", "distancia", "tiempo", "chip", "pos_general", "total_general", "categoria", "pos_categoria", "total_categoria", "desnivel_pos", "fc_media", "notas", "enlace", "previsto", "borrado", "actualizado"] }
 };
-const DEFECTOS = { medida: "", extra: {}, seccion: "", por_lado: false, nota: "", letra_nueva: false, max_tiempo: false, max_reps: false, fecha: null, lugar: "", categoria: "", enlace: "", fc_hist: [], tipo: "fuerza", hecha: true, grupo: "", meso_id: "", bloque_id: "", ciclo_id: "", importadas: [], cerrado: false, compartido: false, items: [], dias: {}, descarga: {}, zonas: [], calentamiento: false, inicio: null, zona: "", descripcion: "", estado: "activa", nombre: "", video_url: "", notas: "", html: "", texto: "", sensacion: "", borrado: false };
+const DEFECTOS = { medida: "", lado: false, extra: {}, seccion: "", por_lado: false, nota: "", letra_nueva: false, max_tiempo: false, max_reps: false, fecha: null, lugar: "", categoria: "", enlace: "", fc_hist: [], tipo: "fuerza", hecha: true, grupo: "", meso_id: "", bloque_id: "", ciclo_id: "", importadas: [], cerrado: false, compartido: false, items: [], dias: {}, descarga: {}, zonas: [], calentamiento: false, inicio: null, zona: "", descripcion: "", estado: "activa", nombre: "", video_url: "", notas: "", html: "", texto: "", sensacion: "", borrado: false };
 let sesion = leer("sesion-v1");                 // {access_token, refresh_token, expires_at, user_id, email}
 let perfil = leer("perfil-v1");                 // {aprobado, es_admin, email}
 let usuarios = leer("usuarios-v1") || [];        // solo para el administrador (se guarda para no verla vacía al abrir)
@@ -210,6 +210,8 @@ function medidaAuto(id) {
   if (h.length >= 3 && h.filter(x => n0(x.peso) > 0).length < h.length / 3) return h.filter(x => n0(x.tiempo) > 0 && !(n0(x.reps) > 0)).length > h.length / 2 ? "tiempo" : "reps";
   return "peso";
 }
+// «Por lado» se elige una vez en la ficha (zancadas, plancha lateral…) y se aplica solo a todas sus series
+const ladoDe = id => !!(db.personales[id] || {}).lado;
 const medidaDe = id => MEDIDAS[(db.personales[id] || {}).medida] ? db.personales[id].medida : medidaAuto(id);
 const rmPersonal = id => n0((db.personales[id] || {}).rm) || (db.ejercicios[id] && !db.ejercicios[id].compartido ? n0(db.ejercicios[id].rm) : 0);
 function rmReferencia(id) {
@@ -1739,6 +1741,7 @@ function bloque(dia, id, series, grupo, parte) {
   // Una línea menos: en fuerza, el descanso y OK van junto a «Reps ▾ · Por lado»
   const opsF = b.querySelector(".ops-fuerza"), filaDesc = b.querySelector(".ns-desc");
   // Fuerza: series junto al nombre; fila «[reps] Reps ▾   [peso] kg»; abajo «Por lado · ⏱ descanso · OK»
+  { const cl = b.querySelector(".por-lado"); if (cl) { if (ladoDe(id) && !series.length) cl.checked = true; cl.closest("label").hidden = true; } }
   if (opsF && tipo === "fuerza" && medidaDe(id) !== "peso") {
     b.classList.add("sin-peso");   // dominadas, fondos, plancha…: sin casilla de kg (para el lastre, el ejercicio «lastrado»)
     if (medidaDe(id) === "tiempo" && !series.length && !historia.length) ponerPorT(true);
@@ -1836,14 +1839,14 @@ function bloque(dia, id, series, grupo, parte) {
       fa.value = t ? ti : m;
       fb.value = t ? m : ti;
     }
-    else if (mov) { fa.value = n0(s.reps) || ""; fb.value = n0(s.tiempo) > 0 ? (n0(s.tiempo) < 60 ? String(n0(s.tiempo)) : fmtTiempo(s.tiempo)) : ""; b.querySelector(".por-lado").checked = !!s.por_lado; }
+    else if (mov) { fa.value = n0(s.reps) || ""; fb.value = n0(s.tiempo) > 0 ? (n0(s.tiempo) < 60 ? String(n0(s.tiempo)) : fmtTiempo(s.tiempo)) : ""; b.querySelector(".por-lado").checked = !!s.por_lado || ladoDe(id); }
     else {
       const t = (n0(s.tiempo) > 0 || !!s.max_tiempo) && !(n0(s.reps) > 0);
       ponerPorT(t);
       if (n0(s.pct) > 0 && !s.ciclo_id) { ponerModo(true); fa.value = num(s.pct); }
       else { ponerModo(false); const kg = pesoMostrado(s); fa.value = kg > 0 ? num(kg) : ""; }
       fb.value = t ? segTxt(s.tiempo) : n0(s.reps) || "";
-      if (b.querySelector(".por-lado")) b.querySelector(".por-lado").checked = !!s.por_lado;
+      if (b.querySelector(".por-lado")) b.querySelector(".por-lado").checked = !!s.por_lado || ladoDe(id);
       const esMax = !(n0(s.reps) > 0) && !(n0(s.tiempo) > 0) && !s.ciclo_id;
       // Completar una serie «máx» pendiente: se apunta lo que salió (reps o segundos)
       if (esMax && modoForm === "editar") { ponerMax(false); fb.placeholder = t ? "¿cuántos segundos?" : "¿cuántas reps?"; }
@@ -1998,13 +2001,13 @@ function bloque(dia, id, series, grupo, parte) {
       v.tiempo = leerSegs(fb.value);
       if (isNaN(v.tiempo)) { fb.focus(); return null; }
       if (!(v.reps > 0) && !(v.tiempo > 0)) { fa.focus(); return null; }
-      v.por_lado = b.querySelector(".por-lado").checked;
+      v.por_lado = b.querySelector(".por-lado").checked || ladoDe(id);
     } else {
       const x = parseFloat((fa.value.trim() || "0").replace(",", "."));
       v.pct = enPct ? x : 0;
       v.peso = enPct ? kgDePct(id, x) : x;
       v.ciclo_id = chkBilbo && chkBilbo.checked && ciclo ? ciclo.id : "";
-      v.por_lado = !!(b.querySelector(".por-lado") || {}).checked;
+      v.por_lado = !!(b.querySelector(".por-lado") || {}).checked || ladoDe(id);
       if (!(x >= 0) || (enPct && !v.peso)) { fa.focus(); return null; }
       if (enTiempo()) {
         v.reps = 0; v.ciclo_id = "";
@@ -2996,7 +2999,9 @@ function refrescarDetalle() {
   const st = estadisticas(e.id), tipo = st.tipo;
   $("detTipo").querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.tipo === tipo)));
   const medida = tipo === "fuerza" ? medidaDe(e.id) : "";
-  $("detMedidaSec").hidden = tipo !== "fuerza";
+  $("detMedidaSec").hidden = tipo !== "fuerza" && tipo !== "movilidad";
+  $("detMedida").hidden = tipo !== "fuerza"; $("detMedidaInfo").hidden = tipo !== "fuerza";
+  $("detLado").checked = ladoDe(e.id);
   if (tipo === "fuerza") {
     $("detMedida").querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", String(x.dataset.m === medida)));
     const puesta = MEDIDAS[(db.personales[e.id] || {}).medida];
@@ -3189,6 +3194,14 @@ function tablaBilbo(ses) {
   caja.appendChild(t);
   return caja;
 }
+$("detLado").addEventListener("change", () => {
+  if (!detalleId) return;
+  const p = db.personales[detalleId] || { ejercicio_id: detalleId, rm: 0 };
+  cambiar("personales", { ...p, ejercicio_id: detalleId, rm: n0(p.rm), lado: $("detLado").checked });
+  // Las series pendientes de este ejercicio pasan a «por lado» (o dejan de serlo); las hechas no se tocan
+  Object.values(db.series).filter(x => x.ejercicio_id === detalleId && !x.borrado && !hecha(x)).forEach(x => cambiar("series", { ...x, por_lado: $("detLado").checked }, true));
+  persistir(); pintarBloques(true);
+});
 $("detMedida").addEventListener("click", ev => {
   const x = ev.target.closest("button[data-m]");
   if (!x || !detalleId) return;
@@ -5920,7 +5933,7 @@ $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); 
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
 // VERSION_APP es interna (sube en cada publicación para que los móviles se actualicen); la que se ve es siempre la 26
-const VERSION_APP = "v106" + (BETA ? " beta" : "");
+const VERSION_APP = "v107" + (BETA ? " beta" : "");
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";

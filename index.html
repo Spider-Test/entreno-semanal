@@ -217,13 +217,14 @@
       <p class="menu-det nota" id="detZonasNota"></p>
     </section>
     <section id="detMedidaSec" hidden>
-      <h3>Cómo mides tu progreso</h3>
+      <h3>Cómo se hace y cómo mides tu progreso</h3>
       <div class="tabs seg" id="detMedida" role="group" aria-label="Cómo se mide el progreso">
         <button type="button" data-m="peso" aria-pressed="false">Peso (1RM)</button>
         <button type="button" data-m="reps" aria-pressed="false">Reps máx.</button>
         <button type="button" data-m="tiempo" aria-pressed="false">Tiempo máx.</button>
       </div>
       <p class="menu-det" id="detMedidaInfo"></p>
+      <label class="permiso"><input type="checkbox" id="detLado"> Se hace por lado (izquierda y derecha): todas sus series salen «por lado»</label>
     </section>
     <section id="detRmSec">
       <h3>1RM de referencia</h3>
@@ -478,6 +479,7 @@
   <div class="d-cuerpo ayuda">
     <p>Toca cada apartado para verlo. Puedes volver aquí cuando quieras con el botón <b>?</b> de arriba. ¿Echas algo en falta o algo no va bien? Envíanos una sugerencia:</p>
     <details class="novedades" open><summary>Novedades · versión 26</summary>
+      <p><b>«Por lado» en la ficha:</b> en la ficha del ejercicio marca «Se hace por lado» (zancadas, plancha lateral…) y todas sus series salen «por lado» sin marcarlo cada vez. El formulario queda más limpio: ya no lleva esa casilla. Lo de isométrico es «Tiempo máx.» en la misma ficha.</p>
       <p><b>Cada ejercicio mide su progreso a su manera:</b> en la ficha, «Cómo mides tu progreso»: <b>Peso (1RM)</b> (dominadas lastradas, sentadilla…), <b>Reps máx.</b> (dominadas, fondos…) o <b>Tiempo máx.</b> (plancha, false grip…). La app lo pone sola por el nombre y lo puedes cambiar. En los de peso corporal el formulario no pide kilos, y los récords y la gráfica van por repeticiones o por tiempo.</p>
       <p><b>Series «máx» con registro:</b> al tocar el círculo de una serie de máx. tiempo o máx. reps, se abre para que apuntes lo que aguantaste o las reps que salieron (y los kilos). Sigue poniendo «máx» y lo que hiciste va entre paréntesis: «máx tiempo (52 s)», «máx reps (14 · 10 kg)».</p>
       <p><b>Se guarda solo:</b> al editar un ejercicio o una serie (también en las rondas de un bloque), en cuanto sales del formulario se guarda, sin pulsar OK ni Guardar. Si no cambias nada, no toca nada.</p>
@@ -520,7 +522,7 @@
     </details>
     <details><summary>Añadir ejercicios y series</summary>
       <p>Pulsa <b>+ Ejercicio</b> en un día, busca el ejercicio o escribe uno nuevo. Arriba puedes filtrar por Fuerza, Carrera, Natación o Movilidad.</p>
-      <p><b>Progreso por peso, reps o tiempo:</b> en la ficha de cada ejercicio de fuerza eliges cómo se mide: Peso (1RM), Reps máx. o Tiempo máx. Por defecto lo deduce del nombre («lastradas» → peso; dominadas, fondos → reps; plancha, false grip → tiempo). En los de peso corporal no sale la casilla de kg; para el lastre usa el ejercicio «… lastradas».</p>
+      <p><b>Progreso por peso, reps o tiempo, y por lado:</b> en la ficha de cada ejercicio eliges si se hace <b>por lado</b> (todas sus series lo llevan) y, en fuerza, cómo se mide: Peso (1RM), Reps máx. o Tiempo máx. Por defecto lo deduce del nombre («lastradas» → peso; dominadas, fondos → reps; plancha, false grip → tiempo). En los de peso corporal no sale la casilla de kg; para el lastre usa el ejercicio «… lastradas».</p>
       <p><b>Cómo se mide (fuerza):</b> debajo de la fila de series, el botón <b>Reps ▾</b> deja elegir <b>Reps</b>, <b>⏱ Tiempo</b> (isométricos: «45» = 45 s, también «1,30»), <b>Máx. reps</b> o <b>Máx. tiempo</b> (la serie queda «máx» sin número). Al hacer una serie «máx», tócala (o usa el modo entreno) y apunta las repeticiones o los segundos que salieron. En texto: «3xmáx» o «3xmáx tiempo». Marca <b>Por lado</b> si se hace a cada lado («30 s por lado»).</p>
       <p><b>Fuerza:</b> kg × repeticiones. El botón <b>kg</b> cambia a <b>%</b> del 1RM (pon tu 1RM en la ficha del ejercicio).</p>
       <p><b>Movilidad:</b> repeticiones o tiempo (un número solo son segundos: «45»; también «2 min» o «1,30»). Marca <b>Por lado</b> si se hace a cada lado. No cuenta récords; el resumen de la semana suma sus minutos (por lado cuenta los dos).</p>
