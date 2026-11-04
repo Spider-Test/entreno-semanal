@@ -636,12 +636,19 @@ function pedirTexto(titulo, valor, ayuda) {
 }
 const AYUDA_NOTA = "Por ejemplo «Tempo 3-2-1-2», «Banda roja», «EEP 2 (en reserva)», «Pausa 2 s abajo» o cómo hacerlo. Se ve debajo del ejercicio y en el modo entreno.";
 // Pone la misma descripción a todas las series de un ejercicio (o de un tramo de un bloque) en ese día
-async function editarNota(dia, seriesItem, titulo) {
-  const actual = (seriesItem.find(x => x.nota) || {}).nota || "";
+// Ejercicios aún sin series: su descripción espera aquí (en este dispositivo) hasta que se apunte la primera serie
+let esperaNota = leer("espera-nota-v1") || {};
+async function editarNota(dia, seriesItem, titulo, claveEspera) {
+  const actual = (seriesItem.find(x => x.nota) || {}).nota || (!seriesItem.length && claveEspera ? esperaNota[dia.id + "|" + claveEspera] || "" : "");
   const t = await pedirTexto(titulo, actual, AYUDA_NOTA);
   if (t === null || t === actual) return;
-  seriesItem.forEach(x => cambiar("series", { ...x, nota: t }, true));
-  persistir();
+  if (!seriesItem.length && claveEspera) {
+    if (t) esperaNota[dia.id + "|" + claveEspera] = t; else delete esperaNota[dia.id + "|" + claveEspera];
+    escribir("espera-nota-v1", esperaNota);
+  } else {
+    seriesItem.forEach(x => cambiar("series", { ...x, nota: t }, true));
+    persistir();
+  }
   pintarDia(dia);
 }
 const notaDe = lista => (lista.find(x => x.nota) || {}).nota || "";
@@ -908,7 +915,7 @@ function cabeceraParte(dia, grupo, p, color, nNombradas, partes, seriesItem) {
   cab.innerHTML = '<button type="button" class="p-toggle"><span class="flecha-dia" aria-hidden="true">▸</span><span class="p-nombre"></span></button><span class="g-prog"></span><button type="button" class="menu-btn">⋯</button>';
   cab.querySelector(".p-nombre").textContent = p.nombre;
   const ss = p.ids.flatMap(seriesItem);
-  cab.querySelector(".g-prog").textContent = ss.length ? ss.filter(hecha).length + "/" + ss.length : "vacía";
+  cab.querySelector(".g-prog").textContent = ss.length ? ss.filter(hecha).length + "/" + ss.length : p.ids.length ? "" : "vacía";
   cab.querySelector(".menu-btn").setAttribute("aria-label", "Opciones de la parte " + p.nombre);
   cab.querySelector(".menu-btn").addEventListener("click", () => {
     const k = partes.indexOf(p);
@@ -1281,7 +1288,7 @@ function pintarDia(dia) {
       m.setAttribute("aria-label", "Opciones de " + nombre);
       m.addEventListener("click", () => abrirMenu(nombre, "", [
         !espera && el.abrirEdicion && { texto: "Editar (valores, ×N o ejercicio)", accion: () => el.abrirEdicion() },
-        !espera && { texto: notaDe(seriesDeItem(dia.id, g.nombre, clave)) ? "Editar la descripción…" : "+ Descripción (tempo, banda, EEP…)", accion: () => editarNota(dia, seriesDeItem(dia.id, g.nombre, clave), "Descripción de " + nombre) },
+        { texto: (espera ? esperaNota[dia.id + "|" + clave] : notaDe(seriesDeItem(dia.id, g.nombre, clave))) ? "Editar la descripción…" : "+ Descripción (tempo, banda, EEP…)", accion: () => editarNota(dia, espera ? [] : seriesDeItem(dia.id, g.nombre, clave), "Descripción de " + nombre, clave) },
         movibles().length > 1 && { texto: "Subir", accion: () => mover(el, -1) },
         movibles().length > 1 && { texto: "Bajar", accion: () => mover(el, 1) },
         nombresPartes(dia.id, g.nombre).length > 1 && { texto: "Mover a otra parte…", accion: () => moverAParte(dia, g.nombre, clave, espera) },
@@ -1379,7 +1386,16 @@ function bloque(dia, id, series, grupo, parte) {
   nom.setAttribute("aria-label", series.length ? "Editar " + (ej.nombre || "ejercicio") + ": valores, número de series o ejercicio" : "Ver " + (ej.nombre || "ejercicio") + ": vídeo, récords e historial");
   // Con series: tocar el nombre abre (o cierra sin guardar) la edición del ejercicio; sin series, su ficha
   nom.addEventListener("click", () => !series.length ? abrirDetalle(id) : formEl.hidden ? abrirGrupo() : pintarBloques(true));
-  if (notaDe(series)) b.querySelector(".bloque-cab").after(lineaNota(notaDe(series), () => editarNota(dia, series, "Descripción de " + (ej.nombre || "el ejercicio"))));
+  const notaB = notaDe(series) || (!series.length ? esperaNota[dia.id + "|" + id] || "" : "");
+  const pedirNotaB = () => editarNota(dia, series, "Descripción de " + (ej.nombre || "el ejercicio"), id);
+  if (notaB) b.querySelector(".bloque-cab").after(lineaNota(notaB, pedirNotaB));
+  else {
+    // «+ Descripción» a la vista dentro del formulario, para ponerla al crear el ejercicio
+    const bn = document.createElement("button");
+    bn.type = "button"; bn.className = "enlace mas-nota"; bn.textContent = "+ Descripción (tempo, banda, EEP…)";
+    bn.addEventListener("click", ev => { ev.stopPropagation(); pedirNotaB(); });
+    b.querySelector(".nueva-serie").appendChild(bn);
+  }
   const quitar = b.querySelector(".quitar");
   if (series.length) quitar.remove();
   else quitar.addEventListener("click", () => { quitarEspera(dia.id, id); pintarDia(dia); });
@@ -1649,7 +1665,10 @@ function bloque(dia, id, series, grupo, parte) {
       if (fila.hecha) avisarSiPR(fila);
       return;
     }
-    const nueva = k => ({ id: nuevoId(), fecha: dia.id, ejercicio_id: id, orden: Date.now() + k, grupo, seccion: parte || "", meso_id: "", bloque_id: "", ronda: 0, borrado: false, calentamiento: false, nota: notaDe(series), ...v, hecha: nuevaHecha });
+    // La descripción puesta antes de la primera serie pasa a las series (y deja de esperar en este dispositivo)
+    const notaNueva = notaDe(series) || esperaNota[dia.id + "|" + id] || "";
+    if (esperaNota[dia.id + "|" + id]) { delete esperaNota[dia.id + "|" + id]; escribir("espera-nota-v1", esperaNota); }
+    const nueva = k => ({ id: nuevoId(), fecha: dia.id, ejercicio_id: id, orden: Date.now() + k, grupo, seccion: parte || "", meso_id: "", bloque_id: "", ronda: 0, borrado: false, calentamiento: false, nota: notaNueva, ...v, hecha: nuevaHecha });
     if (modoForm === "una" || !series.length) {
       const n = modoForm === "una" ? 1 : Math.min(50, Math.max(1, parseInt(vecesEl.value, 10) || 1));
       if (!series.length) {
@@ -5188,7 +5207,7 @@ $("enSalir").addEventListener("click", salirEntreno);
 $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); abrirRpe(d); });
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
-const VERSION_APP = "v65" + (BETA ? " beta" : "");
+const VERSION_APP = "v66" + (BETA ? " beta" : "");
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";

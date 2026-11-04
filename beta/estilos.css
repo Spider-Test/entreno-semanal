@@ -1105,6 +1105,7 @@ h1 { color: var(--titulo); }
 
 /* Descripción de un ejercicio o bloque (tempo, banda, EEP…) */
 .ej-nota { display: block; width: 100%; text-align: left; margin: 0 0 4px; padding: 5px 9px; border: 0; border-radius: 8px; background: var(--gold-soft); color: var(--fg); font-size: 13px; line-height: 1.35; font-style: italic; cursor: pointer; white-space: pre-line; overflow-wrap: anywhere; }
+.mas-nota { display: block; padding: 6px 0 0; font-size: 13px; text-align: left; }
 .nota-tramo { display: block; font-size: 12px; font-style: italic; color: var(--muted); }
 .en-nota { margin: -4px 0 4px; padding: 6px 10px; border-radius: 8px; background: var(--gold-soft); font-style: italic; font-size: 15px; white-space: pre-line; }
 #txtInput { width: 100%; resize: vertical; font: inherit; font-size: 16px; }
