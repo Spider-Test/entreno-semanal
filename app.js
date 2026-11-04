@@ -27,7 +27,7 @@ const $ = id => document.getElementById(id);
 const BETA = location.pathname.includes("/beta/"), PREFIJO = BETA ? "beta:" : "";
 const leer = k => { try { return JSON.parse(localStorage.getItem(PREFIJO + k)); } catch { return null; } };
 const escribir = (k, v) => { try { v === null ? localStorage.removeItem(PREFIJO + k) : localStorage.setItem(PREFIJO + k, JSON.stringify(v)); } catch {} };
-if (BETA) { document.documentElement.classList.add("beta"); document.title = "Entreno β"; document.querySelector('meta[name="apple-mobile-web-app-title"]').content = "Entreno β"; }
+if (BETA) { document.documentElement.classList.add("beta"); document.title = "Fuerza y Ritmo β"; document.querySelector('meta[name="apple-mobile-web-app-title"]').content = "Fuerza y Ritmo β"; }
 
 // Cada tabla se sincroniza igual: gana la edición más reciente de cada fila.
 // El orden importa al subir: primero ejercicios y plantillas, después las series que los usan.
@@ -814,7 +814,7 @@ async function compartir(nombre, items, crudo) {
   } catch { setEstado("No se ha podido compartir. Necesitas conexión.", true); return; }
   const enlace = URL_APP + "#c=" + codigo;
   abrirMenu("Compartir «" + nombre + "»", "Código " + codigo + ". Tu amigo puede abrir el enlace o pegar el código en Plan → Añadir algo compartido.", [
-    navigator.share && { texto: "Enviar…", mantener: true, accion: () => navigator.share({ title: nombre, text: "Entrenamiento «" + nombre + "» para Entreno Semanal (código " + codigo + ")", url: enlace }).catch(() => {}) },
+    navigator.share && { texto: "Enviar…", mantener: true, accion: () => navigator.share({ title: nombre, text: "Entrenamiento «" + nombre + "» para Fuerza y Ritmo (código " + codigo + ")", url: enlace }).catch(() => {}) },
     { texto: "Copiar enlace", mantener: true, accion: () => copiarTexto(enlace) },
     { texto: "Copiar código", mantener: true, accion: () => copiarTexto(codigo) }
   ]);
@@ -3022,6 +3022,70 @@ $("loginForm").addEventListener("submit", async e => {
     $("loginBtn").disabled = false;
   }
 });
+// ---------- Contraseña: «¿Has olvidado tu contraseña?» (enlace por correo) y cambiarla con la sesión abierta ----------
+$("olvideBtn").addEventListener("click", async () => {
+  const email = $("email").value.trim();
+  if (!/^\S+@\S+\.\S+$/.test(email)) { $("loginError").textContent = "Escribe arriba tu email y vuelve a pulsar «¿Has olvidado tu contraseña?»."; $("email").focus(); return; }
+  $("olvideBtn").disabled = true;
+  try {
+    const vuelta = encodeURIComponent(location.origin + location.pathname);
+    const r = await fetch(SUPA + "/auth/v1/recover?redirect_to=" + vuelta, { method: "POST", headers: { apikey: CLAVE, "Content-Type": "application/json" }, body: JSON.stringify({ email }) });
+    if (r.status === 429) throw new Error("Has pedido varios correos seguidos. Espera unos minutos y vuelve a probar.");
+    if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(traducir(j.msg || j.error_description || j.message || "") || "No se ha podido enviar el correo."); }
+    $("loginError").textContent = "Si hay una cuenta con " + email + ", te hemos enviado un correo con un enlace para elegir una contraseña nueva. Ábrelo en este dispositivo (mira también en spam).";
+  } catch (err) {
+    $("loginError").textContent = navigator.onLine === false ? "Necesitas conexión para pedir el correo." : err.message;
+  } finally { $("olvideBtn").disabled = false; }
+});
+// Al volver desde el enlace del correo (#access_token=…&type=recovery): se entra y se pide la contraseña nueva
+async function entrarDesdeEnlace() {
+  const p = new URLSearchParams(location.hash.slice(1));
+  history.replaceState(null, "", location.pathname);
+  if (p.get("error")) { $("login").hidden = false; $("loginError").textContent = /expired/i.test(p.get("error_code") || p.get("error_description") || "") ? "El enlace ha caducado o ya se usó. Pide otro con «¿Has olvidado tu contraseña?»." : "No se ha podido usar el enlace. Pide otro."; return; }
+  try {
+    const token = p.get("access_token");
+    const r = await fetch(SUPA + "/auth/v1/user", { headers: { apikey: CLAVE, Authorization: "Bearer " + token } });
+    if (!r.ok) throw new Error();
+    const user = await r.json();
+    if (leer("entrenos-dueno") !== user.id) {
+      db = {}; Object.keys(TABLAS).forEach(t => { db[t] = {}; }); versionDatos++; cursores = {}; enEspera = {}; perfil = null; porta = null;
+      guardarLocal(); guardarEspera(); escribir("perfil-v1", null); escribir("portapapeles-v1", null); escribir("entrenos-dueno", user.id);
+    }
+    guardarSesion({ access_token: token, refresh_token: p.get("refresh_token"), expires_in: +p.get("expires_in") || 3600, user });
+    try { await cargarPerfil(); } catch {}
+    mostrarApp();
+    abrirClave(true);
+  } catch {
+    $("login").hidden = false;
+    $("loginError").textContent = "El enlace no es válido o ha caducado. Pide otro con «¿Has olvidado tu contraseña?».";
+  }
+}
+function abrirClave(recuperando) {
+  $("claveTit").textContent = recuperando ? "Elige tu contraseña nueva" : "Cambiar contraseña";
+  $("claveTexto").textContent = recuperando ? "Has entrado con el enlace del correo. Elige ahora una contraseña nueva de al menos 6 caracteres." : "Elige una contraseña nueva de al menos 6 caracteres. Seguirás con la sesión abierta en tus otros dispositivos.";
+  $("claveNueva").value = ""; $("claveRepite").value = ""; $("claveAviso").textContent = "";
+  $("dlgClave").showModal();
+  $("claveNueva").focus();
+}
+$("claveBtn").addEventListener("click", () => abrirClave(false));
+$("claveGuardar").addEventListener("click", async () => {
+  const a = $("claveNueva").value, b = $("claveRepite").value;
+  if (a.length < 6) { $("claveAviso").textContent = "La contraseña debe tener al menos 6 caracteres."; $("claveNueva").focus(); return; }
+  if (a !== b) { $("claveAviso").textContent = "Las dos contraseñas no coinciden."; $("claveRepite").focus(); return; }
+  $("claveGuardar").disabled = true;
+  try {
+    const r = await api("/auth/v1/user", { method: "PUT", body: JSON.stringify({ password: a }) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      const m = j.msg || j.error_description || j.message || "";
+      throw new Error(/same|different/i.test(m) ? "La contraseña nueva tiene que ser distinta de la actual." : /reauth/i.test(m) ? "Por seguridad, cierra sesión, vuelve a entrar y cámbiala enseguida (o usa «¿Has olvidado tu contraseña?»)." : traducir(m) || "No se ha podido cambiar.");
+    }
+    $("dlgClave").close();
+    setEstado("Contraseña cambiada");
+  } catch (err) {
+    $("claveAviso").textContent = navigator.onLine === false ? "Necesitas conexión para cambiar la contraseña." : err.message;
+  } finally { $("claveGuardar").disabled = false; }
+});
 function cerrarSesion(msg) {
   sesion = null; escribir("sesion-v1", null);
   $("app").hidden = true; $("pendiente").hidden = true; $("login").hidden = false;
@@ -3218,7 +3282,7 @@ const csv = filas => "﻿" + filas.map(f => f.map(celda).join(";")).join("\r\n")
 function exportarJSON() {
   const datos = {};
   Object.keys(TABLAS).forEach(t => { datos[t] = Object.values(db[t]).map(f => { const c = { ...f }; delete c.sucio; return c; }); });
-  descargarArchivo("entreno-copia-" + iso(new Date()) + ".json", JSON.stringify({ app: "Entreno Semanal", version: 1, exportado: new Date().toISOString(), email: (sesion && sesion.email) || "", datos }), "application/json");
+  descargarArchivo("fuerza-y-ritmo-copia-" + iso(new Date()) + ".json", JSON.stringify({ app: "Fuerza y Ritmo", version: 1, exportado: new Date().toISOString(), email: (sesion && sesion.email) || "", datos }), "application/json");
 }
 function exportarSeries() {
   const filas = [["Fecha", "Día", "Sesión", "Ejercicio", "Tipo", "Estado", "Peso (kg)", "% 1RM", "Reps", "Distancia (m)", "Tiempo", "Ritmo", "Descanso", "Recuperación (m)", "Bloque", "Esfuerzo del día (RPE)", "Sensaciones del día"]];
@@ -3243,7 +3307,7 @@ function restaurar(archivo) {
   lector.onload = () => {
     let j = null;
     try { j = JSON.parse(lector.result); } catch {}
-    if (!j || j.app !== "Entreno Semanal" || !j.datos) { setEstado("Ese archivo no es una copia de Entreno Semanal.", true); return; }
+    if (!j || !["Entreno Semanal", "Fuerza y Ritmo"].includes(j.app) || !j.datos) { setEstado("Ese archivo no es una copia de Fuerza y Ritmo.", true); return; }
     const cambios = [];
     Object.keys(TABLAS).forEach(t => (Array.isArray(j.datos[t]) ? j.datos[t] : []).forEach(f => {
       const k = f && f[TABLAS[t].clave];
@@ -4500,7 +4564,7 @@ $("enSalir").addEventListener("click", salirEntreno);
 $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); abrirRpe(d); });
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
-const VERSION_APP = "v52" + (BETA ? " beta" : "");
+const VERSION_APP = "v53" + (BETA ? " beta" : "");
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";
@@ -5282,7 +5346,7 @@ if (window.visualViewport) {
 const VERSION_NOV = VERSION_APP.split(" ")[0];
 const novedadesVistas = () => [(perfil && perfil.novedades_vistas) || "", leer("novedades-vistas-v1") || ""].includes(VERSION_NOV);
 // Versiones con novedades que merece la pena avisar; en las demás (o para quien entra por primera vez) no hay aviso
-const AVISAR_NOVEDADES = false;
+const AVISAR_NOVEDADES = true;
 function pintarAvisoNovedades() {
   // Quien nunca ha visto ninguna versión entra por primera vez: para él todo es nuevo, así que se da por vista
   if (sesion && perfil && !perfil.novedades_vistas && !leer("novedades-vistas-v1")) { marcarNovedadesVistas(); return; }
@@ -5312,6 +5376,7 @@ pintarAvisoNovedades();
 $("ayudaBtn").addEventListener("click", abrirAyuda);
 $("dlgAyuda").querySelectorAll("details").forEach(d => d.addEventListener("toggle", () => { if (d.open) verAlAbrir(d); }));
 
-if (sesion) mostrarApp(); else $("login").hidden = false;
+if (/type=recovery|error_code=/.test(location.hash)) entrarDesdeEnlace();
+else if (sesion) mostrarApp(); else $("login").hidden = false;
 
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});

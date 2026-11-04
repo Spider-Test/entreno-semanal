@@ -10,6 +10,9 @@ Apunta en cada versión: fecha, versión, dispositivo (iPhone / Mac / Android) y
 - [ ] Ayuda (?) → «Novedades · versión N» muestra la versión nueva. En la beta, el título lleva la etiqueta BETA.
 - [ ] Una cuenta sin aprobar ve la pantalla de «pendiente» y no los datos.
 
+- [ ] «¿Has olvidado tu contraseña?» sin email avisa; con email llega el correo, su enlace abre la app y pide la contraseña nueva; después se entra con ella.
+- [ ] «Cambiar contraseña» (abajo): si no coinciden o tiene menos de 6 caracteres, avisa; al guardar, la nueva sirve para entrar.
+
 ## 2. Series de fuerza y de carrera
 - [ ] Añadir un ejercicio de fuerza a un día y apuntar una serie (kg × reps).
 - [ ] «+ Serie» añade otra; tocar una serie la abre para editar; el botón dice «Guardar 1» al editar la serie 1.

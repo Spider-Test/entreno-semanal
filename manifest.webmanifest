@@ -1,14 +1,14 @@
 {
   "id": "./",
-  "name": "Entreno Semanal",
-  "short_name": "Entreno",
+  "name": "Fuerza y Ritmo",
+  "short_name": "Fuerza y Ritmo",
   "description": "Calendario semanal de entrenamientos: fuerza, carrera y natación.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#f1f3f2",
-  "theme_color": "#0f7a4c",
+  "background_color": "#edf1f5",
+  "theme_color": "#14324a",
   "lang": "es",
   "icons": [
     { "src": "icono-180.png", "sizes": "180x180", "type": "image/png" },
