@@ -1300,16 +1300,7 @@ function bloque(dia, id, series, grupo, parte) {
     v.className = "ico ver-video"; v.textContent = "▶ vídeo";
     v.setAttribute("role", "button");
     v.setAttribute("aria-label", "Ver el vídeo de " + (ej.nombre || "este ejercicio"));
-    v.addEventListener("click", ev => {
-      ev.stopPropagation();
-      const abierto = b.querySelector(":scope > .video-dia");
-      if (abierto) { abierto.remove(); v.textContent = "▶ vídeo"; return; }
-      const caja = document.createElement("div");
-      caja.className = "video-dia";
-      ponerVideo(caja, ej);
-      b.querySelector(".bloque-cab").after(caja);
-      v.textContent = "✕ vídeo";
-    });
+    v.addEventListener("click", ev => { ev.stopPropagation(); verVideo(ej); });
     nom.appendChild(v);
   }
   const dolor = molestiasDe(id);
@@ -1731,17 +1722,7 @@ function tarjetaBloque(dia, bloqueId, series) {
       const etiqueta = conVideo.length > 1 || variosTramos ? "▶ " + (e.nombre || "vídeo") : "▶ vídeo";
       v.textContent = etiqueta;
       v.setAttribute("aria-label", "Ver el vídeo de " + (e.nombre || "este ejercicio"));
-      v.addEventListener("click", ev => {
-        ev.stopPropagation();
-        const abierto = c.querySelector(':scope > .video-dia[data-ej="' + e.id + '"]');
-        if (abierto) { abierto.remove(); v.textContent = etiqueta; return; }
-        const caja = document.createElement("div");
-        caja.className = "video-dia";
-        caja.dataset.ej = e.id;
-        ponerVideo(caja, e);
-        fila.after(caja);
-        v.textContent = "✕ " + etiqueta.slice(2);
-      });
+      v.addEventListener("click", ev => { ev.stopPropagation(); verVideo(e); });
       fila.appendChild(v);
     });
     c.querySelector(".bloque-cab").after(fila);
@@ -2151,18 +2132,17 @@ function pintarVideo(e) {
   ponerVideo(cont, e);
   $("detBuscar").href = "https://www.youtube.com/results?search_query=" + encodeURIComponent((e.nombre || "") + " técnica");
 }
-// El vídeo del ejercicio: YouTube se ve dentro de la app; otros enlaces (Instagram…) se abren aparte
+// El vídeo del ejercicio: la miniatura de YouTube abre el visor; otros enlaces (Instagram…) se abren aparte
 function ponerVideo(cont, e) {
   const yt = idYoutube(e.video_url);
   if (yt) {
-    const w = document.createElement("div"); w.className = "video";
-    const f = document.createElement("iframe");
-    f.src = "https://www.youtube-nocookie.com/embed/" + encodeURIComponent(yt) + "?playsinline=1&rel=0";
-    f.title = "Vídeo: " + e.nombre;
-    f.allow = "accelerometer; encrypted-media; gyroscope; picture-in-picture; fullscreen";
-    f.allowFullscreen = true;
-    f.referrerPolicy = "strict-origin-when-cross-origin";   // YouTube necesita saber desde qué web se reproduce
-    w.appendChild(f); cont.appendChild(w);
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "video-mini" + (esShort(e.video_url) ? " vertical" : "");
+    b.setAttribute("aria-label", "Ver el vídeo de " + (e.nombre || "este ejercicio"));
+    b.innerHTML = '<img alt="" loading="lazy"><span aria-hidden="true">▶</span>';
+    b.querySelector("img").src = "https://i.ytimg.com/vi/" + encodeURIComponent(yt) + "/hqdefault.jpg";
+    b.addEventListener("click", ev => { ev.stopPropagation(); verVideo(e); });
+    cont.appendChild(b);
     const a = document.createElement("a");
     a.href = "https://www.youtube.com/watch?v=" + encodeURIComponent(yt); a.target = "_blank"; a.rel = "noopener"; a.className = "enlace";
     a.textContent = "Abrir en YouTube";
@@ -2173,6 +2153,37 @@ function ponerVideo(cont, e) {
     a.textContent = "▶ Abrir vídeo";
     cont.appendChild(a);
   }
+}
+const esShort = u => /\/shorts\//i.test(u || "");
+// Visor de vídeo: ventana centrada fuera del <body> (no le afecta la ampliación del ordenador, que descuadraba
+// algunos vídeos); los Shorts se ven en vertical y completos
+function verVideo(e) {
+  const yt = idYoutube(e.video_url);
+  if (!yt) { if (/^https?:\/\//i.test(e.video_url || "")) window.open(e.video_url, "_blank", "noopener"); return; }
+  let d = document.getElementById("visorVideo");
+  if (!d) {
+    d = document.createElement("dialog");
+    d.id = "visorVideo";
+    d.innerHTML = '<div class="vv-caja"><div class="vv-cab"><span class="vv-tit"></span><button type="button" class="vv-cerrar" aria-label="Cerrar el vídeo">✕</button></div><div class="vv-marco"></div><a class="vv-yt" target="_blank" rel="noopener">Abrir en YouTube</a></div>';
+    document.documentElement.appendChild(d);
+    const cerrar = () => { d.querySelector(".vv-marco").textContent = ""; if (d.open) d.close(); };
+    d.querySelector(".vv-cerrar").addEventListener("click", cerrar);
+    d.addEventListener("click", ev => { if (ev.target === d) cerrar(); });
+    d.addEventListener("close", () => { d.querySelector(".vv-marco").textContent = ""; });
+  }
+  d.classList.toggle("vertical", esShort(e.video_url));
+  d.querySelector(".vv-tit").textContent = e.nombre || "Vídeo";
+  d.querySelector(".vv-yt").href = "https://www.youtube.com/watch?v=" + encodeURIComponent(yt);
+  const f = document.createElement("iframe");
+  f.src = "https://www.youtube-nocookie.com/embed/" + encodeURIComponent(yt) + "?playsinline=1&rel=0&autoplay=1";
+  f.title = "Vídeo: " + (e.nombre || "");
+  f.allow = "accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; fullscreen";
+  f.allowFullscreen = true;
+  f.referrerPolicy = "strict-origin-when-cross-origin";   // YouTube necesita saber desde qué web se reproduce
+  const marco = d.querySelector(".vv-marco");
+  marco.textContent = "";
+  marco.appendChild(f);
+  if (!d.open) d.showModal();
 }
 function recuadro(etiqueta, valor, sub, oro) {
   const d = document.createElement("div");
