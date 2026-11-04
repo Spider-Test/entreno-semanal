@@ -1179,6 +1179,17 @@ h1 { color: var(--titulo); }
 .cc-et { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
 .cc-cod { flex: 1; font-family: ui-monospace, Menlo, monospace; font-size: 24px; font-weight: 700; letter-spacing: 0.12em; color: var(--fg); user-select: all; -webkit-user-select: all; }
 
+/* Usuarios: última conexión destacada; inicio de sesión aparte */
+.u-acceso .u-con { font-weight: 700; color: var(--fg); }
+.u-acceso .u-vieja { display: block; color: var(--error); font-weight: 600; }
+.u-acceso .u-vieja[hidden] { display: none; }
+.u-acceso .u-login { display: block; font-size: 12px; opacity: 0.75; }
+
+/* Aviso de versión nueva */
+.aviso-version { position: fixed; z-index: 60; left: 50%; transform: translateX(-50%); top: max(10px, env(safe-area-inset-top, 0px)); width: min(560px, calc(100vw - 24px));
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 12px; border-radius: 12px; background: var(--gold-soft); color: var(--fg); border: 1px solid var(--gold); box-shadow: 0 8px 24px rgba(0,0,0,0.2); font-size: 14px; font-weight: 600; }
+.aviso-version span { flex: 1; min-width: 200px; }
+
 /* Arrastrar un ejercicio o bloque encima de la cabecera de una parte: entra en ella (como una carpeta) */
 .parte-cab { transition: transform 0.15s, box-shadow 0.15s; }
 .parte-cab.zona-destino { transform: scale(1.03); box-shadow: 0 0 0 3px var(--pc), 0 6px 18px rgba(0, 0, 0, 0.18); }

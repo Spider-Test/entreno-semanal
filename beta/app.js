@@ -3733,8 +3733,14 @@ function pintarPlan() {
       // Solo datos de acceso: cuándo usó la app y desde dónde (nunca qué entrena)
       const acc = document.createElement("span");
       acc.className = "u-acceso";
-      acc.textContent = "Último uso: " + fechaHora(u.ultimo_acceso) + (u.ultimo_dispositivo ? " · " + u.ultimo_dispositivo : "") + (u.ultima_version ? " · " + u.ultima_version : "") +
-        " · Último inicio de sesión: " + fechaHora(iniciosSesion[u.user_id]);
+      // Última conexión (cuándo abrió o usó la app) y, aparte y más pequeño, cuándo metió la contraseña por última vez
+      const verU = u.ultima_version || "", nInterna = +((verU.match(/\(v(\d+)\)/) || verU.match(/^v(\d+)$/) || [])[1] || 0);
+      const vieja = nInterna && nInterna < +VERSION_APP.split(" ")[0].slice(1) - 5;
+      acc.innerHTML = '<b class="u-con"></b><span class="u-disp"></span><span class="u-vieja" hidden></span><span class="u-login"></span>';
+      acc.querySelector(".u-con").textContent = "Última conexión: " + fechaHora(u.ultimo_acceso);
+      acc.querySelector(".u-disp").textContent = (u.ultimo_dispositivo ? " · " + u.ultimo_dispositivo : "") + (verU ? " · " + verU : "");
+      if (vieja) { const v = acc.querySelector(".u-vieja"); v.hidden = false; v.textContent = "⚠ Versión antigua (reiniciar el navegador o cerrar y abrir la aplicación)"; }
+      acc.querySelector(".u-login").textContent = "Entró con su contraseña por última vez: " + fechaHora(iniciosSesion[u.user_id]);
       fila.querySelector(".u-info").appendChild(acc);
       if (u.ultimo_acceso && Date.parse(u.ultimo_acceso) > semana) { const b = document.createElement("span"); b.className = "u-activo"; b.textContent = "activo esta semana"; fila.querySelector(".u-email").appendChild(b); }
       const est = fila.querySelector(".u-estado");
@@ -5741,7 +5747,7 @@ $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); 
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
 // VERSION_APP es interna (sube en cada publicación para que los móviles se actualicen); la que se ve es siempre la 26
-const VERSION_APP = "v89" + (BETA ? " beta" : "");
+const VERSION_APP = "v91" + (BETA ? " beta" : "");
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";
@@ -6556,6 +6562,22 @@ $("dlgAyuda").querySelectorAll("details").forEach(d => d.addEventListener("toggl
 if (/type=recovery|error_code=/.test(location.hash)) entrarDesdeEnlace();
 else if (sesion) mostrarApp(); else $("login").hidden = false;
 
+// Aviso en la propia app cuando hay una versión publicada más nueva que la que se está usando
+async function comprobarVersionNueva() {
+  try {
+    const txt = await (await fetch("sw.js?v=" + Date.now(), { cache: "no-store" })).text();
+    const nueva = +((txt.match(/"v(\d+)"/) || [])[1] || 0), actual = +VERSION_APP.split(" ")[0].slice(1);
+    if (!(nueva > actual) || document.getElementById("avisoVersion")) return;
+    const a = document.createElement("div");
+    a.id = "avisoVersion"; a.className = "aviso-version"; a.setAttribute("role", "status");
+    a.innerHTML = '<span>⚠ Hay una versión nueva. Reinicia el navegador o cierra y abre la aplicación.</span><button type="button" class="anadir">Actualizar ahora</button>';
+    a.querySelector("button").addEventListener("click", () => location.reload());
+    document.body.appendChild(a);
+  } catch {}
+}
+setTimeout(comprobarVersionNueva, 8000);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) setTimeout(comprobarVersionNueva, 3000); });
+setInterval(comprobarVersionNueva, 30 * 60e3);
 // Versión nueva: en el navegador (y en la app) se busca al volver a la pestaña; cuando la nueva toma el control,
 // la página se recarga sola una vez (si no estás escribiendo), para que la web y la app vayan siempre igual
 if ("serviceWorker" in navigator) {
