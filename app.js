@@ -44,7 +44,7 @@ if (BETA) { document.documentElement.classList.add("beta"); document.title = "Fu
 // El orden importa al subir: primero ejercicios y plantillas, después las series que los usan.
 const TABLAS = {
   ejercicios: { clave: "id", conflicto: "id", campos: ["id", "user_id", "nombre", "tipo", "video_url", "notas", "rm", "compartido", "zonas", "borrado", "actualizado"] },
-  personales: { clave: "ejercicio_id", conflicto: "user_id,ejercicio_id", campos: ["ejercicio_id", "rm", "actualizado"] },
+  personales: { clave: "ejercicio_id", conflicto: "user_id,ejercicio_id", campos: ["ejercicio_id", "rm", "medida", "actualizado"] },
   ciclos: { clave: "id", conflicto: "id", campos: ["id", "ejercicio_id", "numero", "rm_inicio", "peso_inicial", "incremento", "reps_reset", "importadas", "cerrado", "borrado", "actualizado"] },
   plantillas: { clave: "id", conflicto: "id", campos: ["id", "nombre", "items", "borrado", "actualizado"] },
   mesociclos: { clave: "id", conflicto: "id", campos: ["id", "nombre", "inicio", "semanas", "dias", "progresion", "descarga", "notas", "borrado", "actualizado"] },
@@ -54,7 +54,7 @@ const TABLAS = {
   listas: { clave: "id", conflicto: "id", campos: ["id", "nombre", "items", "siguiente", "borrado", "actualizado"], opcional: true },
   carreras: { clave: "id", conflicto: "id", campos: ["id", "nombre", "fecha", "lugar", "distancia", "tiempo", "chip", "pos_general", "total_general", "categoria", "pos_categoria", "total_categoria", "desnivel_pos", "fc_media", "notas", "enlace", "previsto", "borrado", "actualizado"] }
 };
-const DEFECTOS = { extra: {}, seccion: "", por_lado: false, nota: "", letra_nueva: false, max_tiempo: false, max_reps: false, fecha: null, lugar: "", categoria: "", enlace: "", fc_hist: [], tipo: "fuerza", hecha: true, grupo: "", meso_id: "", bloque_id: "", ciclo_id: "", importadas: [], cerrado: false, compartido: false, items: [], dias: {}, descarga: {}, zonas: [], calentamiento: false, inicio: null, zona: "", descripcion: "", estado: "activa", nombre: "", video_url: "", notas: "", html: "", texto: "", sensacion: "", borrado: false };
+const DEFECTOS = { medida: "", extra: {}, seccion: "", por_lado: false, nota: "", letra_nueva: false, max_tiempo: false, max_reps: false, fecha: null, lugar: "", categoria: "", enlace: "", fc_hist: [], tipo: "fuerza", hecha: true, grupo: "", meso_id: "", bloque_id: "", ciclo_id: "", importadas: [], cerrado: false, compartido: false, items: [], dias: {}, descarga: {}, zonas: [], calentamiento: false, inicio: null, zona: "", descripcion: "", estado: "activa", nombre: "", video_url: "", notas: "", html: "", texto: "", sensacion: "", borrado: false };
 let sesion = leer("sesion-v1");                 // {access_token, refresh_token, expires_at, user_id, email}
 let perfil = leer("perfil-v1");                 // {aprobado, es_admin, email}
 let usuarios = leer("usuarios-v1") || [];        // solo para el administrador (se guarda para no verla vacía al abrir)
@@ -198,6 +198,19 @@ const rm = s => n0(s.reps) <= 1 ? n0(s.peso) : n0(s.peso) * (1 + n0(s.reps) / 30
 const redondear = kg => Math.round(kg / 2.5) * 2.5;
 // 1RM de referencia: el que pongas en la ficha o, si no, el mejor estimado de tus series
 // El 1RM es personal: los ejercicios del catálogo común son de todos, pero cada uno tiene el suyo
+// Cómo se mide el progreso de un ejercicio de fuerza: por el peso (1RM), por las repeticiones máximas (dominadas, fondos…)
+// o por el tiempo máximo (plancha, false grip…). Automático por el nombre y lo que apuntas; se puede cambiar en la ficha
+const MEDIDAS = { peso: "Peso (1RM)", reps: "Repeticiones máximas", tiempo: "Tiempo máximo" };
+function medidaAuto(id) {
+  const n = norm(nombreEj(id));
+  if (/lastrad|con peso|con disco|con mancuerna|con kettle|con chaleco|\+\s?\d+\s?kg/.test(n)) return "peso";
+  if (/plancha|plank|hollow|l.?sit|lever|false grip|colgad|dead ?hang|isometr|wall ?sit|sentadilla en pared|aguant|superman hold|arch hold|bandera|handstand|pino/.test(n)) return "tiempo";
+  if (/dominad|chin.?up|pull.?up|fondos|dips|flexion|push.?up|muscle.?up|burpee|pistol|nordic|australian|remo invertido|toes to bar|elevaciones de piernas|abdominal|crunch/.test(n)) return "reps";
+  const h = seriesDe(id).filter(x => !x.calentamiento);
+  if (h.length >= 3 && h.filter(x => n0(x.peso) > 0).length < h.length / 3) return h.filter(x => n0(x.tiempo) > 0 && !(n0(x.reps) > 0)).length > h.length / 2 ? "tiempo" : "reps";
+  return "peso";
+}
+const medidaDe = id => MEDIDAS[(db.personales[id] || {}).medida] ? db.personales[id].medida : medidaAuto(id);
 const rmPersonal = id => n0((db.personales[id] || {}).rm) || (db.ejercicios[id] && !db.ejercicios[id].compartido ? n0(db.ejercicios[id].rm) : 0);
 function rmReferencia(id) {
   if (rmPersonal(id) > 0) return rmPersonal(id);
@@ -353,11 +366,18 @@ function indiceSeries() {
 const seriesVivas = () => indiceSeries().vivas.slice();
 const seriesDe = id => (indiceSeries().porEj[id] || []).slice();   // solo lo hecho (sin calentamiento) cuenta para récords
 // Récords de un ejercicio, calculados una vez por versión de los datos
-const prsEj = id => { const ix = indiceSeries(); return ix.prs[id] || (ix.prs[id] = prsDe(ix.porEj[id] || [], tipoDe(id))); };
+const prsEj = id => { const ix = indiceSeries(); return ix.prs[id] || (ix.prs[id] = prsDe(ix.porEj[id] || [], tipoDe(id), tipoDe(id) === "fuerza" ? medidaDe(id) : "")); };
 // PR: más peso (o más reps sin peso) en fuerza; menos tiempo para la misma distancia en carrera y natación
-function prsDe(lista, tipo) {
+function prsDe(lista, tipo, medida) {
   const prs = new Set();
   if (tipo === "movilidad") return prs;
+  // Peso corporal: récord = más repeticiones (o más tiempo aguantado), sin mirar el lastre
+  if (medida === "reps" || medida === "tiempo") {
+    const campo = medida === "reps" ? "reps" : "tiempo";
+    let max = null;
+    lista.filter(s => hecha(s) && !s.calentamiento).forEach(s => { const v = n0(s[campo]); if (!(v > 0)) return; if (max !== null && v > max) prs.add(s.id); max = Math.max(max ?? 0, v); });
+    return prs;
+  }
   if (esDistancia(tipo)) {
     const mejor = {};
     lista.filter(s => conMarca(s) && !fueraDeMarcas(s)).forEach(s => {
@@ -404,6 +424,13 @@ function estadisticas(id) {
   if (tipo === "movilidad") {
     st.tiempoTotal = lista.reduce((a, s) => a + n0(s.tiempo) * (s.por_lado ? 2 : 1), 0);
     st.resumen = st.sesiones.length + (st.sesiones.length === 1 ? " sesión" : " sesiones") + (st.tiempoTotal > 0 ? " · " + fmtSegs(st.tiempoTotal) + " en total" : "");
+    return st;
+  }
+  const med = tipo === "fuerza" && lista[0] ? medidaDe(lista[0].ejercicio_id) : "peso";
+  if (med === "reps" || med === "tiempo") {
+    const campo = med === "reps" ? "reps" : "tiempo", m = Math.max.apply(null, lista.map(x => n0(x[campo])).concat(0));
+    st.mejorReps = lista.reduce((a, x) => n0(x.reps) > n0(a.reps) ? x : a, lista[0]);
+    st.resumen = m > 0 ? "Récord: " + (med === "reps" ? m + " reps" : fmtSegs(m)) : st.sesiones.length + (st.sesiones.length === 1 ? " sesión" : " sesiones");
     return st;
   }
   const pesadas = lista.filter(s => n0(s.peso) > 0);
@@ -1712,6 +1739,10 @@ function bloque(dia, id, series, grupo, parte) {
   // Una línea menos: en fuerza, el descanso y OK van junto a «Reps ▾ · Por lado»
   const opsF = b.querySelector(".ops-fuerza"), filaDesc = b.querySelector(".ns-desc");
   // Fuerza: series junto al nombre; fila «[reps] Reps ▾   [peso] kg»; abajo «Por lado · ⏱ descanso · OK»
+  if (opsF && tipo === "fuerza" && medidaDe(id) !== "peso") {
+    b.classList.add("sin-peso");   // dominadas, fondos, plancha…: sin casilla de kg (para el lastre, el ejercicio «lastrado»)
+    if (medidaDe(id) === "tiempo" && !series.length && !historia.length) ponerPorT(true);
+  }
   if (opsF && medidaBtn) {
     const fila = b.querySelector(".ns-principal");
     fila.querySelectorAll(".x-series, .kg-par").forEach(x => x.remove());
@@ -2964,7 +2995,14 @@ function refrescarDetalle() {
   if (!e) { if ($("detalle").open) $("detalle").close(); return; }
   const st = estadisticas(e.id), tipo = st.tipo;
   $("detTipo").querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.tipo === tipo)));
-  const fuerza = tipo === "fuerza";
+  const medida = tipo === "fuerza" ? medidaDe(e.id) : "";
+  $("detMedidaSec").hidden = tipo !== "fuerza";
+  if (tipo === "fuerza") {
+    $("detMedida").querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", String(x.dataset.m === medida)));
+    const puesta = MEDIDAS[(db.personales[e.id] || {}).medida];
+    $("detMedidaInfo").textContent = puesta ? "Elegido por ti." : "Automático (por el nombre y lo que apuntas): " + MEDIDAS[medida].toLowerCase() + ". Toca otra opción si no encaja.";
+  }
+  const fuerza = tipo === "fuerza" && medida === "peso";
   $("detRmSec").hidden = !fuerza;
   $("detBilboSec").hidden = !fuerza;
   if (fuerza) {
@@ -3003,6 +3041,16 @@ function refrescarDetalle() {
     $("detGraficaTit").textContent = "Progreso · minutos por sesión";
     puntos = st.sesiones.slice(-12).map(s => ({ f: s.fecha, v: Math.round(s.series.reduce((m, x) => m + segs(x), 0) / 6) / 10 }));
     etiqueta = v => num(v) + " min";
+  } else if (medida === "reps" || medida === "tiempo") {
+    // Peso corporal: el récord son las repeticiones (o el tiempo) máximas de una serie
+    const campo = medida === "reps" ? "reps" : "tiempo", fmtV = v => medida === "reps" ? v + " reps" : fmtSegs(v);
+    const val = st.lista.filter(x => n0(x[campo]) > 0 && !x.calentamiento);
+    const mejor = val.reduce((m, x) => !m || n0(x[campo]) > n0(m[campo]) ? x : m, null);
+    if (mejor) rec.appendChild(recuadro(medida === "reps" ? "Máximo de repeticiones" : "Tiempo máximo", fmtV(n0(mejor[campo])), (n0(mejor.peso) > 0 ? "con " + num(mejor.peso) + " kg · " : "") + fechaCorta(mejor.fecha), true));
+    rec.appendChild(recuadro("Sesiones", String(st.sesiones.length), st.lista.length + " series"));
+    $("detGraficaTit").textContent = "Progreso · " + (medida === "reps" ? "repeticiones máximas" : "tiempo máximo") + " por sesión";
+    puntos = st.sesiones.slice(-12).map(x => ({ f: x.fecha, v: Math.max.apply(null, x.series.map(y => n0(y[campo])).concat(0)) }));
+    etiqueta = v => medida === "reps" ? num(v) + " reps" : fmtSegs(Math.round(v));
   } else if (st.mejor) {
     rec.appendChild(recuadro("Peso máximo", num(st.mejor.peso) + " kg", "× " + n0(st.mejor.reps) + " · " + fechaCorta(st.mejor.fecha), true));
     rec.appendChild(recuadro("1RM estimado", num(Math.round(rm(st.mejorRm))) + " kg", serieTexto(st.mejorRm) + " · " + fechaCorta(st.mejorRm.fecha)));
@@ -3018,7 +3066,7 @@ function refrescarDetalle() {
     etiqueta = v => num(v) + " reps";
   }
   $("detGrafica").innerHTML = st.lista.length ? grafica(puntos, etiqueta) : "";
-  const hist = $("detHistorial"), prs = prsDe(st.lista, tipo);
+  const hist = $("detHistorial"), prs = prsDe(st.lista, tipo, tipo === "fuerza" ? medidaDe(e.id) : "");
   hist.textContent = "";
   st.sesiones.slice().reverse().forEach(s => {
     const li = document.createElement("li");
@@ -3141,9 +3189,18 @@ function tablaBilbo(ses) {
   caja.appendChild(t);
   return caja;
 }
+$("detMedida").addEventListener("click", ev => {
+  const x = ev.target.closest("button[data-m]");
+  if (!x || !detalleId) return;
+  const p = db.personales[detalleId] || { ejercicio_id: detalleId, rm: 0 };
+  // Tocar la que ya sale automática la deja fija; así no cambia aunque cambien las series
+  cambiar("personales", { ...p, ejercicio_id: detalleId, rm: n0(p.rm), medida: x.dataset.m });
+  indiceSeries().prs[detalleId] = null;
+  refrescarDetalle(); pintarBloques(true);
+});
 $("detRm").addEventListener("change", () => {
   const v = parseFloat(($("detRm").value || "0").replace(",", "."));
-  cambiar("personales", { ejercicio_id: detalleId, rm: v > 0 ? v : 0 });
+  cambiar("personales", { ...(db.personales[detalleId] || {}), ejercicio_id: detalleId, rm: v > 0 ? v : 0 });
   refrescarDetalle();
 });
 
@@ -5863,7 +5920,7 @@ $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); 
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
 // VERSION_APP es interna (sube en cada publicación para que los móviles se actualicen); la que se ve es siempre la 26
-const VERSION_APP = "v105" + (BETA ? " beta" : "");
+const VERSION_APP = "v106" + (BETA ? " beta" : "");
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";

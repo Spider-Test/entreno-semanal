@@ -1267,6 +1267,11 @@ h1 { color: var(--titulo); }
 .ops-fuerza:not(:has(.medida-btn)) { gap: 10px; }
 @media (max-width: 760px) { .veces-cab .veces { width: 2.6em; font-size: 18px; } }
 
+/* Peso corporal (dominadas, fondos, plancha…): sin casilla de kg en el formulario */
+.bloque.sin-peso .fila-fuerza .paso:has(.in-a), .bloque.sin-peso .fila-fuerza .modo { display: none; }
+#detMedida { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
+#detMedida button { min-width: 0; padding-left: 4px; padding-right: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
 /* Arrastrar un ejercicio o bloque encima de la cabecera de una parte: entra en ella (como una carpeta) */
 .parte-cab { transition: transform 0.15s, box-shadow 0.15s; }
 .parte-cab.zona-destino { transform: scale(1.03); box-shadow: 0 0 0 3px var(--pc), 0 6px 18px rgba(0, 0, 0, 0.18); }
