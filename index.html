@@ -255,6 +255,18 @@
   <div id="menuOpciones" class="menu-op"></div>
 </dialog>
 
+<dialog id="dlgTexto" aria-labelledby="txtTit">
+  <form method="dialog" class="d-form">
+    <h3 id="txtTit"></h3>
+    <textarea id="txtInput" rows="3" maxlength="300" aria-label="Descripción" placeholder="Tempo 3-2-1-2 · banda roja · EEP 2"></textarea>
+    <p id="txtAyuda" class="menu-det"></p>
+    <div class="d-botones">
+      <button value="quitar" class="nav-btn peligro-txt" formnovalidate>Quitar</button>
+      <button value="" class="nav-btn" formnovalidate>Cancelar</button>
+      <button value="ok" class="anadir">Guardar</button>
+    </div>
+  </form>
+</dialog>
 <dialog id="dlgNombre" aria-labelledby="nomTit">
   <form method="dialog" class="d-form">
     <h3 id="nomTit"></h3>
@@ -449,11 +461,17 @@
   </form>
   <div class="d-cuerpo ayuda">
     <p>Toca cada apartado para verlo. Puedes volver aquí cuando quieras con el botón <b>?</b> de arriba. ¿Echas algo en falta o algo no va bien? Envíanos una sugerencia:</p>
-    <details class="novedades" open><summary>Novedades · versión 64</summary>
-      <p><b>Bloques más claros:</b> el título dice solo «A3 ×2» (o «×2 rondas» si no está en una parte) y los ejercicios salen en cada ronda, sin repetirse. El vídeo de cada ejercicio es un botón ▶ a su derecha, en la primera ronda.</p>
-      <p><b>Orden A1, A2…:</b> dentro de cada parte, los ejercicios y bloques llevan una etiqueta: A1, A2… en la primera parte; B1, B2… en la segunda, y así.</p>
-      <p><b>Partes como cajas desplegables:</b> cada parte (Calentamiento, Parte principal…) es ahora una caja de su color con sus ejercicios dentro. Toca su nombre (▸/▾) para plegarla o desplegarla; se recuerda en cada dispositivo.</p>
-      <p><b>Editar bloques:</b> en el ⋯ de un bloque, «+ Añadir un ejercicio al bloque…» lo mete en todas las rondas, y «Quitar un ejercicio del bloque…» lo saca. También puedes <b>arrastrar un ejercicio suelto</b> (por su asa ≡) <b>encima del título del bloque</b>: se ilumina y, al soltarlo, entra con una serie en cada ronda.</p>
+    <details class="novedades" open><summary>Novedades · versión 80</summary>
+      <p><b>Copiar y pegar, más sencillo:</b> solo se copia un entrenamiento entero (⋯ del día → «Copiar día», o ⋯ de un entreno → «Copiar entreno») y se pega en el día que elijas (⋯ de ese día → «📋 Pegar … en este día»). Y el mismo ejercicio en dos partes ya sale en cada una por separado, sin juntarse.</p>
+      <p><b>Menús ⋯ más cortos:</b> se quitan las opciones que ya se hacen directamente: editar (toca el ejercicio), editar la descripción (tócala), subir, bajar y cambiar de parte (arrastra con ≡). Se queda «Mover a otro entreno del día», porque entre entrenos no se puede arrastrar.</p>
+      <p><b>Cada letra, su desplegable:</b> si una parte tiene varias letras (B1, B2 · C1, C2 · D1…), cada letra va en su propia caja con sus ejercicios y su progreso. Toca la cabecera (▸ B …) para plegarla o desplegarla; se recuerda en cada dispositivo.</p>
+      <p><b>«Por lado» también en fuerza:</b> debajo del selector Reps · Tiempo · Máx., marca <b>Por lado (izq. y der.)</b> para ejercicios unilaterales o isométricos a cada lado: «30 s por lado», «12 kg × 10 por lado».</p>
+      <p><b>Formulario de series:</b> arriba eliges cuántas <b>Series</b> (con − y +) y debajo los kg y las repeticiones. En fuerza eliges cómo se mide cada serie con un selector: <b>Reps · ⏱ Tiempo · Máx. reps · Máx. tiempo</b>. «Tiempo» es para isométricos («45» = 45 s: «10 kg · 45 s»); «Máx.» guarda la serie sin número («40 kg × máx», «máx tiempo»). Al hacerla, tócala y apunta lo que salió (repeticiones o segundos) para dejar registro.</p>
+      <p><b>No se pierde lo que escribes:</b> si rellenas un ejercicio y, sin pulsar OK, añades o mueves otro, lo escrito sigue ahí. Y mover un ejercicio recién añadido (sin series) ya no hace que vuelva a su sitio.</p>
+      <p><b>Lo que te comparten, primero solo se ve:</b> al abrir un entrenamiento, plantillas o un mesociclo de un amigo, ves sus ejercicios sin que se añada nada. Si te gusta, pulsa «+ Añadir a mi rutina…» y elige un día (con ‹ › para cambiar de semana) o guárdalo como plantilla.</p>
+      <p><b>Letras como en tu hoja (A1, B2, C1…):</b> cada parte empieza una letra y, dentro de una parte, el ⋯ de un ejercicio o bloque tiene «Empezar letra nueva aquí» para separar superseries: B1, B2 → C1, C2 → D1. «Seguir con la letra anterior» lo deshace. Las letras siguen de una parte a otra.</p>
+      <p><b>Descripción de cada ejercicio:</b> al añadir un ejercicio, toca «+ Descripción» debajo de sus casillas (o en el ⋯ del ejercicio o del bloque) para apuntar el tempo (3-2-1-2), el tipo de banda o resistencia, el EEP/RIR, pausas o cómo hacerlo. Se ve debajo del ejercicio (tócala para editarla) y en el modo entreno, y se copia con las plantillas, los mesociclos y lo que compartes. En un bloque puedes ponerla a todo el bloque o a un ejercicio.</p>
+      <p>Las rutinas en texto y la IA también la entienden: «- Sentadilla [fuerza]: 4x6 @RPE8 nota: Tempo 3-1-1-0».</p>
     </details>
     <button type="button" class="nav-btn sug-btn" id="sugAyuda">💬 Enviar una sugerencia o avisar de un fallo</button>
     <details><summary>La semana y el texto del día</summary>
@@ -474,9 +492,9 @@
     <details><summary>Partes de un entreno</summary>
       <p>Son opcionales: si no creas ninguna, el entreno va todo seguido, como siempre. Para dividirlo, pulsa <b>+ Parte</b> (debajo del día, o en la caja de cada entreno si tienes varios) y ponle nombre: «Calentamiento», «Parte principal», «Fuerza», «Series», «Vuelta a la calma»…</p>
       <p>Cada parte tiene su <b>color</b> (cabecera y un fondo suave en sus ejercicios), su progreso y sus botones <b>+ Ejercicio</b> y <b>+ Bloque</b>. Dentro de una parte puedes poner bloques ×N, por ejemplo 4 × (400 m + trote 200 m) en «Parte principal».</p>
-      <p>En el <b>⋯ de la parte</b> la subes o bajas, le cambias el nombre, la quitas (sus ejercicios quedan sin parte) o la borras con sus ejercicios. Un ejercicio o bloque se pasa a otra parte con su ⋯ → «Mover a otra parte». Las plantillas, lo que compartes y Crear con IA conservan las partes, y el modo entreno te dice en qué parte estás.</p>
+      <p>En el <b>⋯ de la parte</b> la subes o bajas, le cambias el nombre, la quitas (sus ejercicios quedan sin parte) o la borras con sus ejercicios. Un ejercicio o bloque se pasa a otra parte arrastrándolo con su asa ≡.</p>
       <p><b>Arrastrar a una parte:</b> coge un ejercicio o bloque por su asa <b>≡</b> y suéltalo <b>encima de la cabecera</b> de una parte (se ilumina): entra en ella, al final, como una app en una carpeta. También puedes arrastrarlo entre los ejercicios de otra parte. Si una parte se queda sin nada, se queda vacía para volver a llenarla.</p>
-      <p>Cada parte es una caja de su color con sus ejercicios dentro. Toca su nombre (▸/▾) para plegarla o desplegarla; la app lo recuerda en cada dispositivo. Dentro de cada parte, los ejercicios y bloques se numeran A1, A2… (primera parte), B1, B2… (segunda).</p>
+      <p>Cada parte es una caja de su color con sus ejercicios dentro. Toca su nombre (▸/▾) para plegarla o desplegarla; la app lo recuerda en cada dispositivo. Los ejercicios y bloques se numeran como en las hojas de entrenamiento: cada parte empieza una letra (A1, A2…; luego B1, B2…) y, con el ⋯ de un ejercicio o bloque → «Empezar letra nueva aquí», separas superseries dentro de una parte (C1, C2, D1…). Si una parte tiene varias letras, cada una va en su desplegable (toca ▸ B, ▸ C…).</p>
     </details>
     <details><summary>Calendario y unidades</summary>
       <p>El botón <b>📅</b>, junto a las fechas de la semana, abre el calendario del mes: cada día con entrenamiento lleva un punto (relleno si lo hiciste entero, a medias o vacío si estaba planificado). Cambia de mes con ‹ › y toca un día para ir a su semana con ese día abierto.</p>
@@ -485,11 +503,12 @@
     </details>
     <details><summary>Añadir ejercicios y series</summary>
       <p>Pulsa <b>+ Ejercicio</b> en un día, busca el ejercicio o escribe uno nuevo. Arriba puedes filtrar por Fuerza, Carrera, Natación o Movilidad.</p>
+      <p><b>Cómo se mide (fuerza):</b> debajo de kg × reps elige <b>Reps</b>, <b>⏱ Tiempo</b> (isométricos: «45» = 45 s, también «1,30»), <b>Máx. reps</b> o <b>Máx. tiempo</b> (la serie queda «máx» sin número). Al hacer una serie «máx», tócala (o usa el modo entreno) y apunta las repeticiones o los segundos que salieron. En texto: «3xmáx» o «3xmáx tiempo». Marca <b>Por lado</b> si se hace a cada lado («30 s por lado»).</p>
       <p><b>Fuerza:</b> kg × repeticiones. El botón <b>kg</b> cambia a <b>%</b> del 1RM (pon tu 1RM en la ficha del ejercicio).</p>
       <p><b>Movilidad:</b> repeticiones o tiempo (un número solo son segundos: «45»; también «2 min» o «1,30»). Marca <b>Por lado</b> si se hace a cada lado. No cuenta récords; el resumen de la semana suma sus minutos (por lado cuenta los dos).</p>
       <p><b>Carrera y natación:</b> metros y tiempo. El botón <b>m</b> cambia a <b>min</b> si prefieres apuntar solo el tiempo.</p>
       <p>Los botones <b>−</b> y <b>+</b> suben o bajan el peso, las repeticiones, los metros (100 m) o el tiempo (5 s). En <b>Plan → Ajustes</b> eliges cuántos kilos sube cada toque (2,5 por defecto) y el peso de la barra; se guardan en cada dispositivo.</p>
-      <p><b>×N y OK:</b> escribe el peso y las repeticiones (o metros, tiempo y descanso), cuántas series iguales quieres en <b>×</b> (1 por defecto) y pulsa <b>OK</b>. Se crean todas de golpe y el ejercicio se pliega, limpio: «Press banca · 60 kg × 8 · ×4» con su progreso. Hoy y en días futuros quedan pendientes para marcarlas una a una; en días pasados se apuntan como hechas.</p>
+      <p><b>Series y OK:</b> arriba eliges cuántas <b>Series</b> iguales quieres (− y +, 1 por defecto); debajo, el peso y las repeticiones (o metros, tiempo y descanso) y pulsa <b>OK</b>. Se crean todas de golpe y el ejercicio se pliega, limpio: «Press banca · 60 kg × 8 · ×4» con su progreso. Hoy y en días futuros quedan pendientes para marcarlas una a una; en días pasados se apuntan como hechas.</p>
       <p><b>Editar el ejercicio entero:</b> toca su nombre (o <b>⋯ → Editar</b>). Puedes cambiar los valores de todas las series pendientes a la vez, el número <b>×N</b> (añade o quita series pendientes; si hubiera que quitar series hechas, te lo pregunta) o <b>cambiar el ejercicio</b> por otro del mismo tipo (por ejemplo, sentadilla → prensa) manteniendo las series. <b>OK</b> lo vuelve a plegar; tocar el nombre otra vez lo cierra sin guardar. Todo se puede deshacer.</p>
       <p>Para quitar un ejercicio entero de un día, <b>⋯ → Eliminar ejercicio y sus series</b>: pide pulsar otra vez para confirmar y se puede deshacer.</p>
       <p>Si una serie sale distinta, tócala y edítala sola. <b>+ Serie</b> añade una suelta diferente (por ejemplo, una extra con otro peso). El vídeo, los récords y el historial están en la ficha: <b>⋯ → Ver ficha del ejercicio</b>.</p>
@@ -518,6 +537,7 @@
     </details>
     <details><summary>Bloques ×N</summary>
       <p><b>+ Bloque</b> crea uno o varios tramos que se repiten, por ejemplo 1000 m + recuperación 300 m ×4, o Press banca + Remo ×4. Se muestran ronda a ronda.</p>
+      <p><b>Descripción:</b> «+ Descripción», debajo de las casillas del ejercicio o en su ⋯ (y en el ⋯ de un bloque), guarda indicaciones como el tempo, la banda, el EEP/RIR o pausas. Sale debajo del ejercicio (tócala para cambiarla o quitarla) y en el modo entreno. En texto: «nota: …» al final de la línea del ejercicio.</p>
       <p><b>Editar un bloque:</b> en su ⋯, «+ Añadir un ejercicio al bloque…» (entra en todas las rondas) o «Quitar un ejercicio del bloque…». También puedes arrastrar un ejercicio suelto por su asa ≡ y soltarlo encima del título del bloque: entra con una serie en cada ronda.</p>
       <p><b>Agrupar series ya apuntadas:</b> mantén pulsada una serie (o ⋯ del día o de la sesión → <b>Seleccionar series para agrupar en bloque</b>), toca las que quieras y pulsa <b>Agrupar en bloque</b>. Si hay un patrón que se repite (por ejemplo 1000 m + trote 300 m, cuatro veces) te propone el bloque ×4; también puedes juntarlas en una sola ronda o en el orden en que las tocaste. Se conservan valores, hechas y pendientes, tiempos, desnivel y pulsaciones, y se puede deshacer. <b>⋯ del bloque → Desagrupar</b> lo vuelve a dejar en series sueltas.</p>
       <p><b>Al importar</b> una carrera, en la vista previa marca las casillas de las vueltas y pulsa <b>Agrupar las marcadas en bloque ×N</b>; «Quitar agrupación» lo deshace antes de guardar.</p>
@@ -525,9 +545,10 @@
     <details><summary>Cambiar el orden</summary>
       <p>Arrastra el asa <b>≡</b> para mover una serie dentro de su ejercicio, un ejercicio o bloque dentro de su sesión, o una sesión entera dentro del día (por ejemplo, subir un calentamiento que añadiste al final). Mientras arrastras ves el resultado; el asa no interfiere con deslizar ni con el desplazamiento.</p>
       <p>Los ejercicios que aún no tienen series también se mueven, y al añadirles la primera serie se quedan donde los pusiste. Con <b>Mover a otra sesión…</b> (menú ⋯) pasas un ejercicio o bloque a otra sesión del día o a «Sin sesión».</p>
-      <p>También puedes usar <b>Subir</b> y <b>Bajar</b> en el menú ⋯ de cada ejercicio, bloque o sesión, o las flechas del teclado sobre el asa. Durante 5 segundos aparece <b>Deshacer</b>. El nuevo orden se usa también en el modo entreno y al guardar como plantilla.</p>
+      <p>En una sesión puedes usar <b>Subir</b> y <b>Bajar</b> de su menú ⋯; con teclado, las flechas sobre el asa ≡ mueven ejercicios y bloques. Para pasar algo a otro entreno del día, usa su ⋯ → «Mover a otro entreno del día». Durante 5 segundos aparece <b>Deshacer</b>. El nuevo orden se usa también en el modo entreno y al guardar como plantilla.</p>
     </details>
     <details><summary>Plantillas, copiar y pegar</summary>
+      <p><b>Copiar y pegar un entrenamiento:</b> en el ⋯ del día, «Copiar día» (o en el ⋯ de un entreno, «Copiar entreno»). Después, en el ⋯ del día donde lo quieras, «📋 Pegar … en este día». Lo pegado entra pendiente y se puede deshacer.</p>
       <p>En el menú <b>⋯</b> de cada día puedes copiar el día, pegar lo último copiado, añadir una plantilla, guardar los ejercicios como plantilla o compartirlos con un amigo.</p>
       <p>Si los ejercicios tienen nombre de sesión (por ejemplo «Pierna»), su menú ⋯ copia, guarda o comparte solo esa sesión. Puedes tener varias sesiones el mismo día.</p>
     </details>
@@ -579,7 +600,7 @@
       <p>Arriba de la semana, <b>Resumen de la semana</b> muestra km (con las recuperaciones en metros, igual que el total de cada día), kilos levantados (peso × repeticiones), series hechas frente a planificadas, récords y esfuerzo medio, comparados con la semana anterior.</p>
     </details>
     <details><summary>Compartir con amigos</summary>
-      <p>Desde el menú ⋯ de un día, una sesión o una plantilla, <b>Compartir con un amigo</b> crea un enlace o un código de 8 letras. Tu amigo lo abre o lo pega en <b>Plan → Añadir algo compartido</b>.</p>
+      <p>Desde el menú ⋯ de un día, una sesión o una plantilla, <b>Compartir con un amigo</b> crea un enlace o un código de 8 letras. Tu amigo lo abre o lo pega en <b>Plan → Añadir algo compartido</b>. Primero solo lo ve (ejercicios, series, partes y bloques); si lo quiere, pulsa <b>+ Añadir a mi rutina…</b> y elige el día o guardarlo como plantilla.</p>
       <p>Un <b>mesociclo</b> entero se comparte desde su editor: tu amigo ve una vista previa y lo guarda con todas sus plantillas.</p>
     </details>
     <details><summary>Copia de seguridad</summary>
@@ -745,6 +766,7 @@
   <div class="en-cuerpo">
     <p class="en-grupo" id="enGrupo"></p>
     <h2 class="en-ej" id="enEj"></h2>
+    <p class="en-nota" id="enNota" hidden></p>
     <p class="en-serie" id="enSerie"></p>
     <p class="en-valor" id="enValor"></p>
     <p class="en-extra" id="enExtra"></p>
