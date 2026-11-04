@@ -27,7 +27,7 @@ const $ = id => document.getElementById(id);
 const BETA = location.pathname.includes("/beta/"), PREFIJO = BETA ? "beta:" : "";
 const leer = k => { try { return JSON.parse(localStorage.getItem(PREFIJO + k)); } catch { return null; } };
 const escribir = (k, v) => { try { v === null ? localStorage.removeItem(PREFIJO + k) : localStorage.setItem(PREFIJO + k, JSON.stringify(v)); } catch {} };
-if (BETA) { document.documentElement.classList.add("beta"); document.title = "Entreno β"; document.querySelector('meta[name="apple-mobile-web-app-title"]').content = "Entreno β"; }
+if (BETA) { document.documentElement.classList.add("beta"); document.title = "Fuerza y Ritmo β"; document.querySelector('meta[name="apple-mobile-web-app-title"]').content = "Fuerza y Ritmo β"; }
 
 // Cada tabla se sincroniza igual: gana la edición más reciente de cada fila.
 // El orden importa al subir: primero ejercicios y plantillas, después las series que los usan.
@@ -814,7 +814,7 @@ async function compartir(nombre, items, crudo) {
   } catch { setEstado("No se ha podido compartir. Necesitas conexión.", true); return; }
   const enlace = URL_APP + "#c=" + codigo;
   abrirMenu("Compartir «" + nombre + "»", "Código " + codigo + ". Tu amigo puede abrir el enlace o pegar el código en Plan → Añadir algo compartido.", [
-    navigator.share && { texto: "Enviar…", mantener: true, accion: () => navigator.share({ title: nombre, text: "Entrenamiento «" + nombre + "» para Entreno Semanal (código " + codigo + ")", url: enlace }).catch(() => {}) },
+    navigator.share && { texto: "Enviar…", mantener: true, accion: () => navigator.share({ title: nombre, text: "Entrenamiento «" + nombre + "» para Fuerza y Ritmo (código " + codigo + ")", url: enlace }).catch(() => {}) },
     { texto: "Copiar enlace", mantener: true, accion: () => copiarTexto(enlace) },
     { texto: "Copiar código", mantener: true, accion: () => copiarTexto(codigo) }
   ]);
@@ -3218,7 +3218,7 @@ const csv = filas => "﻿" + filas.map(f => f.map(celda).join(";")).join("\r\n")
 function exportarJSON() {
   const datos = {};
   Object.keys(TABLAS).forEach(t => { datos[t] = Object.values(db[t]).map(f => { const c = { ...f }; delete c.sucio; return c; }); });
-  descargarArchivo("entreno-copia-" + iso(new Date()) + ".json", JSON.stringify({ app: "Entreno Semanal", version: 1, exportado: new Date().toISOString(), email: (sesion && sesion.email) || "", datos }), "application/json");
+  descargarArchivo("fuerza-y-ritmo-copia-" + iso(new Date()) + ".json", JSON.stringify({ app: "Fuerza y Ritmo", version: 1, exportado: new Date().toISOString(), email: (sesion && sesion.email) || "", datos }), "application/json");
 }
 function exportarSeries() {
   const filas = [["Fecha", "Día", "Sesión", "Ejercicio", "Tipo", "Estado", "Peso (kg)", "% 1RM", "Reps", "Distancia (m)", "Tiempo", "Ritmo", "Descanso", "Recuperación (m)", "Bloque", "Esfuerzo del día (RPE)", "Sensaciones del día"]];
@@ -3243,7 +3243,7 @@ function restaurar(archivo) {
   lector.onload = () => {
     let j = null;
     try { j = JSON.parse(lector.result); } catch {}
-    if (!j || j.app !== "Entreno Semanal" || !j.datos) { setEstado("Ese archivo no es una copia de Entreno Semanal.", true); return; }
+    if (!j || !["Entreno Semanal", "Fuerza y Ritmo"].includes(j.app) || !j.datos) { setEstado("Ese archivo no es una copia de Fuerza y Ritmo.", true); return; }
     const cambios = [];
     Object.keys(TABLAS).forEach(t => (Array.isArray(j.datos[t]) ? j.datos[t] : []).forEach(f => {
       const k = f && f[TABLAS[t].clave];
@@ -4500,7 +4500,7 @@ $("enSalir").addEventListener("click", salirEntreno);
 $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); abrirRpe(d); });
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
-const VERSION_APP = "v52" + (BETA ? " beta" : "");
+const VERSION_APP = "v53" + (BETA ? " beta" : "");
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";
@@ -5282,7 +5282,7 @@ if (window.visualViewport) {
 const VERSION_NOV = VERSION_APP.split(" ")[0];
 const novedadesVistas = () => [(perfil && perfil.novedades_vistas) || "", leer("novedades-vistas-v1") || ""].includes(VERSION_NOV);
 // Versiones con novedades que merece la pena avisar; en las demás (o para quien entra por primera vez) no hay aviso
-const AVISAR_NOVEDADES = false;
+const AVISAR_NOVEDADES = true;
 function pintarAvisoNovedades() {
   // Quien nunca ha visto ninguna versión entra por primera vez: para él todo es nuevo, así que se da por vista
   if (sesion && perfil && !perfil.novedades_vistas && !leer("novedades-vistas-v1")) { marcarNovedadesVistas(); return; }
