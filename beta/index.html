@@ -48,6 +48,7 @@
   <nav class="tabbar" role="tablist" aria-label="Secciones">
     <button type="button" role="tab" id="tabSemana" aria-selected="true"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg><span>Semana</span></button>
     <button type="button" role="tab" id="tabEjercicios" aria-selected="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 7v10M17.5 7v10M3.5 9.5v5M20.5 9.5v5M6.5 12h11"/></svg><span>Ejercicios</span></button>
+    <button type="button" role="tab" id="tabListas" aria-selected="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6.5h11M9 12h11M9 17.5h11"/><path d="M4 6.5h.01M4 12h.01M4 17.5h.01" stroke-width="3" stroke-linecap="round"/></svg><span>Listas</span></button>
     <button type="button" role="tab" id="tabMarcas" aria-selected="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19.5h16M7 16.5v-5M12 16.5V6.5M17 16.5v-8"/></svg><span>Marcas</span></button>
     <button type="button" role="tab" id="tabPlan" aria-selected="false"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="4" width="14" height="17" rx="2.5"/><path d="M9 4.5V3h6v1.5M8.5 10h7M8.5 14h7M8.5 18h4"/></svg><span>Plan</span></button>
   </nav>
@@ -74,6 +75,11 @@
       <div class="records" id="resumenCont"></div>
     </details>
     <main class="semana" id="semana"></main>
+  </div>
+
+  <div id="vistaListas" hidden>
+    <div class="barra listas-barra"><h2 class="listas-tit">Listas de entrenamientos</h2><button type="button" class="nav-btn" id="nuevaLista">+ Nueva lista</button></div>
+    <div id="listasCont"></div>
   </div>
 
   <div id="vistaEjercicios" hidden>
@@ -461,17 +467,10 @@
   </form>
   <div class="d-cuerpo ayuda">
     <p>Toca cada apartado para verlo. Puedes volver aquí cuando quieras con el botón <b>?</b> de arriba. ¿Echas algo en falta o algo no va bien? Envíanos una sugerencia:</p>
-    <details class="novedades" open><summary>Novedades · versión 80</summary>
-      <p><b>Copiar y pegar, más sencillo:</b> solo se copia un entrenamiento entero (⋯ del día → «Copiar día», o ⋯ de un entreno → «Copiar entreno») y se pega en el día que elijas (⋯ de ese día → «📋 Pegar … en este día»). Y el mismo ejercicio en dos partes ya sale en cada una por separado, sin juntarse.</p>
-      <p><b>Menús ⋯ más cortos:</b> se quitan las opciones que ya se hacen directamente: editar (toca el ejercicio), editar la descripción (tócala), subir, bajar y cambiar de parte (arrastra con ≡). Se queda «Mover a otro entreno del día», porque entre entrenos no se puede arrastrar.</p>
-      <p><b>Cada letra, su desplegable:</b> si una parte tiene varias letras (B1, B2 · C1, C2 · D1…), cada letra va en su propia caja con sus ejercicios y su progreso. Toca la cabecera (▸ B …) para plegarla o desplegarla; se recuerda en cada dispositivo.</p>
-      <p><b>«Por lado» también en fuerza:</b> debajo del selector Reps · Tiempo · Máx., marca <b>Por lado (izq. y der.)</b> para ejercicios unilaterales o isométricos a cada lado: «30 s por lado», «12 kg × 10 por lado».</p>
-      <p><b>Formulario de series:</b> arriba eliges cuántas <b>Series</b> (con − y +) y debajo los kg y las repeticiones. En fuerza eliges cómo se mide cada serie con un selector: <b>Reps · ⏱ Tiempo · Máx. reps · Máx. tiempo</b>. «Tiempo» es para isométricos («45» = 45 s: «10 kg · 45 s»); «Máx.» guarda la serie sin número («40 kg × máx», «máx tiempo»). Al hacerla, tócala y apunta lo que salió (repeticiones o segundos) para dejar registro.</p>
-      <p><b>No se pierde lo que escribes:</b> si rellenas un ejercicio y, sin pulsar OK, añades o mueves otro, lo escrito sigue ahí. Y mover un ejercicio recién añadido (sin series) ya no hace que vuelva a su sitio.</p>
-      <p><b>Lo que te comparten, primero solo se ve:</b> al abrir un entrenamiento, plantillas o un mesociclo de un amigo, ves sus ejercicios sin que se añada nada. Si te gusta, pulsa «+ Añadir a mi rutina…» y elige un día (con ‹ › para cambiar de semana) o guárdalo como plantilla.</p>
-      <p><b>Letras como en tu hoja (A1, B2, C1…):</b> cada parte empieza una letra y, dentro de una parte, el ⋯ de un ejercicio o bloque tiene «Empezar letra nueva aquí» para separar superseries: B1, B2 → C1, C2 → D1. «Seguir con la letra anterior» lo deshace. Las letras siguen de una parte a otra.</p>
-      <p><b>Descripción de cada ejercicio:</b> al añadir un ejercicio, toca «+ Descripción» debajo de sus casillas (o en el ⋯ del ejercicio o del bloque) para apuntar el tempo (3-2-1-2), el tipo de banda o resistencia, el EEP/RIR, pausas o cómo hacerlo. Se ve debajo del ejercicio (tócala para editarla) y en el modo entreno, y se copia con las plantillas, los mesociclos y lo que compartes. En un bloque puedes ponerla a todo el bloque o a un ejercicio.</p>
-      <p>Las rutinas en texto y la IA también la entienden: «- Sentadilla [fuerza]: 4x6 @RPE8 nota: Tempo 3-1-1-0».</p>
+    <details class="novedades" open><summary>Novedades · versión 26</summary>
+      <p><b>Listas de entrenamientos</b> (nueva pestaña <b>Listas</b>, junto a Ejercicios): crea listas como «Fuerza 3 días» o «Torso / Pierna», guarda en ellas tus entrenamientos y ordénalos con ≡. Toca uno para ver sus ejercicios y pulsa <b>+ Día</b> para ponerlo en el día que elijas.</p>
+      <p>Para guardar un entrenamiento en una lista: ⋯ del día (o de un entreno) → «Guardar en una lista de entrenamientos…». También puedes añadir tus plantillas con «+ Añadir entrenamiento».</p>
+      <p>La lista recuerda cuál toca <b>siguiente</b>: al poner uno en un día, el siguiente pasa al de después (ideal para rotar A, B, C…).</p>
     </details>
     <button type="button" class="nav-btn sug-btn" id="sugAyuda">💬 Enviar una sugerencia o avisar de un fallo</button>
     <details><summary>La semana y el texto del día</summary>
@@ -546,6 +545,11 @@
       <p>Arrastra el asa <b>≡</b> para mover una serie dentro de su ejercicio, un ejercicio o bloque dentro de su sesión, o una sesión entera dentro del día (por ejemplo, subir un calentamiento que añadiste al final). Mientras arrastras ves el resultado; el asa no interfiere con deslizar ni con el desplazamiento.</p>
       <p>Los ejercicios que aún no tienen series también se mueven, y al añadirles la primera serie se quedan donde los pusiste. Con <b>Mover a otra sesión…</b> (menú ⋯) pasas un ejercicio o bloque a otra sesión del día o a «Sin sesión».</p>
       <p>En una sesión puedes usar <b>Subir</b> y <b>Bajar</b> de su menú ⋯; con teclado, las flechas sobre el asa ≡ mueven ejercicios y bloques. Para pasar algo a otro entreno del día, usa su ⋯ → «Mover a otro entreno del día». Durante 5 segundos aparece <b>Deshacer</b>. El nuevo orden se usa también en el modo entreno y al guardar como plantilla.</p>
+    </details>
+    <details><summary>Listas de entrenamientos</summary>
+      <p>En la pestaña <b>Listas</b> guardas tus entrenamientos agrupados: por ejemplo una lista «Fuerza 3 días» con Torso, Pierna y Full body. Crea una con <b>+ Nueva lista</b>.</p>
+      <p><b>Meter entrenamientos:</b> desde el ⋯ de un día o de un entreno, «Guardar en una lista de entrenamientos…» (eliges la lista y le pones nombre), o dentro de la lista, «+ Añadir entrenamiento» para elegir una de tus plantillas. Un entrenamiento puede estar en varias listas.</p>
+      <p><b>Usarlos:</b> toca el nombre para ver sus ejercicios; <b>+ Día</b> lo pone en el día que elijas (con ‹ › cambias de semana). Ordénalos con el asa ≡. La lista marca cuál toca <b>siguiente</b> y avanza sola cada vez que pones uno; en su ⋯ puedes elegir otro como siguiente o quitarlo de la lista (sigue en tus plantillas).</p>
     </details>
     <details><summary>Plantillas, copiar y pegar</summary>
       <p><b>Copiar y pegar un entrenamiento:</b> en el ⋯ del día, «Copiar día» (o en el ⋯ de un entreno, «Copiar entreno»). Después, en el ⋯ del día donde lo quieras, «📋 Pegar … en este día». Lo pegado entra pendiente y se puede deshacer.</p>

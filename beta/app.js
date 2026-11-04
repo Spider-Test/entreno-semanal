@@ -29,6 +29,7 @@ const $ = id => document.getElementById(id);
 // ---------- Almacenamiento local (funciona sin conexión) ----------
 // La beta (carpeta /beta/ en la misma web) comparte el navegador con la principal: guarda todo con su propio prefijo
 const BETA = location.pathname.includes("/beta/"), PREFIJO = BETA ? "beta:" : "";
+const VERSION_VISIBLE = "26";   // la versión que se ve en la app (fija); la interna es VERSION_APP
 const leer = k => { try { return JSON.parse(localStorage.getItem(PREFIJO + k)); } catch { return null; } };
 const escribir = (k, v) => { try { v === null ? localStorage.removeItem(PREFIJO + k) : localStorage.setItem(PREFIJO + k, JSON.stringify(v)); } catch {} };
 if (BETA) { document.documentElement.classList.add("beta"); document.title = "Fuerza y Ritmo β"; document.querySelector('meta[name="apple-mobile-web-app-title"]').content = "Fuerza y Ritmo β"; }
@@ -44,12 +45,13 @@ const TABLAS = {
   series: { clave: "id", conflicto: "id", campos: ["id", "fecha", "ejercicio_id", "orden", "peso", "reps", "distancia", "tiempo", "descanso", "hecha", "grupo", "meso_id", "bloque_id", "ronda", "rec_dist", "pct", "ciclo_id", "calentamiento", "desnivel_pos", "desnivel_neg", "ritmo_ajustado", "fc_media", "fc_max", "cadencia", "fc_pico", "fc_hist", "seccion", "por_lado", "nota", "letra_nueva", "max_tiempo", "borrado", "actualizado"] },
   entrenos: { clave: "fecha", conflicto: "user_id,fecha", campos: ["fecha", "html", "texto", "rpe", "sensacion", "actualizado"] },
   molestias: { clave: "id", conflicto: "id", campos: ["id", "zona", "descripcion", "inicio", "estado", "borrado", "actualizado"] },
+  listas: { clave: "id", conflicto: "id", campos: ["id", "nombre", "items", "siguiente", "borrado", "actualizado"], opcional: true },
   carreras: { clave: "id", conflicto: "id", campos: ["id", "nombre", "fecha", "lugar", "distancia", "tiempo", "chip", "pos_general", "total_general", "categoria", "pos_categoria", "total_categoria", "desnivel_pos", "fc_media", "notas", "enlace", "previsto", "borrado", "actualizado"] }
 };
 const DEFECTOS = { seccion: "", por_lado: false, nota: "", letra_nueva: false, max_tiempo: false, fecha: null, lugar: "", categoria: "", enlace: "", fc_hist: [], tipo: "fuerza", hecha: true, grupo: "", meso_id: "", bloque_id: "", ciclo_id: "", importadas: [], cerrado: false, compartido: false, items: [], dias: {}, descarga: {}, zonas: [], calentamiento: false, inicio: null, zona: "", descripcion: "", estado: "activa", nombre: "", video_url: "", notas: "", html: "", texto: "", sensacion: "", borrado: false };
 let sesion = leer("sesion-v1");                 // {access_token, refresh_token, expires_at, user_id, email}
 let perfil = leer("perfil-v1");                 // {aprobado, es_admin, email}
-let usuarios = [];                              // solo para el administrador
+let usuarios = leer("usuarios-v1") || [];        // solo para el administrador (se guarda para no verla vacía al abrir)
 let db = leer("datos-v2") || { entrenos: leer("entrenos-v1") || {} };
 Object.keys(TABLAS).forEach(t => { db[t] = db[t] || {}; });
 let cursores = leer("cursores-v3") || {};       // última marca de servidor leída por tabla (v3: relee todo al añadir campos)
@@ -454,7 +456,9 @@ async function cargarPerfil() {
   const mio = lista.find(p => p.user_id === sesion.user_id);
   perfil = mio ? { aprobado: mio.aprobado, es_admin: mio.es_admin, edita_catalogo: mio.edita_catalogo, email: mio.email, novedades_vistas: mio.novedades_vistas || "" } : { aprobado: false, es_admin: false, edita_catalogo: false, email: sesion.email };
   usuarios = perfil.es_admin ? lista : [];
+  escribir("usuarios-v1", usuarios);
   escribir("perfil-v1", perfil);
+  if (perfil.es_admin && !$("vistaPlan").hidden) pintarPlan();
   avisoUsuarios();
   pintarAvisoNovedades();
   return perfil;
@@ -507,7 +511,7 @@ async function sincronizar() {
       for (const t of Object.keys(TABLAS)) {
         const desde = cursores[t] ? "&servidor_ts=gte." + encodeURIComponent(new Date(Date.parse(cursores[t]) - 5000).toISOString()) : "";
         const r = await api("/rest/v1/" + t + "?select=" + TABLAS[t].campos.join(",") + ",servidor_ts&order=servidor_ts.asc" + desde);
-        if (!r.ok) throw new Error("leer " + t + " " + r.status);
+        if (!r.ok) { if (TABLAS[t].opcional) continue; throw new Error("leer " + t + " " + r.status); }
         for (const f of await r.json()) {
           if (mezclar(t, f)) cambio = true;
           if (!cursores[t] || Date.parse(f.servidor_ts) > Date.parse(cursores[t])) cursores[t] = f.servidor_ts;
@@ -523,7 +527,7 @@ async function sincronizar() {
         const w = await api("/rest/v1/" + t + "?on_conflict=" + TABLAS[t].conflicto, {
           method: "POST", headers: { Prefer: "resolution=merge-duplicates,return=minimal" }, body: JSON.stringify(filas)
         });
-        if (!w.ok) throw new Error("guardar " + t + " " + w.status);
+        if (!w.ok) { if (TABLAS[t].opcional) continue; throw new Error("guardar " + t + " " + w.status); }
         filas.forEach(f => { const v = db[t][f[TABLAS[t].clave]]; if (v && v.actualizado === f.actualizado) v.sucio = false; });
         guardarLocal();
       }
@@ -930,6 +934,7 @@ function menuDia(dia) {
     hayItemsCopiados() && { texto: "📋 Pegar «" + porta.nombre + "» en este día", accion: () => pegar(dia) },
     { texto: "Añadir plantilla…", accion: () => elegirPlantilla("Añadir plantilla al " + titulo, p => aplicarPlantilla(dia, p)) },
     series.filter(s => !s.bloque_id).length > 1 && { texto: "Seleccionar series para agrupar en bloque", accion: () => empezarSelSeries(dia) },
+    series.length && { texto: "Guardar en una lista de entrenamientos…", accion: () => guardarEnLista(series[0].grupo || "Entrenamiento", series) },
     series.length && { texto: "Guardar ejercicios como plantilla…", accion: () => guardarPlantilla(series[0].grupo || "Entrenamiento", series) },
     series.length && { texto: "Compartir con un amigo…", accion: () => compartir(series[0].grupo || titulo, itemsDe(series)) },
     series.length && { texto: "Vaciar ejercicios del día", peligro: true, confirmar: "Pulsa otra vez: se borran " + series.length + " series", accion: () => {
@@ -1043,6 +1048,7 @@ function menuGrupo(dia, grupo) {
     nGrupos > 1 && { texto: "Bajar sesión", accion: () => moverGrupo(dia.id, grupo, 1) },
     series.filter(s => !s.bloque_id).length > 1 && { texto: "Seleccionar series para agrupar en bloque", accion: () => empezarSelSeries(dia) },
     series.length && { texto: "Copiar entreno", accion: () => copiar(grupo || "Entreno 1", "", series, "entreno") },
+    series.length && { texto: "Guardar en una lista de entrenamientos…", accion: () => guardarEnLista(grupo || "Entrenamiento", series) },
     { texto: "Guardar como plantilla…", accion: () => guardarPlantilla(grupo, series) },
     { texto: "Compartir con un amigo…", accion: () => compartir(grupo, itemsDe(series)) },
     { texto: "Cambiar nombre de la sesión…", accion: async () => {
@@ -2395,6 +2401,137 @@ function pintarCatalogo() {
   });
 }
 let catAbiertas = leer("catalogo-abiertas-v1") || {};
+
+// ---------- Listas de entrenamientos: cada lista ordena entrenamientos guardados (plantillas) para elegir y poner en un día ----------
+// La lista guarda los id de sus entrenamientos en orden y cuál toca después («siguiente»), para rotar A, B, C…
+let listasAbiertas = leer("listas-abiertas-v1") || {};
+const entrenosDeLista = l => (l.items || []).map(id => db.plantillas[id]).filter(p => p && !p.borrado);
+function guardarLista(l, cambios) { cambiar("listas", { ...l, ...cambios }); pintarListas(); }
+async function nuevaLista(alCrear) {
+  const n = await pedirNombre("Nueva lista de entrenamientos", "", "Por ejemplo «Fuerza 3 días», «Torso / Pierna», «Pretemporada» o «Carrera».");
+  if (!n) return;
+  const l = { id: nuevoId(), nombre: n, items: [], siguiente: 0, borrado: false };
+  listasAbiertas[l.id] = true; escribir("listas-abiertas-v1", listasAbiertas);
+  cambiar("listas", l);
+  pintarListas();
+  if (alCrear) alCrear(db.listas[l.id]);
+}
+// Elegir una lista (o crear una) para meter algo
+function elegirLista(titulo, alElegir) {
+  const ls = vivos("listas").sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
+  abrirMenu(titulo, "", ls.map(l => ({ texto: l.nombre + " · " + entrenosDeLista(l).length + " entrenamientos", accion: () => alElegir(l) }))
+    .concat([{ texto: "+ Nueva lista…", accion: () => nuevaLista(alElegir) }]));
+}
+// Guarda las series de un día (o de un entreno) como entrenamiento y lo añade al final de una lista
+async function guardarEnLista(nombreSugerido, series) {
+  elegirLista("¿En qué lista lo guardo?", async l => {
+    const nombre = await pedirNombre("Nombre del entrenamiento", nombreSugerido, "Se guarda también en tus plantillas. Si ya hay una con este nombre, se reemplaza.");
+    if (!nombre) return;
+    const items = itemsDe(series).map(it => it.bloque ? { bloque: true, seccion: it.seccion || "", tramos: it.tramos } : { ejercicio_id: it.ejercicio_id, seccion: it.seccion || "", series: it.series });
+    const existe = vivos("plantillas").find(p => norm(p.nombre) === norm(nombre));
+    const id = existe ? existe.id : nuevoId();
+    cambiar("plantillas", { id, nombre, items, borrado: false });
+    const fresca = db.listas[l.id];
+    if (!(fresca.items || []).includes(id)) guardarLista(fresca, { items: (fresca.items || []).concat(id) });
+    avisoDeshacer("«" + nombre + "» guardado en la lista «" + l.nombre + "»", null);
+  });
+}
+// Pone un entrenamiento de la lista en un día; el siguiente de la lista pasa a ser el de después
+function ponerEntrenoDeLista(l, p) {
+  elegirDiaDestino(lunesVista(), "¿En qué día pongo «" + p.nombre + "»?", f => {
+    pegarItems(f, p.items, p.nombre);
+    const ids = entrenosDeLista(l).map(x => x.id), k = ids.indexOf(p.id);
+    cambiar("listas", { ...db.listas[l.id], siguiente: ids.length ? (k + 1) % ids.length : 0 });
+    persistir();
+    irADia(f, "«" + p.nombre + "» puesto el " + NOMBRES[(deIso(f).getDay() + 6) % 7].toLowerCase() + " " + fmt(deIso(f)));
+  });
+}
+function pintarListas() {
+  const cont = $("listasCont");
+  if (!cont) return;
+  cont.textContent = "";
+  const ls = vivos("listas").sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
+  if (!ls.length) {
+    cont.innerHTML = '<p class="vacio-lista">Aquí guardas tus entrenamientos en listas (por ejemplo «Fuerza 3 días» con Torso, Pierna y Full body), los ordenas y, cuando quieras, pones uno en un día. Crea una con «+ Nueva lista», o guarda un día desde su ⋯ → «Guardar en una lista…».</p>';
+    return;
+  }
+  ls.forEach(l => {
+    const ents = entrenosDeLista(l), abierta = listasAbiertas[l.id] !== false;
+    const sig = ents.length ? n0(l.siguiente) % ents.length : -1;
+    const sec = document.createElement("section");
+    sec.className = "cat-sec lista-sec" + (abierta ? "" : " cerrada");
+    sec.innerHTML = '<div class="lista-cab"><button type="button" class="sec-toggle"><span class="flecha-dia" aria-hidden="true">▸</span><h3></h3><span class="sec-n"></span></button><button type="button" class="menu-btn">⋯</button></div><div class="sec-cuerpo"><div class="sec-cuerpo-in"><div class="lista-ents"></div><div class="add-fila"><button type="button" class="add-ej">+ Añadir entrenamiento</button></div></div></div>';
+    sec.querySelector("h3").textContent = l.nombre;
+    sec.querySelector(".sec-n").textContent = "· " + ents.length;
+    const boton = sec.querySelector(".sec-toggle"), cuerpo = sec.querySelector(".sec-cuerpo");
+    boton.setAttribute("aria-expanded", String(abierta)); cuerpo.inert = !abierta;
+    boton.addEventListener("click", () => {
+      const abrir = sec.classList.contains("cerrada");
+      sec.classList.toggle("cerrada", !abrir); boton.setAttribute("aria-expanded", String(abrir)); cuerpo.inert = !abrir;
+      listasAbiertas[l.id] = abrir; escribir("listas-abiertas-v1", listasAbiertas);
+    });
+    const anadir = () => elegirPlantilla("Añadir a «" + l.nombre + "»", p => {
+      const fresca = db.listas[l.id];
+      if ((fresca.items || []).includes(p.id)) { avisoDeshacer("«" + p.nombre + "» ya está en la lista", null); return; }
+      guardarLista(fresca, { items: (fresca.items || []).concat(p.id) });
+    });
+    sec.querySelector(".add-ej").addEventListener("click", anadir);
+    const menu = sec.querySelector(".lista-cab .menu-btn");
+    menu.setAttribute("aria-label", "Opciones de la lista " + l.nombre);
+    menu.addEventListener("click", () => abrirMenu(l.nombre, ents.length + (ents.length === 1 ? " entrenamiento" : " entrenamientos"), [
+      { texto: "+ Añadir entrenamiento…", accion: anadir },
+      ents.length && { texto: "Poner el siguiente («" + ents[sig].nombre + "») en un día…", accion: () => ponerEntrenoDeLista(l, ents[sig]) },
+      { texto: "Cambiar nombre…", accion: async () => { const n = await pedirNombre("Nombre de la lista", l.nombre); if (n) guardarLista(db.listas[l.id], { nombre: n }); } },
+      { texto: "Eliminar lista", peligro: true, confirmar: "Los entrenamientos siguen en tus plantillas", accion: () => {
+        const antes = [["listas", { ...l }]];
+        cambiar("listas", { ...l, borrado: true }); pintarListas();
+        avisoDeshacer("Lista «" + l.nombre + "» eliminada", antes);
+      } }
+    ]));
+    const caja = sec.querySelector(".lista-ents");
+    if (!ents.length) caja.innerHTML = '<p class="vacio-lista">Lista vacía. Añade entrenamientos guardados con «+ Añadir entrenamiento», o guarda un día desde su ⋯.</p>';
+    ents.forEach((p, k) => {
+      const fila = document.createElement("div");
+      fila.className = "lista-ent" + (k === sig ? " es-siguiente" : "");
+      fila.dataset.pid = p.id;
+      fila.innerHTML = '<div class="le-cab"><span class="le-n"></span><button type="button" class="le-nombre"><span class="le-tit"></span><span class="le-res"></span></button><button type="button" class="anadir le-dia">+ Día</button><button type="button" class="menu-btn">⋯</button></div><div class="le-prev" hidden></div>';
+      fila.querySelector(".le-n").textContent = k + 1;
+      fila.querySelector(".le-tit").textContent = p.nombre;
+      if (k === sig && ents.length > 1) { const b = document.createElement("span"); b.className = "le-sig"; b.textContent = "siguiente"; fila.querySelector(".le-tit").appendChild(b); }
+      fila.querySelector(".le-res").textContent = resumenItems(p.items || []);
+      // Tocar el nombre despliega sus ejercicios
+      const prev = fila.querySelector(".le-prev");
+      fila.querySelector(".le-nombre").addEventListener("click", () => {
+        if (!prev.childNodes.length) prev.appendChild(listaItems(p.items || []));
+        prev.hidden = !prev.hidden;
+      });
+      fila.querySelector(".le-dia").setAttribute("aria-label", "Poner «" + p.nombre + "» en un día");
+      fila.querySelector(".le-dia").addEventListener("click", () => ponerEntrenoDeLista(l, p));
+      const m = fila.querySelector(".le-cab .menu-btn");
+      m.setAttribute("aria-label", "Opciones de " + p.nombre);
+      m.addEventListener("click", () => abrirMenu(p.nombre, resumenItems(p.items || []), [
+        { texto: "Poner en un día…", accion: () => ponerEntrenoDeLista(l, p) },
+        k !== sig && { texto: "Marcar como el siguiente", accion: () => guardarLista(db.listas[l.id], { siguiente: k }) },
+        { texto: "Añadir también a otra lista…", accion: () => elegirLista("¿A qué lista?", l2 => { const f2 = db.listas[l2.id]; if (!(f2.items || []).includes(p.id)) guardarLista(f2, { items: (f2.items || []).concat(p.id) }); }) },
+        { texto: "Quitar de la lista", accion: () => {
+          const fresca = db.listas[l.id], antes = [["listas", { ...fresca }]];
+          guardarLista(fresca, { items: (fresca.items || []).filter(x => x !== p.id) });
+          avisoDeshacer("«" + p.nombre + "» quitado de la lista (sigue en tus plantillas)", antes);
+        } }
+      ]));
+      // Ordenar con el asa ≡ (o con las flechas del teclado)
+      if (ents.length > 1) fila.querySelector(".le-cab").appendChild(asaArrastre(fila, () => [...caja.querySelectorAll(":scope > .lista-ent")], n => {
+        const fresca = db.listas[l.id], actual = entrenosDeLista(fresca)[sig];
+        const orden = n.map(x => x.dataset.pid), resto = (fresca.items || []).filter(id => !orden.includes(id));
+        const nuevo = orden.concat(resto);
+        guardarLista(fresca, { items: nuevo, siguiente: actual ? Math.max(0, orden.indexOf(actual.id)) : 0 });
+      }, p.nombre));
+      caja.appendChild(fila);
+    });
+    cont.appendChild(sec);
+  });
+}
+$("nuevaLista").addEventListener("click", () => nuevaLista());
 function tarjetaEjercicio(e) {
   const st = estadisticas(e.id);
   const t = document.createElement("button");
@@ -3382,6 +3519,7 @@ function pintarPlan() {
   if (perfil && perfil.es_admin) {
     const lu = $("listaUsuarios");
     lu.textContent = "";
+    if (!usuarios.length) lu.innerHTML = '<p class="vacio-lista">Cargando usuarios… (necesitas conexión)</p>';
     const semana = Date.now() - 7 * 864e5;
     usuarios.slice().sort((a, b) => (b.ultimo_acceso || "").localeCompare(a.ultimo_acceso || "")).forEach(u => {
       const fila = document.createElement("div");
@@ -3654,8 +3792,8 @@ $("calAnt").addEventListener("click", () => { mesCal = new Date(mesCal.getFullYe
 $("calSig").addEventListener("click", () => { mesCal = new Date(mesCal.getFullYear(), mesCal.getMonth() + 1, 1); pintarCalendario(); });
 $("calHoy").addEventListener("click", () => irAFecha(iso(new Date())));
 
-const VISTAS = { semana: "vistaSemana", ejercicios: "vistaEjercicios", plan: "vistaPlan", marcas: "vistaMarcas" };
-const TABS = { semana: "tabSemana", ejercicios: "tabEjercicios", plan: "tabPlan", marcas: "tabMarcas" };
+const VISTAS = { semana: "vistaSemana", ejercicios: "vistaEjercicios", listas: "vistaListas", plan: "vistaPlan", marcas: "vistaMarcas" };
+const TABS = { semana: "tabSemana", ejercicios: "tabEjercicios", listas: "tabListas", plan: "tabPlan", marcas: "tabMarcas" };
 function verPestana(cual) {
   if (!VISTAS[cual]) cual = "semana";
   if (cual !== "plan" && selPlant) { selPlant = null; $("selPlantAcciones").hidden = true; document.body.classList.remove("seleccionando"); }
@@ -3665,8 +3803,9 @@ function verPestana(cual) {
   });
   escribir("pestana-v1", cual);
   if (cual === "ejercicios") pintarCatalogo();
-  else if (cual === "plan") pintarPlan();
+  else if (cual === "plan") { pintarPlan(); if (perfil && perfil.es_admin && sesion) { cargarPerfil().catch(() => {}); cargarInicios(); } }
   else if (cual === "marcas") pintarMarcas();
+  else if (cual === "listas") pintarListas();
   else pintarSemana();
 }
 Object.keys(TABS).forEach(k => $(TABS[k]).addEventListener("click", () => verPestana(k)));
@@ -3679,6 +3818,7 @@ function pintarTodo() {
   if (!$("vistaEjercicios").hidden) pintarCatalogo();
   if (!$("vistaPlan").hidden) pintarPlan();
   if (!$("vistaMarcas").hidden) pintarMarcas();
+  if (!$("vistaListas").hidden) pintarListas();
   if ($("detalle").open) refrescarDetalle();
 }
 
@@ -3814,12 +3954,13 @@ function dispositivo() {
   const d = /iPhone/.test(ua) ? "iPhone" : /iPad/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1) ? "iPad" : /Android/.test(ua) ? "Android" : /Macintosh/.test(ua) ? "Mac" : /Windows/.test(ua) ? "Windows" : /Linux/.test(ua) ? "Linux" : "otro";
   return d + (app ? " (app)" : " (navegador)");
 }
+setInterval(() => { if (document.visibilityState === "visible") registrarAcceso(); }, 5 * 60e3);
 function registrarAcceso() {
   if (!sesion || !navigator.onLine) return;
   const ultimo = n0(leer("ultimo-acceso-v1"));
   if (Date.now() - ultimo < 10 * 60e3) return;
   escribir("ultimo-acceso-v1", Date.now());
-  api("/rest/v1/rpc/registrar_acceso", { method: "POST", body: JSON.stringify({ disp: dispositivo(), ver: VERSION_APP }) }).catch(() => escribir("ultimo-acceso-v1", ultimo));
+  api("/rest/v1/rpc/registrar_acceso", { method: "POST", body: JSON.stringify({ disp: dispositivo(), ver: "v" + VERSION_VISIBLE + " (" + VERSION_APP.split(" ")[0] + ")" }) }).then(r => { if (!r.ok) escribir("ultimo-acceso-v1", ultimo); }).catch(() => escribir("ultimo-acceso-v1", ultimo));
 }
 // Fecha y hora absolutas: «hoy 21:14», «ayer 9:05» o «4 nov, 21:14» (con el año si no es este)
 function fechaHora(ts) {
@@ -5396,7 +5537,8 @@ $("enSalir").addEventListener("click", salirEntreno);
 $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); abrirRpe(d); });
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
-const VERSION_APP = "v80" + (BETA ? " beta" : "");
+// VERSION_APP es interna (sube en cada publicación para que los móviles se actualicen); la que se ve es siempre la 26
+const VERSION_APP = "v82" + (BETA ? " beta" : "");
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";
