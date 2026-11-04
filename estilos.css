@@ -271,8 +271,8 @@ dialog::backdrop { background: rgba(0,0,0,0.45); }
 .bloque-rep .bloque-cab { gap: 8px; }
 .br-tit { flex: 1; min-width: 0; font-weight: 700; font-size: 15px; overflow-wrap: anywhere; }
 .bloque-rep .g-prog { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
-.rondas { display: flex; flex-direction: column; }
-.ronda { display: grid; grid-template-columns: 2.2em 1fr; gap: 4px; align-items: start; padding: 3px 0; border-top: 1px solid var(--line); }
+.rondas { display: flex; flex-direction: column; gap: 2px; margin-top: 4px; }
+.ronda { display: grid; grid-template-columns: 2.2em 1fr; gap: 4px; align-items: start; padding: 6px 0; border-top: 1px solid var(--line); }
 .ronda:first-child { border-top: 0; }
 .r-lab { font-family: var(--display); font-weight: 700; color: var(--accent); padding-top: 4px; font-variant-numeric: tabular-nums; }
 .ronda .n { color: var(--accent); }
@@ -1010,11 +1010,11 @@ h1 { color: var(--titulo); }
 :root { --p0: #2563a8; --p1: #178a58; --p2: #b45309; --p3: #7c3aed; --p4: #0e7490; }
 @media (prefers-color-scheme: dark) { :root { --p0: #7fb1ec; --p1: #4cc48a; --p2: #f0b94a; --p3: #b79cf5; --p4: #5fd2cd; } }
 .parte-c0 { --pc: var(--p0); } .parte-c1 { --pc: var(--p1); } .parte-c2 { --pc: var(--p2); } .parte-c3 { --pc: var(--p3); } .parte-c4 { --pc: var(--p4); }
-.parte-cab { display: flex; align-items: center; gap: 8px; margin-top: 8px; padding: 6px 10px; border-radius: 10px; background: color-mix(in srgb, var(--pc) 16%, var(--card)); border-left: 4px solid var(--pc); }
+.parte-cab { display: flex; align-items: center; gap: 8px; margin: 0; padding: 6px 10px; border-radius: 10px; background: color-mix(in srgb, var(--pc) 16%, var(--card)); border-left: 4px solid var(--pc); }
 .parte-cab .p-nombre { flex: 1; min-width: 0; font-family: var(--display); font-weight: 700; font-size: 15px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--pc); overflow-wrap: anywhere; }
 .parte-cab .menu-btn { opacity: 1 !important; }
-.bloque.en-parte { background: color-mix(in srgb, var(--pc) 6%, var(--card)); border-radius: 10px; box-shadow: inset 3px 0 0 color-mix(in srgb, var(--pc) 55%, transparent); }
-.add-parte { margin: 2px 0 6px; }
+.bloque.en-parte { background: var(--card); border-radius: 10px; }
+.add-parte { margin: 0; }
 .add-parte .add-ej { font-size: 13px; padding: 6px; color: var(--pc); border-color: color-mix(in srgb, var(--pc) 40%, var(--line)); }
 .add-fila { flex-wrap: wrap; }
 .rutina-parte { list-style: none; margin-left: -1em; font-weight: 700; font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--accent); }
@@ -1065,8 +1065,6 @@ h1 { color: var(--titulo); }
 /* Vídeo desplegado dentro del día */
 .ver-video { cursor: pointer; padding: 6px 4px; margin: -6px 0; text-decoration: underline; text-underline-offset: 2px; }
 
-.br-videos { display: flex; flex-wrap: wrap; gap: 2px 12px; margin: 2px 0 4px; }
-.br-videos .ver-video { border: 0; background: none; font: inherit; font-size: 12px; font-weight: 600; color: var(--accent); }
 
 /* Miniatura del vídeo (ficha) y visor centrado */
 .video-mini { position: relative; display: block; width: 100%; max-width: 420px; aspect-ratio: 16 / 9; padding: 0; border: 0; border-radius: 10px; overflow: hidden; background: #000; cursor: pointer; }
@@ -1086,10 +1084,31 @@ h1 { color: var(--titulo); }
 #visorVideo .vv-marco iframe { width: 100%; height: 100%; border: 0; display: block; }
 #visorVideo .vv-yt { color: #fff; font-size: 14px; opacity: 0.85; }
 
+/* Partes: una caja de su color con sus ejercicios dentro; se pliega tocando su nombre */
+.parte-caja { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; padding: 0 6px 6px; border-radius: 12px; border: 1px solid color-mix(in srgb, var(--pc) 45%, var(--line)); background: color-mix(in srgb, var(--pc) 8%, var(--card)); }
+.parte-caja > .parte-cab { margin: 0 -6px; border-radius: 11px 11px 0 0; border-left: 0; }
+.parte-caja.p-plegada { padding-bottom: 0; }
+.parte-caja.p-plegada > .parte-cab { border-radius: 11px; }
+.parte-caja.p-plegada > :not(.parte-cab) { display: none !important; }
+.p-toggle { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; border: 0; background: none; padding: 2px 0; text-align: left; cursor: pointer; font: inherit; color: inherit; }
+.p-toggle .flecha-dia { transform: rotate(90deg); color: var(--pc); }
+.parte-caja.p-plegada .p-toggle .flecha-dia { transform: none; }
+.solo-dia .p-toggle .flecha-dia { display: inline-block; }
+@media (max-width: 760px) { .p-toggle { min-height: 36px; } }
+
+/* Orden dentro de cada parte (A1, A2…), vídeo junto a cada ejercicio del bloque y más aire */
+.etq-orden { display: inline-block; margin-right: 8px; padding: 1px 7px; border-radius: 6px; background: var(--pc, var(--accent)); color: var(--card); font-family: var(--display); font-size: 13px; font-weight: 700; letter-spacing: 0.04em; vertical-align: 2px; }
+.bloque-rep .series li { align-items: center; padding: 3px 0; }
+.bloque-rep .series { gap: 4px; }
+.br-video { flex: none; width: 34px; height: 30px; margin-left: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--accent); font-size: 13px; cursor: pointer; }
+.br-video:hover { background: var(--accent-soft); }
+
 /* Arrastrar un ejercicio o bloque encima de la cabecera de una parte: entra en ella (como una carpeta) */
 .parte-cab { transition: transform 0.15s, box-shadow 0.15s; }
 .parte-cab.zona-destino { transform: scale(1.03); box-shadow: 0 0 0 3px var(--pc), 0 6px 18px rgba(0, 0, 0, 0.18); }
 .arrastrando.sobre-zona { opacity: 0.75; scale: 0.92; }
+.bloque-rep > .bloque-cab { transition: box-shadow 0.15s, background 0.15s; border-radius: 8px; }
+.bloque-rep > .bloque-cab.zona-destino { background: var(--accent-soft); box-shadow: 0 0 0 3px var(--accent); }
 @media (prefers-reduced-motion: reduce) { .parte-cab { transition: none; } }
 
 /* «Enviar sugerencia», «Cambiar contraseña» y «Cerrar sesión» siempre al fondo de la página, aunque haya poco contenido */
