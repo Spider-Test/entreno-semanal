@@ -1190,6 +1190,19 @@ h1 { color: var(--titulo); }
   display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 12px; border-radius: 12px; background: var(--gold-soft); color: var(--fg); border: 1px solid var(--gold); box-shadow: 0 8px 24px rgba(0,0,0,0.2); font-size: 14px; font-weight: 600; }
 .aviso-version span { flex: 1; min-width: 200px; }
 
+/* Textos que no se parten a mitad de palabra: el nombre baja de línea entre palabras y las etiquetas van enteras */
+.ej-nombre, .br-tit, .le-tit, .grupo-cab .g-nombre, .parte-cab .p-nombre { overflow-wrap: break-word; word-break: normal; hyphens: manual; }
+.tipo-tag, .ico, .ver-video, .etq-orden, .molestia-tag { white-space: nowrap; display: inline-block; }
+/* Móvil: el nombre del ejercicio ocupa la primera línea entera (con ⋯ y ≡); el resumen y el progreso, debajo */
+@media (max-width: 760px) {
+  .bloque:not(.bloque-rep) > .bloque-cab { flex-wrap: wrap; row-gap: 0; }
+  .bloque:not(.bloque-rep) > .bloque-cab .ej-nombre { flex: 1 1 0; }
+  .bloque:not(.bloque-rep) > .bloque-cab .ej-resumen, .bloque:not(.bloque-rep) > .bloque-cab .g-prog { order: 10; }
+  .bloque:not(.bloque-rep) > .bloque-cab .ej-resumen { flex-basis: auto; margin-left: 0; }
+  .bloque:not(.bloque-rep) > .bloque-cab .ej-resumen + .g-prog, .bloque:not(.bloque-rep) > .bloque-cab .g-prog { margin-left: 8px; }
+  .bloque:not(.bloque-rep) > .bloque-cab::after { content: ""; order: 9; flex-basis: 100%; }
+}
+
 /* Arrastrar un ejercicio o bloque encima de la cabecera de una parte: entra en ella (como una carpeta) */
 .parte-cab { transition: transform 0.15s, box-shadow 0.15s; }
 .parte-cab.zona-destino { transform: scale(1.03); box-shadow: 0 0 0 3px var(--pc), 0 6px 18px rgba(0, 0, 0, 0.18); }
