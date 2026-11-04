@@ -1067,6 +1067,9 @@ h1 { color: var(--titulo); }
 .video-dia { display: flex; flex-direction: column; gap: 4px; margin: 4px 0 6px; }
 .video-dia .video { max-width: 480px; }
 
+.br-videos { display: flex; flex-wrap: wrap; gap: 2px 12px; margin: 2px 0 4px; }
+.br-videos .ver-video { border: 0; background: none; font: inherit; font-size: 12px; font-weight: 600; color: var(--accent); }
+
 /* Arrastrar un ejercicio o bloque encima de la cabecera de una parte: entra en ella (como una carpeta) */
 .parte-cab { transition: transform 0.15s, box-shadow 0.15s; }
 .parte-cab.zona-destino { transform: scale(1.03); box-shadow: 0 0 0 3px var(--pc), 0 6px 18px rgba(0, 0, 0, 0.18); }

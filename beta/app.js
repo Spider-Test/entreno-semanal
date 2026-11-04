@@ -1720,6 +1720,32 @@ function tarjetaBloque(dia, bloqueId, series) {
       '<button class="anadir">✓ Guardar</button></div><button type="button" class="enlace desmarcar" hidden>↺ Marcar como pendiente</button></form>';
   c.querySelector(".br-tit").textContent = "Bloque ×" + rondas.length + " · " + primera.map(s => nombreEj(s.ejercicio_id)).join(" + ");
   c.querySelector(".g-prog").textContent = series.filter(hecha).length + "/" + series.length;
+  // Vídeos de los ejercicios del bloque: «▶ Nombre» despliega su vídeo debajo de la cabecera
+  const conVideo = [...new Set(primera.map(s => s.ejercicio_id))].map(id => db.ejercicios[id]).filter(e => e && e.video_url);
+  if (conVideo.length) {
+    const fila = document.createElement("div");
+    fila.className = "br-videos";
+    conVideo.forEach(e => {
+      const v = document.createElement("button");
+      v.type = "button"; v.className = "ico ver-video";
+      const etiqueta = conVideo.length > 1 || variosTramos ? "▶ " + (e.nombre || "vídeo") : "▶ vídeo";
+      v.textContent = etiqueta;
+      v.setAttribute("aria-label", "Ver el vídeo de " + (e.nombre || "este ejercicio"));
+      v.addEventListener("click", ev => {
+        ev.stopPropagation();
+        const abierto = c.querySelector(':scope > .video-dia[data-ej="' + e.id + '"]');
+        if (abierto) { abierto.remove(); v.textContent = etiqueta; return; }
+        const caja = document.createElement("div");
+        caja.className = "video-dia";
+        caja.dataset.ej = e.id;
+        ponerVideo(caja, e);
+        fila.after(caja);
+        v.textContent = "✕ " + etiqueta.slice(2);
+      });
+      fila.appendChild(v);
+    });
+    c.querySelector(".bloque-cab").after(fila);
+  }
   const menu = c.querySelector(".menu-btn");
   menu.setAttribute("aria-label", "Opciones del bloque");
   menu.addEventListener("click", () => {
@@ -5038,7 +5064,7 @@ $("enSalir").addEventListener("click", salirEntreno);
 $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); abrirRpe(d); });
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
-const VERSION_APP = "v61" + (BETA ? " beta" : "");
+const VERSION_APP = "v62" + (BETA ? " beta" : "");
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";
