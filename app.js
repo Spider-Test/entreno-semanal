@@ -1568,11 +1568,11 @@ function bloque(dia, id, series, grupo, parte) {
         : mov ? paso('<input class="in-a" inputmode="numeric" pattern="[0-9]*" placeholder="reps" aria-label="Repeticiones (opcional si pones tiempo)" autocomplete="off" enterkeyhint="next">') +
           '<span class="por">o</span>' + paso('<input class="in-b" inputmode="decimal" placeholder="tiempo 45 s" aria-label="Tiempo: 45 son segundos, 2 min o 1,30" autocomplete="off" enterkeyhint="next">')
         : paso('<input class="in-b" inputmode="numeric" placeholder="reps" aria-label="Repeticiones (o «máx»)" autocomplete="off" enterkeyhint="next">') +
-          '<span class="kg-par">(</span><button type="button" class="modo" aria-label="Cambiar entre kg y % del 1RM">kg</button>' + paso('<input class="in-a" inputmode="decimal" placeholder="kg" aria-label="Peso en kg" autocomplete="off" enterkeyhint="next">') + '<span class="kg-par">)</span>') +
-      '</div>' + (dist ? '<div class="ns-extra"><span class="calc"></span></div>' : mov ? '<div class="ns-extra"><label class="lado-op"><input type="checkbox" class="por-lado"> Por lado (izq. y der.)</label></div>' : '<div class="ns-extra"><span class="calc"></span><span class="ops-fuerza seg-medida" role="group" aria-label="Cómo se mide la serie"><button type="button" data-m="reps">Reps</button><button type="button" data-m="t">⏱ Tiempo</button><button type="button" data-m="maxr">Máx. reps</button><button type="button" data-m="maxt">Máx. tiempo</button><input type="checkbox" class="es-max" hidden><input type="checkbox" class="por-t" hidden></span><label class="lado-op"><input type="checkbox" class="por-lado"> Por lado (izq. y der.)</label><label class="bilbo-op" hidden><input type="checkbox" class="es-bilbo"> <span></span></label></div>') +
-      '<div class="ns-fila"><input class="in-c" inputmode="decimal" placeholder="⏱ descanso 1,30 o 300 m" aria-label="Descanso o recuperación después de la serie (tiempo o metros)" autocomplete="off" enterkeyhint="done">' +
+          '<span class="kg-par">(</span>' + paso('<input class="in-a" inputmode="decimal" placeholder="peso" aria-label="Peso en kg" autocomplete="off" enterkeyhint="next">') + '<button type="button" class="modo" aria-label="Cambiar entre kg y % del 1RM">kg</button><span class="kg-par">)</span>') +
+      '</div>' + (dist ? '<div class="ns-extra"><span class="calc"></span></div>' : mov ? '<div class="ns-extra"><label class="lado-op"><input type="checkbox" class="por-lado"> Por lado (izq. y der.)</label></div>' : '<div class="ns-extra"><span class="calc"></span><span class="ops-fuerza"><button type="button" class="medida-btn" aria-label="Cómo se mide la serie">Reps ▾</button><label class="lado-op"><input type="checkbox" class="por-lado"> Por lado</label></span><span class="seg-medida" role="group" aria-label="Cómo se mide la serie" hidden><button type="button" data-m="reps">Reps</button><button type="button" data-m="t">⏱ Tiempo</button><button type="button" data-m="maxr">Máx. reps</button><button type="button" data-m="maxt">Máx. tiempo</button><input type="checkbox" class="es-max" hidden><input type="checkbox" class="por-t" hidden></span><label class="bilbo-op" hidden><input type="checkbox" class="es-bilbo"> <span></span></label></div>') +
+      '<div class="ns-fila ns-desc"><input class="in-c" inputmode="decimal" placeholder="⏱ descanso" title="Descanso tras la serie: 1,30 (minutos), 90 (segundos) o 300 m" aria-label="Descanso o recuperación después de la serie: 1,30, 90 o 300 m" autocomplete="off" enterkeyhint="done">' +
       '<button class="anadir ok">OK</button></div>' +
-      '<label class="cambiar-ej" hidden>Ejercicio <select class="otro-ej" aria-label="Cambiar el ejercicio (se mantienen las series)"></select></label>' +
+      '<button type="button" class="enlace cambiar-ej-btn" hidden>⇄ Cambiar ejercicio</button><label class="cambiar-ej" hidden>Ejercicio <select class="otro-ej" aria-label="Cambiar el ejercicio (se mantienen las series)"></select></label>' +
       '<button type="button" class="enlace desmarcar" hidden>↺ Marcar como pendiente</button>' +
     '</form>';
   const nom = b.querySelector(".ej-nombre");
@@ -1629,10 +1629,12 @@ function bloque(dia, id, series, grupo, parte) {
   // El formulario tiene tres usos: «grupo» (×N series iguales y OK, también para editarlas todas), «una» (+ Serie suelta) y «editar» (una serie)
   let modoForm = "grupo";
   const vecesEl = b.querySelector(".veces"), cambiarEl = b.querySelector(".cambiar-ej"), otroEj = b.querySelector(".otro-ej");
+  b.querySelector(".cambiar-ej-btn").addEventListener("click", ev => { ev.currentTarget.hidden = true; cambiarEl.hidden = false; otroEj.focus(); });
   const ponerModoForm = m => {
     modoForm = m;
     b.querySelector(".veces-izq").hidden = m !== "grupo";
-    cambiarEl.hidden = !(m === "grupo" && series.length);
+    cambiarEl.hidden = true;
+    const ce = b.querySelector(".cambiar-ej-btn"); if (ce) ce.hidden = !(m === "grupo" && series.length);
     if (m !== "editar") boton.textContent = m === "grupo" ? "OK" : "+ Añadir serie";
     boton.setAttribute("aria-label", m === "grupo" ? (series.length ? "OK: guardar los cambios en las series" : "OK: crear las series") : m === "una" ? "Añadir una serie suelta" : "Guardar la serie");
     if (m !== "editar") { editando = null; b.querySelector(".desmarcar").hidden = true; ol.querySelectorAll("li").forEach(x => x.classList.remove("editando")); }
@@ -1656,9 +1658,10 @@ function bloque(dia, id, series, grupo, parte) {
   const valoresForm = () => [fa.value, fb.value, fc.value, vecesEl.value, otroEj.value, ...[...formEl.querySelectorAll("input[type=checkbox]")].map(x => x.checked)].join("|");
   function tomarFoto() { foto = valoresForm(); }
   formEl.addEventListener("focusout", ev => {
-    if (formEl.contains(ev.relatedTarget)) return;
+    const dentro = el => !!el && (formEl.contains(el) || !!(el.closest && el.closest(".veces-cab") && b.contains(el)));
+    if (dentro(ev.relatedTarget)) return;
     setTimeout(() => {
-      if (formEl.hidden || formEl.contains(document.activeElement) || !b.isConnected) return;
+      if (formEl.hidden || dentro(document.activeElement) || !b.isConnected) return;
       if (!(modoForm === "editar" || (modoForm === "grupo" && series.length))) return;
       if (foto === null || valoresForm() === foto) return;
       foto = null;
@@ -1701,7 +1704,33 @@ function bloque(dia, id, series, grupo, parte) {
     const t = !!(ct && ct.checked), mx = !!(cm && cm.checked);
     const m = mx ? (t ? "maxt" : "maxr") : t ? "t" : "reps";
     seg.querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", String(x.dataset.m === m)));
+    const mb = b.querySelector(".medida-btn");
+    if (mb) mb.textContent = { reps: "Reps", t: "⏱ Tiempo", maxr: "Máx. reps", maxt: "Máx. tiempo" }[m] + " ▾";
   }
+  // «Reps ▾»: elegir cómo se mide en un menú (más limpio que cuatro botones)
+  const medidaBtn = b.querySelector(".medida-btn");
+  // Una línea menos: en fuerza, el descanso y OK van junto a «Reps ▾ · Por lado»
+  const opsF = b.querySelector(".ops-fuerza"), filaDesc = b.querySelector(".ns-desc");
+  // Fuerza: series junto al nombre; fila «[reps] Reps ▾   [peso] kg»; abajo «Por lado · ⏱ descanso · OK»
+  if (opsF && medidaBtn) {
+    const fila = b.querySelector(".ns-principal");
+    fila.querySelectorAll(".x-series, .kg-par").forEach(x => x.remove());
+    fb.closest(".paso").after(medidaBtn);
+    const vz = b.querySelector(".veces-izq");
+    vz.classList.add("veces-cab");
+    const cab = b.querySelector(".bloque-cab"), antesDe = cab.querySelector(".ej-resumen, .g-prog, .menu-btn, .quitar");
+    if (antesDe) antesDe.before(vz); else cab.appendChild(vz);
+    vz.addEventListener("focusout", ev => { if (!formEl.contains(ev.relatedTarget)) formEl.dispatchEvent(new FocusEvent("focusout", { relatedTarget: ev.relatedTarget })); });
+    fila.classList.add("fila-fuerza");
+  }
+  if (opsF && filaDesc) {
+    filaDesc.classList.add("desc-en-ops"); opsF.appendChild(filaDesc);
+    // Descanso con su icono delante y un ejemplo corto que se lee entero
+    const ic = document.createElement("span"); ic.className = "desc-ic"; ic.textContent = "⏱"; ic.setAttribute("aria-hidden", "true");
+    fc.before(ic); fc.placeholder = "desc.";
+  }
+  if (medidaBtn) medidaBtn.addEventListener("click", () => abrirMenu("¿Cómo se mide la serie?", "", [["reps", "Repeticiones"], ["t", "⏱ Tiempo (isométrico)"], ["maxr", "Máx. repeticiones"], ["maxt", "Máx. tiempo (aguantar)"]].map(([m, t]) => ({
+    texto: t, accion: () => b.querySelector('.seg-medida [data-m="' + m + '"]').click() }))));
   marcarMedida();
   if (segM) segM.addEventListener("click", ev => {
     const x = ev.target.closest("button[data-m]");
@@ -1764,7 +1793,7 @@ function bloque(dia, id, series, grupo, parte) {
     if (!modo) return;
     modo.textContent = pct ? "%" : "kg";
     modo.classList.toggle("activo", pct);
-    fa.placeholder = pct ? "% 1RM" : "kg";
+    fa.placeholder = pct ? "% 1RM" : "peso";
     fa.setAttribute("aria-label", pct ? "Porcentaje del 1RM" : "Peso en kg");
     pintarCalc();
   };
@@ -5834,7 +5863,7 @@ $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); 
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
 // VERSION_APP es interna (sube en cada publicación para que los móviles se actualicen); la que se ve es siempre la 26
-const VERSION_APP = "v101" + (BETA ? " beta" : "");
+const VERSION_APP = "v105" + (BETA ? " beta" : "");
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";

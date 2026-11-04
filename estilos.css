@@ -1224,6 +1224,49 @@ h1 { color: var(--titulo); }
 .veces-izq[hidden] + .x-series { display: none; }
 .kg-par { flex: none; color: var(--muted); font-weight: 600; }
 
+/* Formulario más limpio: «Reps ▾» y «Por lado» en una sola línea pequeña */
+.seg-medida[hidden] { display: none !important; }
+.ops-fuerza { display: flex; align-items: center; gap: 12px; }
+.medida-btn { white-space: nowrap; flex: none; border: 1px solid var(--line); background: var(--card); color: var(--accent); border-radius: 8px; padding: 4px 10px; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
+.cambiar-ej-btn { font-size: 13px; padding: 2px 0; text-align: left; }
+@media (max-width: 760px) {
+  .nueva-serie { gap: 6px; }
+  .medida-btn { min-height: 34px; }
+  .ops-fuerza .lado-op { font-size: 13px; }
+}
+
+/* Descanso compacto; en fuerza va en la línea de «Reps ▾ · Por lado» con OK al final */
+.ns-desc.desc-en-ops { flex: 1 1 auto; margin-left: auto; justify-content: flex-end; gap: 6px; min-width: 0; }
+.ns-desc.desc-en-ops .in-c { flex: 0 1 110px; width: 110px; min-width: 70px; text-align: center; }
+.ops-fuerza { flex-wrap: nowrap; }
+.ops-fuerza .lado-op { white-space: nowrap; flex: none; }
+.ns-extra:has(.desc-en-ops) { display: flex !important; }
+@media (max-width: 760px) {
+  .ns-desc.desc-en-ops .in-c { flex-basis: 78px; width: 78px; min-width: 60px; font-size: 16px; padding: 7px 4px; }
+  .ops-fuerza .medida-btn { padding: 4px 8px; }
+  .ops-fuerza { gap: 8px; }
+}
+
+/* Línea «Reps ▾ · Por lado · ⏱ descanso · OK»: todo a la misma altura y alineado */
+.ops-fuerza { align-items: center; width: 100%; }
+.ops-fuerza .medida-btn, .ns-desc.desc-en-ops .in-c, .ns-desc.desc-en-ops .anadir { height: 38px; min-height: 38px; box-sizing: border-box; }
+.ns-desc.desc-en-ops { display: flex; align-items: center; gap: 6px; margin-left: auto; flex: none; }
+.ns-desc.desc-en-ops .desc-ic { color: var(--muted); font-size: 16px; }
+.ns-desc.desc-en-ops .in-c { width: 64px; flex: none; text-align: center; padding: 6px 4px; border-radius: 8px; }
+.ns-desc.desc-en-ops .anadir { padding: 0 14px; }
+@media (max-width: 760px) { .ns-desc.desc-en-ops .in-c { width: 60px; flex-basis: 60px; min-width: 0; } }
+
+/* Fuerza: [3 series] junto al nombre; fila «[reps] Reps ▾   [peso] kg» */
+.veces-cab { flex: none; display: flex; flex-direction: row; align-items: center; gap: 4px; margin: 0 0 0 auto; }
+.veces-cab .vz-et { font-size: 11px; }
+.bloque:has(> form.nueva-serie[hidden]) .veces-cab, .veces-cab[hidden] { display: none !important; }
+.fila-fuerza { gap: 8px; align-items: center; }
+.fila-fuerza .paso { flex: 1 1 0; min-width: 0; }
+.fila-fuerza .medida-btn { height: 38px; margin-right: 6px; }
+.fila-fuerza .modo { flex: none; }
+.ops-fuerza:not(:has(.medida-btn)) { gap: 10px; }
+@media (max-width: 760px) { .veces-cab .veces { width: 2.6em; font-size: 18px; } }
+
 /* Arrastrar un ejercicio o bloque encima de la cabecera de una parte: entra en ella (como una carpeta) */
 .parte-cab { transition: transform 0.15s, box-shadow 0.15s; }
 .parte-cab.zona-destino { transform: scale(1.03); box-shadow: 0 0 0 3px var(--pc), 0 6px 18px rgba(0, 0, 0, 0.18); }
