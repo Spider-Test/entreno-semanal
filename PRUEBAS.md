@@ -57,6 +57,16 @@ Apunta en cada versión: fecha, versión, dispositivo (iPhone / Mac / Android) y
 - [ ] 📅 abre el mes: puntos en los días con entrenamiento (hecho, a medias, planificado), hoy marcado, la semana visible resaltada; ‹ › cambian de mes; tocar un día lleva a su semana con ese día desplegado; «Ir a hoy».
 - [ ] Plan → Ajustes → Distancias en «Kilómetros»: las series salen en km, los campos piden km, − y + suben 0,1; escribir «400 m» o «5 km» en cualquier campo guarda bien; volver a «Automático».
 
+## 4d. Varios entrenos el mismo día
+- [ ] «+ Entreno» → «Tarde»: aparece una caja vacía con «+ Ejercicio» y «+ Bloque»; el primero se llama «Entreno 1».
+- [ ] Añadir un ejercicio y un bloque a «Tarde»: sus series se guardan en «Tarde» y no se mezclan con el primero.
+- [ ] Renombrar «Entreno 1» a «Mañana»; quitar un entreno vacío; recargar y que todo siga igual.
+
+## 4e. Partes de un entreno
+- [ ] Sin crear partes, el entreno se ve como siempre (sin cabeceras).
+- [ ] «+ Parte» → «Calentamiento» y «Parte principal»: cabeceras de colores distintos; «+ Ejercicio» y «+ Bloque» de cada parte guardan ahí; «Mover a otra parte»; subir, bajar, renombrar, quitar y borrar (con deshacer).
+- [ ] Guardar el día como plantilla y aplicarla otro día: mantiene las partes. Pegar en Crear con IA una sesión con «### Calentamiento»: la vista previa y el día las muestran. El modo entreno pone «Entreno · Parte».
+
 ## 5. Desplegables
 - [ ] Plegar y desplegar cada día; tras recargar, quedan como estaban.
 - [ ] Resumen de la semana, secciones de Plan, tipos de Ejercicios y apartados de la Ayuda: abren y cierran.

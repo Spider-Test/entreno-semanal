@@ -990,3 +990,24 @@ h1 { color: var(--titulo); }
 .primario { background: var(--accent); color: #fff; }
 @media (prefers-color-scheme: dark) { .primario { color: #08121b; } }
 @media (min-width: 761px) { .cabecera { padding: 12px 18px; border-radius: 16px; } }
+
+/* Varios entrenos el mismo día: cada uno en su caja */
+.dia.varios-entrenos .grupo { border: 1px solid var(--line); border-radius: 12px; padding: 8px; background: color-mix(in srgb, var(--accent-soft) 35%, transparent); }
+.dia.varios-entrenos .grupo + .grupo { margin-top: 6px; }
+.add-grupo { margin-top: 2px; }
+.add-grupo .add-ej { font-size: 13px; padding: 6px; }
+
+/* Partes de un entreno: cada una con su color (cabecera, fondo suave de sus ejercicios y botones) */
+:root { --p0: #2563a8; --p1: #178a58; --p2: #b45309; --p3: #7c3aed; --p4: #0e7490; }
+@media (prefers-color-scheme: dark) { :root { --p0: #7fb1ec; --p1: #4cc48a; --p2: #f0b94a; --p3: #b79cf5; --p4: #5fd2cd; } }
+.parte-c0 { --pc: var(--p0); } .parte-c1 { --pc: var(--p1); } .parte-c2 { --pc: var(--p2); } .parte-c3 { --pc: var(--p3); } .parte-c4 { --pc: var(--p4); }
+.parte-cab { display: flex; align-items: center; gap: 8px; margin-top: 8px; padding: 6px 10px; border-radius: 10px; background: color-mix(in srgb, var(--pc) 16%, var(--card)); border-left: 4px solid var(--pc); }
+.parte-cab .p-nombre { flex: 1; min-width: 0; font-family: var(--display); font-weight: 700; font-size: 15px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--pc); overflow-wrap: anywhere; }
+.parte-cab .menu-btn { opacity: 1 !important; }
+.bloque.en-parte { background: color-mix(in srgb, var(--pc) 6%, var(--card)); border-radius: 10px; box-shadow: inset 3px 0 0 color-mix(in srgb, var(--pc) 55%, transparent); }
+.add-parte { margin: 2px 0 6px; }
+.add-parte .add-ej { font-size: 13px; padding: 6px; color: var(--pc); border-color: color-mix(in srgb, var(--pc) 40%, var(--line)); }
+.add-fila { flex-wrap: wrap; }
+.rutina-parte { list-style: none; margin-left: -1em; font-weight: 700; font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--accent); }
+/* Botones de añadir del día (Ejercicio, Bloque, Entreno, Parte): 2 × 2 en el móvil */
+@media (max-width: 760px) { .dia-cuerpo-in > .add-fila { display: grid; grid-template-columns: 1fr 1fr; } }
