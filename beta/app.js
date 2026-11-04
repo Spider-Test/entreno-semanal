@@ -49,7 +49,10 @@ let usuarios = [];                              // solo para el administrador
 let db = leer("datos-v2") || { entrenos: leer("entrenos-v1") || {} };
 Object.keys(TABLAS).forEach(t => { db[t] = db[t] || {}; });
 let cursores = leer("cursores-v3") || {};       // última marca de servidor leída por tabla (v3: relee todo al añadir campos)
-let enEspera = leer("bloques-v1") || {};        // fecha -> ejercicios añadidos que aún no tienen series
+let enEspera = leer("bloques-v1") || {};
+// Entrenos del día aún sin series (fecha -> nombres) y en qué entreno va cada ejercicio añadido sin series (fecha|id -> nombre)
+let sesionesVacias = leer("sesiones-v1") || {}, esperaGrupo = leer("espera-grupo-v1") || {};
+const guardarSesiones = () => { escribir("sesiones-v1", sesionesVacias); escribir("espera-grupo-v1", esperaGrupo); };        // fecha -> ejercicios añadidos que aún no tienen series
 let porta = leer("portapapeles-v1");            // lo último copiado: {nombre, html, items}
 const guardarLocal = () => { escribir("datos-v2", db); escribir("cursores-v3", cursores); };
 const guardarEspera = () => escribir("bloques-v1", enEspera);
@@ -550,7 +553,7 @@ const dias = DIAS.map((_, i) => {
                   '<button type="button" class="dia-resumen"></button>' +
                   '<div class="dia-cuerpo"><div class="dia-cuerpo-in">' +
                   '<div class="editor vacio" role="textbox" aria-multiline="true" contenteditable="true"></div>' +
-                  '<div class="bloques"></div><div class="add-fila"><button type="button" class="add-ej">+ Ejercicio</button><button type="button" class="add-ej add-bloque">+ Bloque</button></div>' +
+                  '<div class="bloques"></div><div class="add-fila"><button type="button" class="add-ej">+ Ejercicio</button><button type="button" class="add-ej add-bloque">+ Bloque</button><button type="button" class="add-ej add-entreno">+ Entreno</button></div>' +
                   '<button type="button" class="primario empezar" hidden>▶ Empezar entreno</button>' +
                   '<button type="button" class="rpe-dia" hidden></button></div></div>';
   col.querySelector(".dia-nombre").textContent = NOMBRES[i];
@@ -573,6 +576,7 @@ const dias = DIAS.map((_, i) => {
   ed.addEventListener("blur", () => col.classList.remove("escribiendo"));
   col.querySelector(".add-ej").addEventListener("click", () => abrirSelector(dia));
   col.querySelector(".add-bloque").addEventListener("click", () => abrirBloque(dia));
+  col.querySelector(".add-entreno").addEventListener("click", () => nuevoEntreno(dia));
   col.querySelector(".menu-btn").addEventListener("click", () => menuDia(dia));
   return dia;
 });
@@ -767,6 +771,17 @@ function menuDia(dia) {
     } }
   ]);
 }
+// «+ Entreno»: otro entreno el mismo día (por ejemplo, si doblas), separado y con sus propios ejercicios
+async function nuevoEntreno(dia) {
+  const existentes = [...new Set(seriesDelDia(dia.id).map(s => s.grupo || "").concat(sesionesVacias[dia.id] || []))];
+  const n = await pedirNombre("Nombre del nuevo entreno", existentes.length ? "Entreno " + (existentes.length + 1) : "Entreno 2", "Por ejemplo «Mañana», «Tarde», «Carrera» o «Gimnasio». Tendrá sus propios ejercicios y bloques.");
+  if (!n) return;
+  if (!existentes.includes(n)) { (sesionesVacias[dia.id] = sesionesVacias[dia.id] || []).push(n); guardarSesiones(); }
+  if (dia.col.classList.contains("plegado")) plegarDia(dia);
+  pintarDia(dia);
+  const caja = dia.bloquesEl.querySelector('.grupo[data-grupo="' + CSS.escape(n) + '"]');
+  if (caja) caja.scrollIntoView({ block: "center", behavior: "smooth" });
+}
 function menuGrupo(dia, grupo) {
   const series = seriesDelDia(dia.id).filter(s => (s.grupo || "") === grupo);
   const nGrupos = new Set(seriesDelDia(dia.id).map(s => s.grupo || "")).size;
@@ -778,12 +793,20 @@ function menuGrupo(dia, grupo) {
     { texto: "Guardar como plantilla…", accion: () => guardarPlantilla(grupo, series) },
     { texto: "Compartir con un amigo…", accion: () => compartir(grupo, itemsDe(series)) },
     { texto: "Cambiar nombre de la sesión…", accion: async () => {
-      const n = await pedirNombre("Nombre de la sesión", grupo);
+      const n = await pedirNombre("Nombre del entreno", grupo);
       if (!n) return;
-      series.forEach(s => cambiar("series", { ...s, grupo: n }, true)); persistir(); pintarDia(dia);
+      series.forEach(s => cambiar("series", { ...s, grupo: n }, true));
+      sesionesVacias[dia.id] = (sesionesVacias[dia.id] || []).map(x => x === grupo ? n : x);
+      Object.keys(esperaGrupo).forEach(k => { if (k.startsWith(dia.id + "|") && esperaGrupo[k] === grupo) esperaGrupo[k] = n; });
+      if (!grupo) (enEspera[dia.id] || []).forEach(id => { if (!esperaGrupo[dia.id + "|" + id]) esperaGrupo[dia.id + "|" + id] = n; });
+      guardarSesiones(); persistir(); pintarDia(dia);
     } },
-    { texto: "Quitar sesión del día", peligro: true, confirmar: "Pulsa otra vez: se borran " + series.length + " series", accion: () => {
-      series.forEach(s => cambiar("series", { ...s, borrado: true }, true)); persistir(); pintarDia(dia);
+    { texto: "Quitar este entreno del día", peligro: true, confirmar: series.length ? "Pulsa otra vez: se borran " + series.length + " series" : "Pulsa otra vez para quitarlo", accion: () => {
+      series.forEach(s => cambiar("series", { ...s, borrado: true }, true));
+      sesionesVacias[dia.id] = (sesionesVacias[dia.id] || []).filter(x => x !== grupo);
+      if (!sesionesVacias[dia.id].length) delete sesionesVacias[dia.id];
+      (enEspera[dia.id] || []).filter(id => (esperaGrupo[dia.id + "|" + id] || "") === grupo).forEach(id => { quitarEspera(dia.id, id); delete esperaGrupo[dia.id + "|" + id]; });
+      guardarEspera(); guardarSesiones(); persistir(); pintarDia(dia);
     } }
   ]);
 }
@@ -883,26 +906,31 @@ function pintarDia(dia) {
   const grupo = nombre => grupos.find(g => g.nombre === nombre) || grupos[grupos.push({ nombre, ids: [] }) - 1];
   // Cada elemento de una sesión es un ejercicio suelto o un bloque ("b:" + id), en el orden en que aparecen
   delDia.forEach(s => { const g = grupo(s.grupo || ""), k = s.bloque_id ? "b:" + s.bloque_id : s.ejercicio_id; if (!g.ids.includes(k)) g.ids.push(k); });
-  // Los ejercicios aún sin series van donde se dejaron (antes de otro elemento) o, si no, al final
+  // Entrenos creados con «+ Entreno» que aún no tienen series
+  (sesionesVacias[dia.id] || []).forEach(n => grupo(n));
+  // Los ejercicios aún sin series van a su entreno, donde se dejaron (antes de otro elemento) o, si no, al final
   (enEspera[dia.id] || []).forEach(id => {
-    if (!ejercicioVivo(id) || grupos.some(g => g.ids.includes(id))) return;
-    const g = grupo(""), antes = esperaAntes[dia.id + "|" + id], i = antes ? g.ids.indexOf(antes) : -1;
+    const gn = esperaGrupo[dia.id + "|" + id] || "";
+    if (!ejercicioVivo(id) || grupos.some(g => g.nombre === gn && g.ids.includes(id))) return;
+    const g = grupo(gn), antes = esperaAntes[dia.id + "|" + id], i = antes ? g.ids.indexOf(antes) : -1;
     if (i >= 0) g.ids.splice(i, 0, id); else g.ids.push(id);
   });
   // Cada sesión va en su propio contenedor para poder moverla entera
   const conAsa = grupos.filter(g => g.nombre).length > 1 && grupos.length > 1;
+  const varios = grupos.length > 1;   // varios entrenos el mismo día: cada uno en su caja, con su cabecera y sus botones
+  dia.col.classList.toggle("varios-entrenos", varios);
   grupos.forEach(g => {
     const caja = document.createElement("div");
     caja.className = "grupo";
     caja.dataset.grupo = g.nombre;
-    if (g.nombre) {
+    if (g.nombre || varios) {
       const cab = document.createElement("div");
       cab.className = "grupo-cab";
       cab.innerHTML = '<span class="g-nombre"></span><span class="g-prog"></span><button type="button" class="menu-btn">⋯</button>';
-      cab.querySelector(".g-nombre").textContent = g.nombre;
+      cab.querySelector(".g-nombre").textContent = g.nombre || "Entreno 1";
       const deG = delDia.filter(s => (s.grupo || "") === g.nombre);
       cab.querySelector(".g-prog").textContent = deG.filter(hecha).length + "/" + deG.length;
-      cab.querySelector(".menu-btn").setAttribute("aria-label", "Opciones de la sesión " + g.nombre);
+      cab.querySelector(".menu-btn").setAttribute("aria-label", "Opciones del entreno " + (g.nombre || "1"));
       cab.querySelector(".menu-btn").addEventListener("click", () => menuGrupo(dia, g.nombre));
       if (conAsa) cab.appendChild(asaArrastre(caja, () => [...cont.querySelectorAll(":scope > .grupo")], n => reordenar(n.map(x => seriesDeGrupo(dia.id, x.dataset.grupo)), "Sesión movida"), "Sesión " + g.nombre));
       caja.appendChild(cab);
@@ -960,6 +988,17 @@ function pintarDia(dia) {
     });
     const pie = pieTotal(delDia.filter(s => (s.grupo || "") === g.nombre));
     if (pie) caja.appendChild(pie);
+    if (varios) {
+      // Añadir directamente a este entreno
+      const add = document.createElement("div");
+      add.className = "add-fila add-grupo";
+      add.innerHTML = '<button type="button" class="add-ej">+ Ejercicio</button><button type="button" class="add-ej">+ Bloque</button>';
+      add.children[0].setAttribute("aria-label", "Añadir un ejercicio a " + (g.nombre || "Entreno 1"));
+      add.children[1].setAttribute("aria-label", "Añadir un bloque a " + (g.nombre || "Entreno 1"));
+      add.children[0].addEventListener("click", () => abrirSelector(dia, null, g.nombre));
+      add.children[1].addEventListener("click", () => abrirBloque(dia, g.nombre));
+      caja.appendChild(add);
+    }
     cont.appendChild(caja);
   });
   // Si la carrera (o la natación) está repartida en varias sesiones, además el total del día de ese deporte
@@ -1513,8 +1552,10 @@ function tarjetaBloque(dia, bloqueId, series) {
 
 // Ventana para crear un bloque: tramos (con sus valores y recuperación) y número de rondas
 let diaBloque = null, tramos = [];
-function abrirBloque(dia) {
+let grupoBloque = "";
+function abrirBloque(dia, grupoDestino) {
   diaBloque = dia;
+  grupoBloque = grupoDestino || "";
   tramos = [];
   $("blqRondas").value = "4";
   $("blqAviso").textContent = "";
@@ -1579,7 +1620,7 @@ $("blqCrear").addEventListener("click", () => {
     }
     lista.push({ ejercicio_id: t.ejercicio_id, series: Array.from({ length: rondas }, () => ({ ...v })) });
   }
-  pegarItems(diaBloque.id, [{ bloque: true, grupo: "", tramos: lista }]);
+  pegarItems(diaBloque.id, [{ bloque: true, grupo: grupoBloque, tramos: lista }]);
   persistir();
   $("dlgBloque").close();
   pintarDia(diaBloque);
@@ -1606,9 +1647,11 @@ function crearEjercicio(nombre, tipo) {
   cambiar("ejercicios", { id, user_id: sesion.user_id, nombre: nombre.trim(), tipo: TIPOS[tipo] ? tipo : "fuerza", video_url: "", notas: "", compartido: puedeEditarCatalogo(), borrado: false });
   return id;
 }
-function abrirSelector(dia, alElegir) {
+let grupoSel = "";
+function abrirSelector(dia, alElegir, grupoDestino) {
   diaSelector = dia;
   alElegirSel = alElegir || null;
+  grupoSel = grupoDestino || "";
   // Si el día ya tiene ejercicios de un solo tipo, el buscador se abre en ese tipo
   const tiposDia = dia ? [...new Set(seriesDelDia(dia.id).map(s => s.ejercicio_id).concat(enEspera[dia.id] || []).map(tipoDe))] : [];
   if (tiposDia.length === 1) tipoSel = tiposDia[0];
@@ -1622,8 +1665,12 @@ function elegir(id) {
   const dia = diaSelector;
   $("selector").close();
   if (alElegirSel) { const f = alElegirSel; alElegirSel = null; f(id); return; }
-  const yaTiene = seriesVivas().some(s => s.fecha === dia.id && s.ejercicio_id === id);
-  if (!yaTiene) { enEspera[dia.id] = (enEspera[dia.id] || []).filter(x => x !== id).concat(id); guardarEspera(); }
+  const yaTiene = seriesVivas().some(s => s.fecha === dia.id && s.ejercicio_id === id && (s.grupo || "") === grupoSel);
+  if (!yaTiene) {
+    enEspera[dia.id] = (enEspera[dia.id] || []).filter(x => x !== id).concat(id); guardarEspera();
+    if (grupoSel) esperaGrupo[dia.id + "|" + id] = grupoSel; else delete esperaGrupo[dia.id + "|" + id];
+    guardarSesiones();
+  }
   pintarDia(dia);
   const inp = dia.bloquesEl.querySelector('[data-ej="' + id + '"] .in-a');
   if (inp) { inp.scrollIntoView({ block: "center", behavior: "smooth" }); inp.focus(); }
@@ -4564,7 +4611,7 @@ $("enSalir").addEventListener("click", salirEntreno);
 $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); abrirRpe(d); });
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
-const VERSION_APP = "v53" + (BETA ? " beta" : "");
+const VERSION_APP = "v54" + (BETA ? " beta" : "");
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";

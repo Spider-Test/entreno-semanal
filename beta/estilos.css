@@ -990,3 +990,9 @@ h1 { color: var(--titulo); }
 .primario { background: var(--accent); color: #fff; }
 @media (prefers-color-scheme: dark) { .primario { color: #08121b; } }
 @media (min-width: 761px) { .cabecera { padding: 12px 18px; border-radius: 16px; } }
+
+/* Varios entrenos el mismo día: cada uno en su caja */
+.dia.varios-entrenos .grupo { border: 1px solid var(--line); border-radius: 12px; padding: 8px; background: color-mix(in srgb, var(--accent-soft) 35%, transparent); }
+.dia.varios-entrenos .grupo + .grupo { margin-top: 6px; }
+.add-grupo { margin-top: 2px; }
+.add-grupo .add-ej { font-size: 13px; padding: 6px; }
