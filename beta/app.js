@@ -511,6 +511,42 @@ async function sincronizar() {
 
 // ---------- Ventanas pequeñas: menú de opciones y pedir un nombre ----------
 // Confirmación antes de borrar: ventana con «Cancelar» y «Eliminar» (Esc o tocar fuera = cancelar)
+// ---------- Vista previa desplegable de ejercicios (compartidos, mesociclos, plantillas) ----------
+// items en formato compartido ({ejercicio, tipo, series}) o propio ({ejercicio_id, series}); con las partes como subtítulos
+function listaItems(items) {
+  const comp = items.map(it => it.ejercicio || (it.tramos && it.tramos[0] && it.tramos[0].ejercicio) ? it : paraCompartir([it])[0]);
+  const ul = document.createElement("ul");
+  ul.className = "vp-lista";
+  let parte = "";
+  comp.forEach(it => {
+    if ((it.seccion || "") !== parte && it.seccion) { const h = document.createElement("li"); h.className = "rutina-parte"; h.textContent = it.seccion; ul.appendChild(h); }
+    parte = it.seccion || "";
+    const li = document.createElement("li");
+    li.textContent = textoItemRutina(it);
+    ul.appendChild(li);
+  });
+  if (!comp.length) { const li = document.createElement("li"); li.textContent = "Sin ejercicios"; ul.appendChild(li); }
+  return ul;
+}
+function desplegableItems(titulo, items, abierto) {
+  const d = document.createElement("details");
+  d.className = "vp-det";
+  d.open = !!abierto;
+  const s = document.createElement("summary");
+  s.textContent = titulo + " · " + contarSeries(items) + (contarSeries(items) === 1 ? " serie" : " series");
+  d.append(s, listaItems(items));
+  return d;
+}
+// Mesociclo compartido: cada día (o cada semana y día, si cambia cada semana) con sus plantillas desplegables
+function vistaMesoCompartido(x) {
+  const caja = document.createElement("div"), mm = x.mesociclo, dias = mm.dias || {};
+  const dia = (d, etiqueta) => (d || []).forEach(i => { const p = x.plantillas[i]; if (p) caja.appendChild(desplegableItems(etiqueta + " · " + p.nombre, p.items)); });
+  const semanas = Object.keys(dias).filter(k => /^s\d+$/.test(k)).sort((a, b) => +a.slice(1) - +b.slice(1));
+  if (semanas.length) semanas.forEach(k => { const h = document.createElement("p"); h.className = "bc-t"; h.textContent = "Semana " + k.slice(1); caja.appendChild(h); NOMBRES.forEach((n, i) => dia(dias[k][i], n)); });
+  else NOMBRES.forEach((n, i) => dia(dias[i], n));
+  if (!caja.children.length) x.plantillas.forEach(p => caja.appendChild(desplegableItems(p.nombre, p.items)));
+  return caja;
+}
 function confirmar(titulo, texto, si) {
   return new Promise(res => {
     const d = $("dlgConfirmar");
@@ -530,10 +566,14 @@ function confirmar(titulo, texto, si) {
 }
 // Texto de la confirmación a partir del antiguo «Pulsa otra vez: …»
 const textoConfirmar = t => { const m = String(t || "").match(/^Pulsa otra vez:\s*(.+)$/i); return m ? m[1].charAt(0).toUpperCase() + m[1].slice(1) + "." : "No se puede deshacer."; };
-function abrirMenu(titulo, detalle, opciones) {
+function abrirMenu(titulo, detalle, opciones, extra) {
   $("menuTit").textContent = titulo;
   $("menuDet").textContent = detalle || "";
   $("menuDet").hidden = !detalle;
+  // Contenido desplegable opcional (vista previa de ejercicios) entre el texto y las opciones
+  $("menuExtra").textContent = "";
+  $("menuExtra").hidden = !extra;
+  if (extra) $("menuExtra").appendChild(extra);
   const cont = $("menuOpciones");
   cont.textContent = "";
   opciones.filter(Boolean).forEach(o => {
@@ -640,7 +680,9 @@ function pintarSemana() {
   rel.textContent = n === 0 ? "Esta semana" : n === -1 ? "Semana pasada" : n === 1 ? "Próxima semana"
                   : n < 0 ? "Hace " + -n + " semanas" : "Dentro de " + n + " semanas";
   rel.classList.toggle("actual", n === 0);
-  $("hoyBtn").hidden = n === 0;
+  // «Hoy»: en otra semana, o en esta si hoy está plegado; en la vista de un día, si no es hoy
+  $("hoyBtn").hidden = n === 0 && desplegado(hoyIso);
+  $("diaHoy").hidden = !diaAbierto || diaAbierto === hoyIso;
   pintarBanda();
   // Cada día se despliega o se pliega (por defecto, solo hoy desplegado); con un día abierto, solo ese día
   $("vistaSemana").classList.toggle("solo-dia", !!diaAbierto);
@@ -961,18 +1003,20 @@ async function abrirCompartido(texto) {
   // Varias plantillas juntas: vista previa y guardarlas (o añadirlas a un día)
   if (c.items[0] && c.items[0].paquete) {
     const x = c.items[0], lunesP = lunesVista();
-    abrirMenu("«" + c.nombre + "»", "Compartido por " + (c.autor || "un amigo") + ": " + x.plantillas.map(p => p.nombre + " (" + contarSeries(p.items) + " series)").join(", ") + ".",
+    const vista = document.createElement("div");
+    x.plantillas.forEach(p => vista.appendChild(desplegableItems(p.nombre, p.items)));
+    abrirMenu("«" + c.nombre + "»", "Compartido por " + (c.autor || "un amigo") + ". Toca cada plantilla para ver sus ejercicios.",
       [{ texto: "Guardar en mis plantillas", accion: () => guardarPaqueteCompartido(c) }].concat(NOMBRES.map((n, i) => ({ texto: "Añadir al " + n + " " + fmt(sumarDias(lunesP, i)), accion: () => {
         x.plantillas.forEach(p => pegarItems(iso(sumarDias(lunesP, i)), desdeCompartido(p.items), p.nombre)); persistir(); verPestana("semana");
-      } }))));
+      } }))), vista);
     return;
   }
   // Un mesociclo entero: vista previa y guardarlo con sus plantillas
   if (c.items[0] && c.items[0].mesociclo) {
     const x = c.items[0], mm = x.mesociclo;
     abrirMenu("Mesociclo «" + c.nombre + "»", "Compartido por " + (c.autor || "un amigo") + " · " + n0(mm.semanas) + " semanas" + (n0(mm.progresion) ? " · +" + num(mm.progresion) + " kg/semana" : "") +
-      ". Plantillas: " + x.plantillas.map(p => p.nombre + " (" + contarSeries(p.items) + " series)").join(", ") + ". Se guardan en tus plantillas y mesociclos; después eliges cuándo empieza.",
-      [{ texto: "Guardar en mis mesociclos", accion: () => guardarMesoCompartido(c) }]);
+      ". Toca cada día para ver sus ejercicios. Se guardan en tus plantillas y mesociclos; después eliges cuándo empieza.",
+      [{ texto: "Guardar en mis mesociclos", accion: () => guardarMesoCompartido(c) }], vistaMesoCompartido(x));
     return;
   }
   const lunes = lunesVista();
@@ -982,7 +1026,7 @@ async function abrirCompartido(texto) {
       pegarItems(iso(sumarDias(lunes, i)), desdeCompartido(c.items), c.nombre); persistir(); verPestana("semana");
     } })).concat([{ texto: "Guardar como plantilla", accion: () => {
       cambiar("plantillas", { id: nuevoId(), nombre: c.nombre, items: desdeCompartido(c.items), borrado: false }); pintarPlan(); setEstado("Plantilla «" + c.nombre + "» guardada");
-    } }]));
+    } }]), desplegableItems("Ejercicios", c.items, true));
 }
 
 // ---------- Ejercicios de cada día ----------
@@ -2985,6 +3029,8 @@ function pintarDiasMeso() {
       chips.appendChild(c);
     });
     if (!(mesoEdit.dias[i] || []).length) { const v = document.createElement("span"); v.className = "md-vacio"; v.textContent = "Descanso"; chips.appendChild(v); }
+    // Ver los ejercicios de las plantillas de ese día sin salir del editor
+    const verDia = (mesoEdit.dias[i] || []).map(pid => db.plantillas[pid]).filter(Boolean).map(p => desplegableItems(n + " · " + p.nombre, p.items || []));
     const mas = fila.querySelector(".md-mas");
     mas.setAttribute("aria-label", "Añadir plantilla al " + n);
     mas.addEventListener("click", () => {
@@ -3003,6 +3049,7 @@ function pintarDiasMeso() {
       mas.disabled = true;
     });
     cont.appendChild(fila);
+    verDia.forEach(v => cont.appendChild(v));
   });
 }
 function leerMeso() {
@@ -3083,7 +3130,18 @@ function irA(n) {
 }
 $("antBtn").addEventListener("click", () => irA(desplazamiento - 1));
 $("sigBtn").addEventListener("click", () => irA(desplazamiento + 1));
-$("hoyBtn").addEventListener("click", () => irA(0));
+// Volver a hoy: la semana actual con hoy desplegado y a la vista (o el día de hoy, en la vista de un día)
+function irAHoy() {
+  const hoy = iso(new Date());
+  if (diaAbierto) { abrirDia(hoy); return; }
+  desplegados[hoy] = true;
+  escribir("dias-desplegados-v1", desplegados);
+  irA(0);
+  const d = dias.find(x => x.id === hoy);
+  if (d) setTimeout(() => d.col.scrollIntoView({ block: "start", behavior: "smooth" }), 50);
+}
+$("hoyBtn").addEventListener("click", irAHoy);
+$("diaHoy").addEventListener("click", irAHoy);
 // ---------- Calendario del mes: ver de un vistazo qué días entrenaste y saltar a cualquier fecha ----------
 let mesCal = null;
 const MESES_LARGOS = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
@@ -3122,6 +3180,7 @@ function pintarCalendario() {
 function irAFecha(id) {
   $("dlgCal").close();
   if (diaAbierto) { abrirDia(id); return; }
+  if (id === iso(new Date())) { irAHoy(); return; }
   desplegados[id] = true;
   escribir("dias-desplegados-v1", desplegados);
   if ($("vistaSemana").hidden) verPestana("semana");
@@ -4404,6 +4463,7 @@ function plegarDia(d) {
   escribir("dias-desplegados-v1", desplegados);
   ponerPlegado(d, !desplegados[d.id]);
   if (desplegados[d.id]) verAlAbrir(d.col);
+  $("hoyBtn").hidden = desplazamiento === 0 && desplegado(iso(new Date()));
 }
 // Tras abrir un desplegable, si su contenido queda fuera de la pantalla se desplaza lo justo para verlo
 // (si es más alto que la pantalla, su cabecera queda arriba); scroll-margin deja sitio a la cabecera y a las pestañas
@@ -4762,7 +4822,7 @@ $("enSalir").addEventListener("click", salirEntreno);
 $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); abrirRpe(d); });
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
-const VERSION_APP = "v56" + (BETA ? " beta" : "");
+const VERSION_APP = "v57" + (BETA ? " beta" : "");
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";
