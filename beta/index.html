@@ -442,8 +442,8 @@
   </form>
   <div class="d-cuerpo ayuda">
     <p>Toca cada apartado para verlo. Puedes volver aquí cuando quieras con el botón <b>?</b> de arriba. ¿Echas algo en falta o algo no va bien? Envíanos una sugerencia:</p>
-    <details class="novedades" open><summary>Novedades · versión 55</summary>
-      <p><b>Partes dentro de un entreno</b> (opcionales): con <b>+ Parte</b> lo divides en «Calentamiento», «Parte principal», «Vuelta a la calma» o lo que quieras. Cada parte tiene su color y sus botones para añadir ejercicios y bloques. Si no creas ninguna, el entreno se ve como siempre, todo seguido.</p>
+    <details class="novedades" open><summary>Novedades · versión 56</summary>
+      <p>Al borrar algo (un ejercicio, un bloque, una parte, un entreno, una plantilla…) aparece una ventana para confirmar con <b>Cancelar</b> o <b>Eliminar</b>, en lugar de tener que pulsar dos veces. · La app está ahora en <b>spider-test.github.io/fuerza-y-ritmo/</b>.</p>
     </details>
     <button type="button" class="nav-btn sug-btn" id="sugAyuda">💬 Enviar una sugerencia o avisar de un fallo</button>
     <details><summary>La semana y el texto del día</summary>
@@ -574,7 +574,7 @@
       <p>Todo se guarda primero en el dispositivo y se sincroniza con tu cuenta en cuanto hay conexión. Puedes usar la app sin internet; abajo verás si hay cambios pendientes de subir.</p>
     </details>
     <details><summary>Versión de pruebas (beta)</summary>
-      <p>Las novedades se prueban antes en <b>spider-test.github.io/entreno-semanal/beta/</b>, que lleva la etiqueta BETA junto al título. Usa tu misma cuenta y tus mismos datos (lo que cambies allí se ve también aquí), pero guarda su propia copia en el dispositivo, así que la primera vez hay que entrar con el email y la contraseña.</p>
+      <p>Las novedades se prueban antes en <b>spider-test.github.io/fuerza-y-ritmo/beta/</b>, que lleva la etiqueta BETA junto al título. Usa tu misma cuenta y tus mismos datos (lo que cambies allí se ve también aquí), pero guarda su propia copia en el dispositivo, así que la primera vez hay que entrar con el email y la contraseña.</p>
       <p>Si algo falla en la beta, avísanos con «Enviar sugerencia» desde la propia beta: la sugerencia indica que venía de ella.</p>
     </details>
     <details><summary>Instalar en el iPhone</summary>
@@ -608,6 +608,14 @@
     </div>
     <p class="menu-det nota">No sustituye la opinión de un profesional: si el dolor no mejora, consulta con tu médico o fisioterapeuta.</p>
     <div class="d-botones"><button type="button" class="peligro" id="molBorrar">Eliminar</button><button type="button" class="anadir" id="molGuardar">Guardar</button></div>
+  </div>
+</dialog>
+
+<dialog id="dlgConfirmar" class="dlg-confirmar" aria-labelledby="confTit">
+  <div class="d-cuerpo">
+    <h3 id="confTit" class="conf-tit"></h3>
+    <p id="confTxt" class="conf-txt"></p>
+    <div class="conf-botones"><button type="button" class="nav-btn" id="confNo">Cancelar</button><button type="button" class="conf-si" id="confSi">Eliminar</button></div>
   </div>
 </dialog>
 
