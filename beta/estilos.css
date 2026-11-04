@@ -1109,12 +1109,32 @@ h1 { color: var(--titulo); }
 .ns-series[hidden] { display: none; }
 .ns-series .veces-l { gap: 6px; font-size: 14px; }
 .v-menos, .v-mas { flex: none; width: 34px; height: 34px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--fg); font-size: 18px; line-height: 1; cursor: pointer; }
-.ops-fuerza { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 13px; }
+.ops-fuerza { display: flex; flex-wrap: wrap; gap: 4px; font-size: 13px; }
+.seg-medida { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; background: var(--card); }
+.seg-medida button { border: 0; border-left: 1px solid var(--line); background: none; padding: 7px 4px; font: inherit; font-size: 13px; font-weight: 600; color: var(--muted); cursor: pointer; white-space: nowrap; }
+.seg-medida button:first-of-type { border-left: 0; }
+.seg-medida button[aria-pressed="true"] { background: var(--accent); color: var(--card); }
+@media (max-width: 760px) { .seg-medida button { min-height: 38px; font-size: 13px; padding: 6px 2px; } }
 .mas-nota { display: block; padding: 6px 0 0; font-size: 13px; text-align: left; }
 .nota-tramo { display: block; font-size: 12px; font-style: italic; color: var(--muted); }
 .en-nota { margin: -4px 0 4px; padding: 6px 10px; border-radius: 8px; background: var(--gold-soft); font-style: italic; font-size: 15px; white-space: pre-line; }
 #txtInput { width: 100%; resize: vertical; font: inherit; font-size: 16px; }
 .peligro-txt { color: var(--error); margin-right: auto; }
+
+/* Cada letra (B1, B2… / C1, C2…) en su desplegable dentro de la parte */
+.letra-caja { display: flex; flex-direction: column; gap: 6px; padding: 4px; border-radius: 10px; border: 1px dashed color-mix(in srgb, var(--pc, var(--accent)) 45%, var(--line)); }
+.letra-cab { display: flex; align-items: center; gap: 8px; width: 100%; border: 0; background: none; padding: 4px 4px; text-align: left; cursor: pointer; font: inherit; color: var(--fg); }
+.letra-cab .flecha-dia { transform: rotate(90deg); color: var(--pc, var(--accent)); }
+.letra-caja.l-plegada .letra-cab .flecha-dia { transform: none; }
+.letra-cab .etq-orden { margin-right: 0; }
+.letra-cab .l-nombres { flex: 1; min-width: 0; font-size: 13px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.letra-caja.l-plegada > :not(.letra-cab) { display: none !important; }
+.solo-dia .letra-cab .flecha-dia { display: inline-block; }
+@media (max-width: 760px) { .letra-cab { min-height: 38px; } }
+
+.copiar-cortar { display: flex; gap: 16px; flex-wrap: wrap; }
+.copiar-cortar[hidden] { display: none; }
+.add-pegar { color: var(--gold) !important; border-color: color-mix(in srgb, var(--gold) 50%, var(--line)) !important; }
 
 /* Arrastrar un ejercicio o bloque encima de la cabecera de una parte: entra en ella (como una carpeta) */
 .parte-cab { transition: transform 0.15s, box-shadow 0.15s; }
