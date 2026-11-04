@@ -41,12 +41,12 @@ const TABLAS = {
   ciclos: { clave: "id", conflicto: "id", campos: ["id", "ejercicio_id", "numero", "rm_inicio", "peso_inicial", "incremento", "reps_reset", "importadas", "cerrado", "borrado", "actualizado"] },
   plantillas: { clave: "id", conflicto: "id", campos: ["id", "nombre", "items", "borrado", "actualizado"] },
   mesociclos: { clave: "id", conflicto: "id", campos: ["id", "nombre", "inicio", "semanas", "dias", "progresion", "descarga", "notas", "borrado", "actualizado"] },
-  series: { clave: "id", conflicto: "id", campos: ["id", "fecha", "ejercicio_id", "orden", "peso", "reps", "distancia", "tiempo", "descanso", "hecha", "grupo", "meso_id", "bloque_id", "ronda", "rec_dist", "pct", "ciclo_id", "calentamiento", "desnivel_pos", "desnivel_neg", "ritmo_ajustado", "fc_media", "fc_max", "cadencia", "fc_pico", "fc_hist", "seccion", "por_lado", "nota", "borrado", "actualizado"] },
+  series: { clave: "id", conflicto: "id", campos: ["id", "fecha", "ejercicio_id", "orden", "peso", "reps", "distancia", "tiempo", "descanso", "hecha", "grupo", "meso_id", "bloque_id", "ronda", "rec_dist", "pct", "ciclo_id", "calentamiento", "desnivel_pos", "desnivel_neg", "ritmo_ajustado", "fc_media", "fc_max", "cadencia", "fc_pico", "fc_hist", "seccion", "por_lado", "nota", "letra_nueva", "borrado", "actualizado"] },
   entrenos: { clave: "fecha", conflicto: "user_id,fecha", campos: ["fecha", "html", "texto", "rpe", "sensacion", "actualizado"] },
   molestias: { clave: "id", conflicto: "id", campos: ["id", "zona", "descripcion", "inicio", "estado", "borrado", "actualizado"] },
   carreras: { clave: "id", conflicto: "id", campos: ["id", "nombre", "fecha", "lugar", "distancia", "tiempo", "chip", "pos_general", "total_general", "categoria", "pos_categoria", "total_categoria", "desnivel_pos", "fc_media", "notas", "enlace", "previsto", "borrado", "actualizado"] }
 };
-const DEFECTOS = { seccion: "", por_lado: false, nota: "", fecha: null, lugar: "", categoria: "", enlace: "", fc_hist: [], tipo: "fuerza", hecha: true, grupo: "", meso_id: "", bloque_id: "", ciclo_id: "", importadas: [], cerrado: false, compartido: false, items: [], dias: {}, descarga: {}, zonas: [], calentamiento: false, inicio: null, zona: "", descripcion: "", estado: "activa", nombre: "", video_url: "", notas: "", html: "", texto: "", sensacion: "", borrado: false };
+const DEFECTOS = { seccion: "", por_lado: false, nota: "", letra_nueva: false, fecha: null, lugar: "", categoria: "", enlace: "", fc_hist: [], tipo: "fuerza", hecha: true, grupo: "", meso_id: "", bloque_id: "", ciclo_id: "", importadas: [], cerrado: false, compartido: false, items: [], dias: {}, descarga: {}, zonas: [], calentamiento: false, inicio: null, zona: "", descripcion: "", estado: "activa", nombre: "", video_url: "", notas: "", html: "", texto: "", sensacion: "", borrado: false };
 let sesion = leer("sesion-v1");                 // {access_token, refresh_token, expires_at, user_id, email}
 let perfil = leer("perfil-v1");                 // {aprobado, es_admin, email}
 let usuarios = [];                              // solo para el administrador
@@ -638,6 +638,13 @@ const AYUDA_NOTA = "Por ejemplo «Tempo 3-2-1-2», «Banda roja», «EEP 2 (en r
 // Pone la misma descripción a todas las series de un ejercicio (o de un tramo de un bloque) en ese día
 // Ejercicios aún sin series: su descripción espera aquí (en este dispositivo) hasta que se apunte la primera serie
 let esperaNota = leer("espera-nota-v1") || {};
+let esperaLetra = leer("espera-letra-v1") || {};
+// Marca que un ejercicio o bloque empieza una letra nueva (C1…) o sigue la anterior (B3…)
+function ponerLetraNueva(dia, grupo, clave, espera, v) {
+  if (espera) { if (v) esperaLetra[dia.id + "|" + clave] = 1; else delete esperaLetra[dia.id + "|" + clave]; escribir("espera-letra-v1", esperaLetra); }
+  else { seriesDeItem(dia.id, grupo, clave).forEach(x => cambiar("series", { ...x, letra_nueva: v }, true)); persistir(); }
+  pintarDia(dia);
+}
 async function editarNota(dia, seriesItem, titulo, claveEspera) {
   const actual = (seriesItem.find(x => x.nota) || {}).nota || (!seriesItem.length && claveEspera ? esperaNota[dia.id + "|" + claveEspera] || "" : "");
   const t = await pedirTexto(titulo, actual, AYUDA_NOTA);
@@ -805,7 +812,7 @@ document.addEventListener("selectionchange", () => {
 const seriesDelDia = fecha => (indiceSeries().porFecha[fecha] || []).slice();
 // Convierte series en una lista de ejercicios con sus series (para copiar o guardar como plantilla)
 // Los bloques se guardan como tramos con una serie por ronda: { bloque: true, tramos: [{ ejercicio_id, series: [ronda 1, ronda 2…] }] }
-const valores = s => ({ peso: n0(s.peso), reps: s.ciclo_id ? 0 : n0(s.reps), distancia: n0(s.distancia), tiempo: n0(s.tiempo), descanso: n0(s.descanso), rec_dist: n0(s.rec_dist), pct: n0(s.pct), bilbo: !!s.ciclo_id, calentamiento: !!s.calentamiento, por_lado: !!s.por_lado, nota: s.nota || "" });
+const valores = s => ({ peso: n0(s.peso), reps: s.ciclo_id ? 0 : n0(s.reps), distancia: n0(s.distancia), tiempo: n0(s.tiempo), descanso: n0(s.descanso), rec_dist: n0(s.rec_dist), pct: n0(s.pct), bilbo: !!s.ciclo_id, calentamiento: !!s.calentamiento, por_lado: !!s.por_lado, nota: s.nota || "", letra_nueva: !!s.letra_nueva });
 function itemsDe(series) {
   const items = [], bloques = {};
   series.forEach(s => {
@@ -832,7 +839,7 @@ function pegarItems(fecha, items, grupo, mesoId, masKg) {
   const nueva = (ejercicio_id, v, extra) => cambiar("series", Object.assign({
     id: nuevoId(), fecha, ejercicio_id, orden: orden++,
     peso: n0(v.peso) > 0 ? Math.max(0, n0(v.peso) + n0(masKg)) : 0, reps: n0(v.reps), distancia: n0(v.distancia), tiempo: n0(v.tiempo),
-    descanso: n0(v.descanso), rec_dist: n0(v.rec_dist), pct: n0(v.pct), ciclo_id: v.bilbo ? "auto" : "", calentamiento: !!v.calentamiento, por_lado: !!v.por_lado, nota: v.nota || "", hecha: false, meso_id: mesoId || "", bloque_id: "", ronda: 0, borrado: false
+    descanso: n0(v.descanso), rec_dist: n0(v.rec_dist), pct: n0(v.pct), ciclo_id: v.bilbo ? "auto" : "", calentamiento: !!v.calentamiento, por_lado: !!v.por_lado, nota: v.nota || "", letra_nueva: !!v.letra_nueva, hecha: false, meso_id: mesoId || "", bloque_id: "", ronda: 0, borrado: false
   }, extra), true);
   items.forEach(it => {
     const g = grupo !== undefined ? grupo : (it.grupo || "");
@@ -1186,6 +1193,10 @@ function pintarDia(dia) {
     g.ids.forEach(id => parteDeNombre(parteDe(id)).ids.push(id));
     (partesVacias[dia.id + "|" + g.nombre] || []).forEach(n => parteDeNombre(n));
     const conNombre = partes.filter(p => p.nombre);
+    // Letras como en las hojas de entrenamiento: cada parte empieza una letra nueva (A, B…) y dentro de ella
+    // un ejercicio o bloque puede empezar otra (C1, C2… para una superserie aparte); la numeración sigue la letra
+    let letraN = -1, numN = 0;
+    const letraNuevaDe = id => { const ss = seriesItem(id); return ss.length ? ss.some(x => x.letra_nueva) : !!esperaLetra[dia.id + "|" + id]; };
     partes.forEach(p => {
       const color = p.nombre ? " parte-c" + (conNombre.indexOf(p) % 5) : "";
       // Cada parte con nombre es una caja de su color, desplegable, con sus ejercicios dentro
@@ -1207,13 +1218,17 @@ function pintarDia(dia) {
           ponerP(pl);
         });
       }
-      const letra = p.nombre ? String.fromCharCode(65 + (conNombre.indexOf(p) % 26)) : "";
+      if (p.nombre) { letraN++; numN = 0; }
       p.ids.forEach((id, k) => {
         const el = id.startsWith("b:") ? tarjetaBloque(dia, id.slice(2), seriesItem(id)) : bloque(dia, id, seriesItem(id), g.nombre, p.nombre);
-        if (letra) {
-          // A1, A2… en la 1.ª parte; B1, B2… en la 2.ª (como en las hojas de entrenamiento)
+        if (p.nombre) {
+          const nueva = k > 0 && letraNuevaDe(id);
+          if (nueva) { letraN++; numN = 0; }
+          numN++;
+          el.dataset.letraNueva = nueva ? "1" : "";
+          el.dataset.puedeLetra = k > 0 ? "1" : "";
           const et = document.createElement("span");
-          et.className = "etq-orden"; et.textContent = letra + (k + 1);
+          et.className = "etq-orden"; et.textContent = String.fromCharCode(65 + (letraN % 26)) + numN;
           const tit = el.querySelector(":scope > .bloque-cab .br-tit, :scope > .bloque-cab .ej-nombre");
           if (tit) {
             // En un bloque basta con «A3 ×2»
@@ -1288,6 +1303,7 @@ function pintarDia(dia) {
       m.setAttribute("aria-label", "Opciones de " + nombre);
       m.addEventListener("click", () => abrirMenu(nombre, "", [
         !espera && el.abrirEdicion && { texto: "Editar (valores, ×N o ejercicio)", accion: () => el.abrirEdicion() },
+        el.dataset.puedeLetra && { texto: el.dataset.letraNueva ? "Seguir con la letra anterior" : "Empezar letra nueva aquí (" + String.fromCharCode(el.querySelector(".etq-orden").textContent.charCodeAt(0) + 1) + "1)", accion: () => ponerLetraNueva(dia, g.nombre, clave, espera, !el.dataset.letraNueva) },
         { texto: (espera ? esperaNota[dia.id + "|" + clave] : notaDe(seriesDeItem(dia.id, g.nombre, clave))) ? "Editar la descripción…" : "+ Descripción (tempo, banda, EEP…)", accion: () => editarNota(dia, espera ? [] : seriesDeItem(dia.id, g.nombre, clave), "Descripción de " + nombre, clave) },
         movibles().length > 1 && { texto: "Subir", accion: () => mover(el, -1) },
         movibles().length > 1 && { texto: "Bajar", accion: () => mover(el, 1) },
@@ -1667,8 +1683,10 @@ function bloque(dia, id, series, grupo, parte) {
     }
     // La descripción puesta antes de la primera serie pasa a las series (y deja de esperar en este dispositivo)
     const notaNueva = notaDe(series) || esperaNota[dia.id + "|" + id] || "";
+    const letraNueva = series.length ? series.some(x => x.letra_nueva) : !!esperaLetra[dia.id + "|" + id];
+    if (esperaLetra[dia.id + "|" + id]) { delete esperaLetra[dia.id + "|" + id]; escribir("espera-letra-v1", esperaLetra); }
     if (esperaNota[dia.id + "|" + id]) { delete esperaNota[dia.id + "|" + id]; escribir("espera-nota-v1", esperaNota); }
-    const nueva = k => ({ id: nuevoId(), fecha: dia.id, ejercicio_id: id, orden: Date.now() + k, grupo, seccion: parte || "", meso_id: "", bloque_id: "", ronda: 0, borrado: false, calentamiento: false, nota: notaNueva, ...v, hecha: nuevaHecha });
+    const nueva = k => ({ id: nuevoId(), fecha: dia.id, ejercicio_id: id, orden: Date.now() + k, grupo, seccion: parte || "", meso_id: "", bloque_id: "", ronda: 0, borrado: false, calentamiento: false, nota: notaNueva, letra_nueva: letraNueva, ...v, hecha: nuevaHecha });
     if (modoForm === "una" || !series.length) {
       const n = modoForm === "una" ? 1 : Math.min(50, Math.max(1, parseInt(vecesEl.value, 10) || 1));
       if (!series.length) {
@@ -1800,7 +1818,7 @@ function meterEnBloque(dia, seriesBloque, ejercicioId, sueltas) {
     const hechaV = sueltas && sueltas[k] ? hecha(sueltas[k]) : false;
     const fila = { id: nuevoId(), fecha: dia.id, ejercicio_id: ejercicioId, orden: orden++, grupo: b0.grupo || "", seccion: b0.seccion || "", meso_id: b0.meso_id || "",
       bloque_id: b0.bloque_id, ronda: r, peso: n0(v.peso), reps: n0(v.reps), distancia: n0(v.distancia), tiempo: n0(v.tiempo), pct: n0(v.pct), por_lado: !!v.por_lado,
-      descanso: n0(v.descanso), rec_dist: n0(v.rec_dist), ciclo_id: "", calentamiento: false, hecha: hechaV, borrado: false };
+      descanso: n0(v.descanso), rec_dist: n0(v.rec_dist), ciclo_id: "", calentamiento: false, nota: v.nota || "", letra_nueva: !!b0.letra_nueva, hecha: hechaV, borrado: false };
     nuevas.push(fila);
     cambiar("series", fila, true);
   });
@@ -1845,6 +1863,7 @@ function tarjetaBloque(dia, bloqueId, series) {
         persistir(); pintarDia(dia);
       } },
       rondas.length > 1 && { texto: "Quitar la última ronda", accion: () => { ultima.forEach(s => cambiar("series", { ...s, borrado: true }, true)); persistir(); pintarDia(dia); } },
+      c.dataset.puedeLetra && { texto: c.dataset.letraNueva ? "Seguir con la letra anterior" : "Empezar letra nueva aquí (" + String.fromCharCode(c.querySelector(".etq-orden").textContent.charCodeAt(0) + 1) + "1)", accion: () => ponerLetraNueva(dia, series[0].grupo || "", "b:" + bloqueId, false, !c.dataset.letraNueva) },
       { texto: notaDe(series) ? "Editar la descripción…" : "+ Descripción (tempo, banda, EEP…)", accion: () => !variosTramos ? editarNota(dia, series, "Descripción del bloque")
         : abrirMenu("¿Descripción de qué?", "", [{ texto: "De todo el bloque", accion: () => editarNota(dia, series, "Descripción del bloque") }]
           .concat(primera.map(s0 => ({ texto: nombreEj(s0.ejercicio_id), accion: () => editarNota(dia, series.filter(x => x.ejercicio_id === s0.ejercicio_id), "Descripción de " + nombreEj(s0.ejercicio_id)) })))) },
@@ -5207,7 +5226,7 @@ $("enSalir").addEventListener("click", salirEntreno);
 $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); abrirRpe(d); });
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
-const VERSION_APP = "v66" + (BETA ? " beta" : "");
+const VERSION_APP = "v67" + (BETA ? " beta" : "");
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";
