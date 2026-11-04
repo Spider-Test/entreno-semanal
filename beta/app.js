@@ -874,7 +874,7 @@ function cabeceraParte(dia, grupo, p, color, nNombradas, partes, seriesItem) {
   const cab = document.createElement("div");
   cab.className = "parte-cab" + color;
   cab.dataset.parte = p.nombre;
-  cab.innerHTML = '<span class="p-nombre"></span><span class="g-prog"></span><button type="button" class="menu-btn">⋯</button>';
+  cab.innerHTML = '<button type="button" class="p-toggle"><span class="flecha-dia" aria-hidden="true">▸</span><span class="p-nombre"></span></button><span class="g-prog"></span><button type="button" class="menu-btn">⋯</button>';
   cab.querySelector(".p-nombre").textContent = p.nombre;
   const ss = p.ids.flatMap(seriesItem);
   cab.querySelector(".g-prog").textContent = ss.length ? ss.filter(hecha).length + "/" + ss.length : "vacía";
@@ -1150,12 +1150,30 @@ function pintarDia(dia) {
     const conNombre = partes.filter(p => p.nombre);
     partes.forEach(p => {
       const color = p.nombre ? " parte-c" + (conNombre.indexOf(p) % 5) : "";
-      if (p.nombre) caja.appendChild(cabeceraParte(dia, g.nombre, p, color, conNombre.length, partes, seriesItem));
+      // Cada parte con nombre es una caja de su color, desplegable, con sus ejercicios dentro
+      let dest = caja;
+      if (p.nombre) {
+        dest = document.createElement("div");
+        dest.className = "parte-caja" + color;
+        dest.dataset.parte = p.nombre;
+        const cabP = cabeceraParte(dia, g.nombre, p, color, conNombre.length, partes, seriesItem);
+        dest.appendChild(cabP);
+        caja.appendChild(dest);
+        const claveP = "p|" + dia.id + "|" + g.nombre + "|" + p.nombre, tg = cabP.querySelector(".p-toggle");
+        const ponerP = pl => { dest.classList.toggle("p-plegada", pl); tg.setAttribute("aria-expanded", String(!pl)); };
+        ponerP(!!gruposPlegados[claveP]);
+        tg.addEventListener("click", () => {
+          const pl = !dest.classList.contains("p-plegada");
+          if (pl) gruposPlegados[claveP] = 1; else delete gruposPlegados[claveP];
+          escribir("grupos-plegados-v1", gruposPlegados);
+          ponerP(pl);
+        });
+      }
       p.ids.forEach(id => {
         const el = id.startsWith("b:") ? tarjetaBloque(dia, id.slice(2), seriesItem(id)) : bloque(dia, id, seriesItem(id), g.nombre, p.nombre);
         if (p.nombre) el.className += " en-parte" + color;
         el.dataset.parte = p.nombre;
-        caja.appendChild(el);
+        dest.appendChild(el);
       });
       if (p.nombre) {
         const add = document.createElement("div");
@@ -1165,14 +1183,14 @@ function pintarDia(dia) {
         add.children[1].setAttribute("aria-label", "Añadir un bloque a " + p.nombre);
         add.children[0].addEventListener("click", () => abrirSelector(dia, null, g.nombre, p.nombre));
         add.children[1].addEventListener("click", () => abrirBloque(dia, g.nombre, p.nombre));
-        caja.appendChild(add);
+        dest.appendChild(add);
       }
     });
     // Ejercicios (también los que aún no tienen series) y bloques se mueven dentro de la sesión, en un único orden
-    const movibles = () => [...caja.querySelectorAll(":scope > .bloque[data-clave]")];
+    const movibles = () => [...caja.querySelectorAll(":scope > .bloque[data-clave], :scope > .parte-caja > .bloque[data-clave]")];
     const soltar = (n, movido) => {
       // Si al arrastrar queda entre los ejercicios de otra parte, pasa a esa parte (la del de encima o, si es el primero, la del de debajo)
-      if (movido && caja.querySelector(":scope > .parte-cab")) {
+      if (movido && caja.querySelector(":scope > .parte-caja")) {
         const i = n.indexOf(movido), ref = n[i - 1] || n[i + 1], dest = ref ? ref.dataset.parte || "" : movido.dataset.parte || "";
         if (dest !== (movido.dataset.parte || "")) ponerParte(dia, g.nombre, movido.dataset.clave, !!movido.dataset.espera, dest);
       }
@@ -1196,7 +1214,16 @@ function pintarDia(dia) {
     movibles().forEach(el => {
       const clave = el.dataset.clave, nombre = clave.startsWith("b:") ? "Bloque" : nombreEj(clave), espera = !!el.dataset.espera;
       // Arrastrar encima de la cabecera de una parte lo mete en ella, al final
-      const zonasParte = { lista: () => [...caja.querySelectorAll(":scope > .parte-cab")].filter(z => z.dataset.parte !== (el.dataset.parte || "")), alSoltar: z => {
+      const zonasParte = { lista: () => [...caja.querySelectorAll(":scope > .parte-caja > .parte-cab")].filter(z => z.dataset.parte !== (el.dataset.parte || ""))
+          .concat(clave.startsWith("b:") ? [] : [...caja.querySelectorAll(".bloque-rep > .bloque-cab")]), alSoltar: z => {
+        // Soltado encima del título de un bloque: el ejercicio entra en él (una serie suya por ronda)
+        if (z.closest(".bloque-rep")) {
+          const bs = seriesDelDia(dia.id).filter(s => s.bloque_id === z.closest(".bloque-rep").dataset.clave.slice(2));
+          const sueltas = espera ? [] : seriesDeItem(dia.id, g.nombre, clave).slice().sort((a, b) => a.orden - b.orden);
+          if (espera) quitarEspera(dia.id, clave);
+          meterEnBloque(dia, bs, clave, sueltas);
+          return;
+        }
         const dest = z.dataset.parte, l = movibles().filter(x => x !== el);
         let k = -1; l.forEach((x, j) => { if ((x.dataset.parte || "") === dest) k = j; });
         l.splice(k < 0 ? l.length : k + 1, 0, el);   // parte vacía: da igual dónde, se pinta dentro de ella
@@ -1695,6 +1722,29 @@ function desagruparBloque(dia, series) {
   pintarDia(dia);
   avisoDeshacer("Bloque desagrupado en series sueltas", deshacer);
 }
+// Mete un ejercicio en un bloque: una serie suya en cada ronda, al final de la ronda. Si viene de fuera
+// (arrastrado), sus series pasan a las rondas (la 1.ª a la R1…) y desaparecen como ejercicio suelto
+function meterEnBloque(dia, seriesBloque, ejercicioId, sueltas) {
+  const b0 = seriesBloque[0], rondas = [...new Set(seriesBloque.map(s => n0(s.ronda)))].sort((a, b) => a - b);
+  const hist = seriesDe(ejercicioId), ult = hist[hist.length - 1];
+  const base = sueltas && sueltas.length ? null : ult ? valores(ult) : { reps: tipoDe(ejercicioId) === "fuerza" || tipoDe(ejercicioId) === "movilidad" ? 10 : 0 };
+  const antes = (sueltas || []).map(x => ["series", { ...x }]);
+  let orden = Date.now();
+  const nuevas = [];
+  rondas.forEach((r, k) => {
+    const v = sueltas && sueltas.length ? sueltas[Math.min(k, sueltas.length - 1)] : base;
+    const hechaV = sueltas && sueltas[k] ? hecha(sueltas[k]) : false;
+    const fila = { id: nuevoId(), fecha: dia.id, ejercicio_id: ejercicioId, orden: orden++, grupo: b0.grupo || "", seccion: b0.seccion || "", meso_id: b0.meso_id || "",
+      bloque_id: b0.bloque_id, ronda: r, peso: n0(v.peso), reps: n0(v.reps), distancia: n0(v.distancia), tiempo: n0(v.tiempo), pct: n0(v.pct), por_lado: !!v.por_lado,
+      descanso: n0(v.descanso), rec_dist: n0(v.rec_dist), ciclo_id: "", calentamiento: false, hecha: hechaV, borrado: false };
+    nuevas.push(fila);
+    cambiar("series", fila, true);
+  });
+  (sueltas || []).forEach(x => cambiar("series", { ...x, borrado: true }, true));
+  persistir();
+  pintarDia(dia);
+  avisoDeshacer(nombreEj(ejercicioId) + " añadido al bloque (" + rondas.length + " rondas)", antes.concat(nuevas.map(f => ["series", { ...f, borrado: true }])));
+}
 function tarjetaBloque(dia, bloqueId, series) {
   const rondas = [...new Set(series.map(s => n0(s.ronda)))].sort((a, b) => a - b);
   const primera = series.filter(s => n0(s.ronda) === rondas[0]).sort((a, b) => a.orden - b.orden);
@@ -1741,6 +1791,14 @@ function tarjetaBloque(dia, bloqueId, series) {
         persistir(); pintarDia(dia);
       } },
       rondas.length > 1 && { texto: "Quitar la última ronda", accion: () => { ultima.forEach(s => cambiar("series", { ...s, borrado: true }, true)); persistir(); pintarDia(dia); } },
+      { texto: "+ Añadir un ejercicio al bloque…", accion: () => abrirSelector(dia, id => meterEnBloque(dia, series, id, null), series[0].grupo || "", series[0].seccion || "") },
+      variosTramos && { texto: "Quitar un ejercicio del bloque…", accion: () => abrirMenu("¿Qué ejercicio quitas?", "Se borran sus series de todas las rondas", primera.map(s0 => ({ texto: nombreEj(s0.ejercicio_id), peligro: true, accion: () => {
+        const fuera = series.filter(x => x.ejercicio_id === s0.ejercicio_id);
+        const antes = fuera.map(x => ["series", { ...x }]);
+        fuera.forEach(x => cambiar("series", { ...x, borrado: true }, true));
+        persistir(); pintarDia(dia);
+        avisoDeshacer(nombreEj(s0.ejercicio_id) + " quitado del bloque", antes);
+      } }))) },
       { texto: "Desagrupar (series sueltas)", accion: () => desagruparBloque(dia, series) },
       nombresPartes(dia.id, series[0].grupo || "").length > 1 && { texto: "Mover a otra parte…", accion: () => moverAParte(dia, series[0].grupo || "", "b:" + bloqueId, false) },
       { texto: "Copiar bloque", accion: () => copiar("Bloque ×" + rondas.length, "", series) },
@@ -5075,7 +5133,7 @@ $("enSalir").addEventListener("click", salirEntreno);
 $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); abrirRpe(d); });
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
-const VERSION_APP = "v62" + (BETA ? " beta" : "");
+const VERSION_APP = "v63" + (BETA ? " beta" : "");
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";
