@@ -1177,7 +1177,11 @@ function pintarDia(dia) {
           const et = document.createElement("span");
           et.className = "etq-orden"; et.textContent = letra + (k + 1);
           const tit = el.querySelector(":scope > .bloque-cab .br-tit, :scope > .bloque-cab .ej-nombre");
-          if (tit) tit.prepend(et);
+          if (tit) {
+            // En un bloque basta con «A3 ×2»
+            if (tit.classList.contains("br-tit")) tit.textContent = tit.textContent.replace(/^×(\d+) rondas/, "×$1");
+            tit.prepend(et);
+          }
         }
         if (p.nombre) el.className += " en-parte" + color;
         el.dataset.parte = p.nombre;
@@ -1769,7 +1773,7 @@ function tarjetaBloque(dia, bloqueId, series) {
       '<button class="anadir">✓ Guardar</button></div><button type="button" class="enlace desmarcar" hidden>↺ Marcar como pendiente</button></form>';
   // El título solo dice «Bloque ×N»; los ejercicios salen en cada ronda (los de nombre con distancia, como «Series 1000 m», van en el título)
   const enTitulo = [...new Set(primera.map(s => nombreEj(s.ejercicio_id)).filter(n => distDeNombre(n)))];
-  c.querySelector(".br-tit").textContent = "Bloque ×" + rondas.length + (enTitulo.length ? " · " + enTitulo.join(" + ") : "");
+  c.querySelector(".br-tit").textContent = "×" + rondas.length + " rondas" + (enTitulo.length ? " · " + enTitulo.join(" + ") : "");
   c.querySelector(".g-prog").textContent = series.filter(hecha).length + "/" + series.length;
   const menu = c.querySelector(".menu-btn");
   menu.setAttribute("aria-label", "Opciones del bloque");
