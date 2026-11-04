@@ -10,7 +10,8 @@ const PISTAS = ["Ej.: Pierna — sentadilla 5×5, peso muerto 3×5", "Ej.: Corre
 const TIPOS = {
   fuerza: { nombre: "Fuerza" },
   carrera: { nombre: "Carrera", porMetros: 1000, sufijo: "/km" },
-  natacion: { nombre: "Natación", porMetros: 100, sufijo: "/100 m" }
+  natacion: { nombre: "Natación", porMetros: 100, sufijo: "/100 m" },
+  movilidad: { nombre: "Movilidad" }
 };
 // Ejercicios habituales que se proponen al buscar; al elegirlos se crean con su tipo
 const SUGERIDOS = [
@@ -18,7 +19,10 @@ const SUGERIDOS = [
   ["Crol técnica", "natacion"], ["Patada crol con tabla", "natacion"], ["Patada espalda", "natacion"], ["Patada braza", "natacion"],
   ["Crol con pull buoy", "natacion"], ["Crol con palas", "natacion"], ["Remada (sculling)", "natacion"], ["Calentamiento natación", "natacion"], ["Vuelta a la calma natación", "natacion"],
   ["Series", "carrera"], ["Rodaje", "carrera"], ["Fartlek", "carrera"], ["Cuestas", "carrera"], ["Tirada larga", "carrera"], ["Trote de recuperación", "carrera"], ["Calentamiento carrera", "carrera"],
-  ["Press banca", "fuerza"], ["Sentadilla", "fuerza"], ["Peso muerto", "fuerza"], ["Press militar", "fuerza"], ["Dominadas", "fuerza"], ["Remo con barra", "fuerza"], ["Hip thrust", "fuerza"], ["Zancadas", "fuerza"]
+  ["Press banca", "fuerza"], ["Sentadilla", "fuerza"], ["Peso muerto", "fuerza"], ["Press militar", "fuerza"], ["Dominadas", "fuerza"], ["Remo con barra", "fuerza"], ["Hip thrust", "fuerza"], ["Zancadas", "fuerza"],
+  ["Movilidad de cadera 90/90", "movilidad"], ["Gato-camello", "movilidad"], ["Rotaciones torácicas", "movilidad"], ["Estiramiento de isquios", "movilidad"],
+  ["Estiramiento de cuádriceps", "movilidad"], ["Estiramiento de gemelo", "movilidad"], ["Movilidad de tobillo", "movilidad"], ["Movilidad de hombro con pica", "movilidad"],
+  ["Paloma (pigeon)", "movilidad"], ["Foam roller", "movilidad"]
 ];
 const $ = id => document.getElementById(id);
 
@@ -37,12 +41,12 @@ const TABLAS = {
   ciclos: { clave: "id", conflicto: "id", campos: ["id", "ejercicio_id", "numero", "rm_inicio", "peso_inicial", "incremento", "reps_reset", "importadas", "cerrado", "borrado", "actualizado"] },
   plantillas: { clave: "id", conflicto: "id", campos: ["id", "nombre", "items", "borrado", "actualizado"] },
   mesociclos: { clave: "id", conflicto: "id", campos: ["id", "nombre", "inicio", "semanas", "dias", "progresion", "descarga", "notas", "borrado", "actualizado"] },
-  series: { clave: "id", conflicto: "id", campos: ["id", "fecha", "ejercicio_id", "orden", "peso", "reps", "distancia", "tiempo", "descanso", "hecha", "grupo", "meso_id", "bloque_id", "ronda", "rec_dist", "pct", "ciclo_id", "calentamiento", "desnivel_pos", "desnivel_neg", "ritmo_ajustado", "fc_media", "fc_max", "cadencia", "fc_pico", "fc_hist", "seccion", "borrado", "actualizado"] },
+  series: { clave: "id", conflicto: "id", campos: ["id", "fecha", "ejercicio_id", "orden", "peso", "reps", "distancia", "tiempo", "descanso", "hecha", "grupo", "meso_id", "bloque_id", "ronda", "rec_dist", "pct", "ciclo_id", "calentamiento", "desnivel_pos", "desnivel_neg", "ritmo_ajustado", "fc_media", "fc_max", "cadencia", "fc_pico", "fc_hist", "seccion", "por_lado", "borrado", "actualizado"] },
   entrenos: { clave: "fecha", conflicto: "user_id,fecha", campos: ["fecha", "html", "texto", "rpe", "sensacion", "actualizado"] },
   molestias: { clave: "id", conflicto: "id", campos: ["id", "zona", "descripcion", "inicio", "estado", "borrado", "actualizado"] },
   carreras: { clave: "id", conflicto: "id", campos: ["id", "nombre", "fecha", "lugar", "distancia", "tiempo", "chip", "pos_general", "total_general", "categoria", "pos_categoria", "total_categoria", "desnivel_pos", "fc_media", "notas", "enlace", "previsto", "borrado", "actualizado"] }
 };
-const DEFECTOS = { seccion: "", fecha: null, lugar: "", categoria: "", enlace: "", fc_hist: [], tipo: "fuerza", hecha: true, grupo: "", meso_id: "", bloque_id: "", ciclo_id: "", importadas: [], cerrado: false, compartido: false, items: [], dias: {}, descarga: {}, zonas: [], calentamiento: false, inicio: null, zona: "", descripcion: "", estado: "activa", nombre: "", video_url: "", notas: "", html: "", texto: "", sensacion: "", borrado: false };
+const DEFECTOS = { seccion: "", por_lado: false, fecha: null, lugar: "", categoria: "", enlace: "", fc_hist: [], tipo: "fuerza", hecha: true, grupo: "", meso_id: "", bloque_id: "", ciclo_id: "", importadas: [], cerrado: false, compartido: false, items: [], dias: {}, descarga: {}, zonas: [], calentamiento: false, inicio: null, zona: "", descripcion: "", estado: "activa", nombre: "", video_url: "", notas: "", html: "", texto: "", sensacion: "", borrado: false };
 let sesion = leer("sesion-v1");                 // {access_token, refresh_token, expires_at, user_id, email}
 let perfil = leer("perfil-v1");                 // {aprobado, es_admin, email}
 let usuarios = [];                              // solo para el administrador
@@ -91,6 +95,7 @@ function leerDist(txt) {
 }
 const distCampo = m => n0(m) > 0 ? (enKm() ? num(n0(m) / 1000) : String(n0(m))) : "";   // valor para rellenar un campo
 const UD = () => enKm() ? "km" : "metros";
+const fmtSegs = seg => n0(seg) > 0 && n0(seg) < 60 ? n0(seg) + " s" : fmtDuracion(seg);
 const fmtDuracion = seg => n0(seg) % 60 === 0 && n0(seg) < 3600 ? n0(seg) / 60 + " min" : fmtTiempo(seg);
 // "3:40", "3,40", "3'40" o "1:02:30"; un número solo son minutos
 function leerTiempo(txt) {
@@ -100,6 +105,16 @@ function leerTiempo(txt) {
   if (partes.some(isNaN)) return NaN;
   if (partes.length === 1) return Math.round(partes[0] * 60);
   return partes.reduce((acc, p) => acc * 60 + p, 0);
+}
+// Movilidad: un número solo son segundos («45»), «2 min» son minutos y «1:30» minutos y segundos
+function leerSegs(txt) {
+  const t = (txt || "").trim().toLowerCase();
+  if (!t) return 0;
+  let m = t.match(/^(\d+(?:[.,]\d+)?)\s*(s|seg|segundos?)?$/);
+  if (m) return Math.round(parseFloat(m[1].replace(",", ".")));
+  m = t.match(/^(\d+(?:[.,]\d+)?)\s*(m|min|minutos?)$/);
+  if (m) return Math.round(parseFloat(m[1].replace(",", ".")) * 60);
+  return leerTiempo(t);
 }
 // Descanso: "1:30" o "2,00"; un número solo hasta 15 son minutos y más son segundos
 function leerDescanso(txt) {
@@ -162,6 +177,7 @@ const tipoDe = id => { const e = db.ejercicios[id]; return e && TIPOS[e.tipo] ? 
 const esDistancia = tipo => tipo === "carrera" || tipo === "natacion";
 function adivinarTipo(nombre) {
   const n = norm(nombre);
+  if (/(movilidad|estiramiento|estirar|stretch|yoga|foam|rulo|apertura de cadera|gato.?camello|rotaciones? de|circunduccion|pigeon|paloma|cobra|90.?90|world.?s greatest)/.test(n)) return "movilidad";
   if (/(nad|natac|crol|braza|mariposa|piscina|estilos|patada|pull ?buoy)/.test(n)) return "natacion";
   if (/(carrera|correr|rodaje|tirada|sprint|series de|fartlek|cuesta|trote|running|\d+ ?m\b|\d+ ?km\b)/.test(n) || /^\d+$/.test(n)) return "carrera";
   return "fuerza";
@@ -291,6 +307,10 @@ function serieTexto(s) {
     if (!(n0(s.distancia) > 0)) return n0(s.tiempo) > 0 ? fmtDuracion(s.tiempo) : "—";
     return fmtDist(s.distancia) + (n0(s.tiempo) > 0 ? " · " + fmtTiempo(s.tiempo) + " · " + ritmo(s, tipo) + (n0(s.ritmo_ajustado) > 0 ? " (aj. " + fmtTiempo(s.ritmo_ajustado) + "/km)" : "") : "");
   }
+  if (tipo === "movilidad") {
+    const partes = [n0(s.reps) > 0 ? n0(s.reps) + " reps" : "", n0(s.tiempo) > 0 ? fmtSegs(s.tiempo) : ""].filter(Boolean);
+    return (partes.join(" · ") || "—") + (s.por_lado ? " por lado" : "");
+  }
   const kg = pesoMostrado(s), reps = n0(s.reps) > 0 ? n0(s.reps) : "máx";
   if (n0(s.tiempo) > 0 && !(n0(s.reps) > 0)) return (kg > 0 ? num(kg) + " kg · " : "") + fmtDuracion(s.tiempo);   // por tiempo: bici, plancha…
   return (s.ciclo_id ? "Bilbo · " : "") + (n0(s.pct) > 0 ? num(s.pct) + " % · " : "") + (kg > 0 ? num(kg) + " kg × " + reps : reps + " reps");
@@ -319,6 +339,7 @@ const prsEj = id => { const ix = indiceSeries(); return ix.prs[id] || (ix.prs[id
 // PR: más peso (o más reps sin peso) en fuerza; menos tiempo para la misma distancia en carrera y natación
 function prsDe(lista, tipo) {
   const prs = new Set();
+  if (tipo === "movilidad") return prs;
   if (esDistancia(tipo)) {
     const mejor = {};
     lista.filter(s => conMarca(s) && !fueraDeMarcas(s)).forEach(s => {
@@ -360,6 +381,11 @@ function estadisticas(id) {
     st.marcas = Object.keys(porDist).map(Number).sort((a, b) => a - b).map(d => porDist[d]);
     st.tiempoTotal = lista.reduce((a, s) => a + n0(s.tiempo), 0);
     st.resumen = (st.mejorRitmo ? "Mejor ritmo: " + ritmo(st.mejorRitmo, tipo) + " (" + fmtDist(st.mejorRitmo.distancia) + ") · " : "") + (st.total > 0 ? fmtDist(st.total) : fmtTiempo(st.tiempoTotal)) + " en total";
+    return st;
+  }
+  if (tipo === "movilidad") {
+    st.tiempoTotal = lista.reduce((a, s) => a + n0(s.tiempo) * (s.por_lado ? 2 : 1), 0);
+    st.resumen = st.sesiones.length + (st.sesiones.length === 1 ? " sesión" : " sesiones") + (st.tiempoTotal > 0 ? " · " + fmtSegs(st.tiempoTotal) + " en total" : "");
     return st;
   }
   const pesadas = lista.filter(s => n0(s.peso) > 0);
@@ -740,7 +766,7 @@ document.addEventListener("selectionchange", () => {
 const seriesDelDia = fecha => (indiceSeries().porFecha[fecha] || []).slice();
 // Convierte series en una lista de ejercicios con sus series (para copiar o guardar como plantilla)
 // Los bloques se guardan como tramos con una serie por ronda: { bloque: true, tramos: [{ ejercicio_id, series: [ronda 1, ronda 2…] }] }
-const valores = s => ({ peso: n0(s.peso), reps: s.ciclo_id ? 0 : n0(s.reps), distancia: n0(s.distancia), tiempo: n0(s.tiempo), descanso: n0(s.descanso), rec_dist: n0(s.rec_dist), pct: n0(s.pct), bilbo: !!s.ciclo_id, calentamiento: !!s.calentamiento });
+const valores = s => ({ peso: n0(s.peso), reps: s.ciclo_id ? 0 : n0(s.reps), distancia: n0(s.distancia), tiempo: n0(s.tiempo), descanso: n0(s.descanso), rec_dist: n0(s.rec_dist), pct: n0(s.pct), bilbo: !!s.ciclo_id, calentamiento: !!s.calentamiento, por_lado: !!s.por_lado });
 function itemsDe(series) {
   const items = [], bloques = {};
   series.forEach(s => {
@@ -767,7 +793,7 @@ function pegarItems(fecha, items, grupo, mesoId, masKg) {
   const nueva = (ejercicio_id, v, extra) => cambiar("series", Object.assign({
     id: nuevoId(), fecha, ejercicio_id, orden: orden++,
     peso: n0(v.peso) > 0 ? Math.max(0, n0(v.peso) + n0(masKg)) : 0, reps: n0(v.reps), distancia: n0(v.distancia), tiempo: n0(v.tiempo),
-    descanso: n0(v.descanso), rec_dist: n0(v.rec_dist), pct: n0(v.pct), ciclo_id: v.bilbo ? "auto" : "", calentamiento: !!v.calentamiento, hecha: false, meso_id: mesoId || "", bloque_id: "", ronda: 0, borrado: false
+    descanso: n0(v.descanso), rec_dist: n0(v.rec_dist), pct: n0(v.pct), ciclo_id: v.bilbo ? "auto" : "", calentamiento: !!v.calentamiento, por_lado: !!v.por_lado, hecha: false, meso_id: mesoId || "", bloque_id: "", ronda: 0, borrado: false
   }, extra), true);
   items.forEach(it => {
     const g = grupo !== undefined ? grupo : (it.grupo || "");
@@ -1198,7 +1224,7 @@ function etiquetaTipo(tipo) {
 }
 
 function bloque(dia, id, series, grupo, parte) {
-  const ej = db.ejercicios[id], tipo = tipoDe(id), dist = esDistancia(tipo);
+  const ej = db.ejercicios[id], tipo = tipoDe(id), dist = esDistancia(tipo), mov = tipo === "movilidad";
   const historia = seriesDe(id);
   const prs = prsEj(id);
   let editando = null;   // serie planificada que se está completando
@@ -1214,9 +1240,11 @@ function bloque(dia, id, series, grupo, parte) {
       '<div class="ns-fila">' + (dist
         ? '<button type="button" class="modo-dist" aria-label="Cambiar entre metros y tiempo">m</button>' + paso('<input class="in-a" inputmode="decimal" placeholder="' + UD() + '" aria-label="Distancia en ' + UD() + '" autocomplete="off" enterkeyhint="next">') +
           paso('<input class="in-b" inputmode="decimal" placeholder="tiempo 3,40" aria-label="Tiempo (minutos y segundos)" autocomplete="off" enterkeyhint="next">')
+        : mov ? paso('<input class="in-a" inputmode="numeric" pattern="[0-9]*" placeholder="reps" aria-label="Repeticiones (opcional si pones tiempo)" autocomplete="off" enterkeyhint="next">') +
+          '<span class="por">o</span>' + paso('<input class="in-b" inputmode="decimal" placeholder="tiempo 45 s" aria-label="Tiempo: 45 son segundos, 2 min o 1,30" autocomplete="off" enterkeyhint="next">')
         : '<button type="button" class="modo" aria-label="Cambiar entre kg y % del 1RM">kg</button>' + paso('<input class="in-a" inputmode="decimal" placeholder="kg" aria-label="Peso en kg" autocomplete="off" enterkeyhint="next">') +
           '<span class="por">×</span>' + paso('<input class="in-b" inputmode="numeric" pattern="[0-9]*" placeholder="reps" aria-label="Repeticiones" autocomplete="off" enterkeyhint="next">')) +
-      '</div>' + (dist ? '<div class="ns-extra"><span class="calc"></span></div>' : '<div class="ns-extra"><span class="calc"></span><label class="bilbo-op" hidden><input type="checkbox" class="es-bilbo"> <span></span></label></div>') +
+      '</div>' + (dist ? '<div class="ns-extra"><span class="calc"></span></div>' : mov ? '<div class="ns-extra"><label class="lado-op"><input type="checkbox" class="por-lado"> Por lado (izq. y der.)</label></div>' : '<div class="ns-extra"><span class="calc"></span><label class="bilbo-op" hidden><input type="checkbox" class="es-bilbo"> <span></span></label></div>') +
       '<div class="ns-fila"><input class="in-c" inputmode="decimal" placeholder="⏱ descanso 1,30 o 300 m" aria-label="Descanso o recuperación después de la serie (tiempo o metros)" autocomplete="off" enterkeyhint="done">' +
       '<label class="veces-l"><span aria-hidden="true">×</span><input class="veces" inputmode="numeric" pattern="[0-9]*" value="1" aria-label="Cuántas series iguales" autocomplete="off" enterkeyhint="done"></label>' +
       '<button class="anadir ok">OK</button></div>' +
@@ -1301,7 +1329,7 @@ function bloque(dia, id, series, grupo, parte) {
   b.querySelectorAll(".paso").forEach(p => {
     const inp = p.querySelector("input");
     p.querySelectorAll("button").forEach(x => x.addEventListener("click", () => {
-      const clase = inp === fa ? (dist ? (porTiempo ? "t" : "m") : (enPct ? "pct" : "kg")) : (dist ? (porTiempo ? "m" : "t") : "reps");
+      const clase = mov ? (inp === fa ? "reps" : "s") : inp === fa ? (dist ? (porTiempo ? "t" : "m") : (enPct ? "pct" : "kg")) : (dist ? (porTiempo ? "m" : "t") : "reps");
       ajustarCampo(inp, clase, x.classList.contains("mas") ? 1 : -1);
       pintarCalc();
     }));
@@ -1341,6 +1369,7 @@ function bloque(dia, id, series, grupo, parte) {
       fa.value = t ? ti : m;
       fb.value = t ? m : ti;
     }
+    else if (mov) { fa.value = n0(s.reps) || ""; fb.value = n0(s.tiempo) > 0 ? (n0(s.tiempo) < 60 ? String(n0(s.tiempo)) : fmtTiempo(s.tiempo)) : ""; b.querySelector(".por-lado").checked = !!s.por_lado; }
     else if (n0(s.pct) > 0 && !s.ciclo_id) { ponerModo(true); fa.value = num(s.pct); fb.value = n0(s.reps) || ""; }
     else { ponerModo(false); const kg = pesoMostrado(s); fa.value = kg > 0 ? num(kg) : ""; fb.value = n0(s.reps) || ""; }
     fc.value = conRec ? recTexto(s) : "";
@@ -1462,13 +1491,19 @@ function bloque(dia, id, series, grupo, parte) {
   const leerValores = () => {
     const rec = leerRecuperacion(fc.value);
     if (!rec) { fc.focus(); return null; }
-    const v = { peso: 0, reps: 0, pct: 0, ciclo_id: "", distancia: 0, tiempo: 0, descanso: rec.descanso, rec_dist: rec.rec_dist };
+    const v = { peso: 0, reps: 0, pct: 0, ciclo_id: "", por_lado: false, distancia: 0, tiempo: 0, descanso: rec.descanso, rec_dist: rec.rec_dist };
     if (dist) {
       const metros = porTiempo ? fb : fa, crono = porTiempo ? fa : fb;
       v.distancia = leerDist(metros.value);
       v.tiempo = leerTiempo(crono.value);
       if (isNaN(v.tiempo)) { crono.focus(); return null; }
       if (!(v.distancia > 0) && !(v.tiempo > 0)) { fa.focus(); return null; }
+    } else if (mov) {
+      v.reps = parseInt(fa.value, 10) || 0;
+      v.tiempo = leerSegs(fb.value);
+      if (isNaN(v.tiempo)) { fb.focus(); return null; }
+      if (!(v.reps > 0) && !(v.tiempo > 0)) { fa.focus(); return null; }
+      v.por_lado = b.querySelector(".por-lado").checked;
     } else {
       const x = parseFloat((fa.value.trim() || "0").replace(",", "."));
       v.pct = enPct ? x : 0;
@@ -1661,10 +1696,12 @@ function tarjetaBloque(dia, bloqueId, series) {
     editando = s;
     const dist = esDistancia(tipoDe(s.ejercicio_id));
     c.querySelector(".br-que").textContent = "R" + n0(s.ronda) + " · " + nombreEj(s.ejercicio_id);
-    fa.placeholder = dist ? UD() : "kg"; fa.inputMode = "decimal"; fa.setAttribute("aria-label", dist ? "Distancia en " + UD() : "Peso en kg");
-    fb.placeholder = dist ? "tiempo 3,40" : "reps"; fb.inputMode = dist ? "decimal" : "numeric"; fb.setAttribute("aria-label", dist ? "Tiempo (minutos y segundos)" : "Repeticiones");
-    c.querySelector(".por").textContent = dist ? "" : "×";
-    if (dist) { fa.value = distCampo(s.distancia); fb.value = n0(s.tiempo) > 0 ? fmtTiempo(s.tiempo) : ""; }
+    const mov = tipoDe(s.ejercicio_id) === "movilidad";
+    fa.placeholder = dist ? UD() : mov ? "reps" : "kg"; fa.inputMode = mov ? "numeric" : "decimal"; fa.setAttribute("aria-label", dist ? "Distancia en " + UD() : mov ? "Repeticiones" : "Peso en kg");
+    fb.placeholder = dist ? "tiempo 3,40" : mov ? "tiempo 45 s" : "reps"; fb.inputMode = dist || mov ? "decimal" : "numeric"; fb.setAttribute("aria-label", dist ? "Tiempo (minutos y segundos)" : mov ? "Tiempo: 45 son segundos" : "Repeticiones");
+    c.querySelector(".por").textContent = dist ? "" : mov ? "o" : "×";
+    if (mov) { fa.value = n0(s.reps) || ""; fb.value = (n0(s.tiempo) > 0 ? (n0(s.tiempo) < 60 ? String(n0(s.tiempo)) : fmtTiempo(s.tiempo)) : ""); }
+    else if (dist) { fa.value = distCampo(s.distancia); fb.value = n0(s.tiempo) > 0 ? fmtTiempo(s.tiempo) : ""; }
     else { fa.value = pesoMostrado(s) > 0 ? num(pesoMostrado(s)) : ""; fb.value = n0(s.reps) || ""; }
     fc.value = recTexto(s);
     c.querySelectorAll("li").forEach(x => x.classList.remove("editando"));
@@ -1718,6 +1755,11 @@ function tarjetaBloque(dia, bloqueId, series) {
       fila.tiempo = leerTiempo(fb.value);
       if (isNaN(fila.tiempo)) { fb.focus(); return; }
       if (!(fila.distancia > 0) && !(fila.tiempo > 0)) { fa.focus(); return; }
+    } else if (tipoDe(fila.ejercicio_id) === "movilidad") {
+      fila.reps = parseInt(fa.value, 10) || 0;
+      fila.tiempo = leerSegs(fb.value);
+      if (isNaN(fila.tiempo)) { fb.focus(); return; }
+      if (!(fila.reps > 0) && !(fila.tiempo > 0)) { fa.focus(); return; }
     } else {
       fila.peso = parseFloat((fa.value.trim() || "0").replace(",", "."));
       fila.reps = parseInt(fb.value, 10);
@@ -1759,9 +1801,10 @@ function pintarTramos() {
     fila.querySelector(".tr-n").textContent = (k + 1) + ". " + nombreEj(t.ejercicio_id);
     fila.querySelector(".tr-n").appendChild(etiquetaTipo(tipoDe(t.ejercicio_id)));
     const [a, b, cc] = [".in-a", ".in-b", ".in-c"].map(x => fila.querySelector(x));
-    a.placeholder = dist ? UD() : "kg"; a.inputMode = "decimal"; a.setAttribute("aria-label", dist ? "Distancia en " + UD() : "Peso en kg");
-    b.placeholder = dist ? "tiempo" : "reps"; b.inputMode = dist ? "decimal" : "numeric"; b.setAttribute("aria-label", dist ? "Tiempo (puedes dejar los metros vacíos)" : "Repeticiones");
-    fila.querySelector(".por").textContent = dist ? "" : "×";
+    const mov = tipoDe(t.ejercicio_id) === "movilidad";
+    a.placeholder = dist ? UD() : mov ? "reps" : "kg"; a.inputMode = mov ? "numeric" : "decimal"; a.setAttribute("aria-label", dist ? "Distancia en " + UD() : mov ? "Repeticiones" : "Peso en kg");
+    b.placeholder = dist ? "tiempo" : mov ? "tiempo 45 s" : "reps"; b.inputMode = dist || mov ? "decimal" : "numeric"; b.setAttribute("aria-label", dist ? "Tiempo (puedes dejar los metros vacíos)" : mov ? "Tiempo: 45 son segundos" : "Repeticiones");
+    fila.querySelector(".por").textContent = dist ? "" : mov ? "o" : "×";
     a.value = t.a; b.value = t.b; cc.value = t.c;
     a.addEventListener("input", () => { t.a = a.value; });
     b.addEventListener("input", () => { t.b = b.value; });
@@ -1774,8 +1817,8 @@ function pintarTramos() {
 }
 $("blqAnadir").addEventListener("click", () => abrirSelector(diaBloque, id => {
   const h = seriesDe(id), u = h[h.length - 1];
-  const dist = esDistancia(tipoDe(id));
-  tramos.push({ ejercicio_id: id,
+  const dist = esDistancia(tipoDe(id)), mov = tipoDe(id) === "movilidad";
+  tramos.push(mov ? { ejercicio_id: id, a: u ? String(n0(u.reps) || "") : "", b: u ? (n0(u.tiempo) > 0 ? (n0(u.tiempo) < 60 ? String(n0(u.tiempo)) : fmtTiempo(u.tiempo)) : "") : "", c: "" } : { ejercicio_id: id,
     a: u ? String(dist ? distCampo(u.distancia) : (n0(u.peso) > 0 ? num(u.peso) : "")) : (dist && distDeNombre(nombreEj(id)) ? distCampo(distDeNombre(nombreEj(id))) : ""),
     b: u ? (dist ? (n0(u.tiempo) > 0 ? fmtTiempo(u.tiempo) : "") : String(n0(u.reps) || "")) : "",
     c: "" });   // la recuperación no se arrastra de otros días
@@ -1795,6 +1838,10 @@ $("blqCrear").addEventListener("click", () => {
       v.tiempo = leerTiempo(t.b);
       if (isNaN(v.tiempo)) { aviso.textContent = "Revisa el tiempo del tramo " + (k + 1) + " (por ejemplo 3,40)."; return; }
       if (!(v.distancia > 0) && !(v.tiempo > 0)) { aviso.textContent = "Pon los metros o el tiempo del tramo " + (k + 1) + "."; return; }
+    } else if (tipoDe(t.ejercicio_id) === "movilidad") {
+      v.reps = parseInt(t.a, 10) || 0;
+      v.tiempo = leerSegs(t.b);
+      if (isNaN(v.tiempo) || (!(v.reps > 0) && !(v.tiempo > 0))) { aviso.textContent = "Pon las repeticiones o el tiempo del tramo " + (k + 1) + "."; return; }
     } else {
       v.peso = parseFloat((String(t.a).trim() || "0").replace(",", "."));
       v.reps = parseInt(t.b, 10);
@@ -2106,6 +2153,13 @@ function refrescarDetalle() {
     $("detGraficaTit").textContent = "Progreso · distancia por sesión";
     puntos = st.sesiones.slice(-12).map(s => ({ f: s.fecha, v: s.series.reduce((a, x) => a + n0(x.distancia), 0) / (km ? 1000 : 1) }));
     etiqueta = v => km ? num(Math.round(v * 100) / 100) + " km" : num(Math.round(v)) + " m";
+  } else if (tipo === "movilidad") {
+    const segs = x => n0(x.tiempo) * (x.por_lado ? 2 : 1);
+    rec.appendChild(recuadro("Sesiones", String(st.sesiones.length), st.lista.length + " series", true));
+    if (st.tiempoTotal > 0) rec.appendChild(recuadro("Tiempo total", fmtSegs(st.tiempoTotal), "contando los dos lados"));
+    $("detGraficaTit").textContent = "Progreso · minutos por sesión";
+    puntos = st.sesiones.slice(-12).map(s => ({ f: s.fecha, v: Math.round(s.series.reduce((m, x) => m + segs(x), 0) / 6) / 10 }));
+    etiqueta = v => num(v) + " min";
   } else if (st.mejor) {
     rec.appendChild(recuadro("Peso máximo", num(st.mejor.peso) + " kg", "× " + n0(st.mejor.reps) + " · " + fechaCorta(st.mejor.fecha), true));
     rec.appendChild(recuadro("1RM estimado", num(Math.round(rm(st.mejorRm))) + " kg", serieTexto(st.mejorRm) + " · " + fechaCorta(st.mejorRm.fecha)));
@@ -3447,8 +3501,8 @@ $("rpeQuitar").addEventListener("click", () => guardarRpe(0, ""));
 function datosSemana(lunes) {
   const ini = iso(lunes), fin = iso(sumarDias(lunes, 7));
   const todas = seriesVivas().filter(s => s.fecha >= ini && s.fecha < fin && !s.calentamiento), hechas = todas.filter(hecha);
-  const r = { series: hechas.length, total: todas.length, km: 0, nado: 0, kg: 0, prs: 0, dias: new Set(hechas.map(s => s.fecha)).size };
-  hechas.forEach(s => { if (tipoDe(s.ejercicio_id) === "fuerza") r.kg += n0(s.peso) * n0(s.reps); });
+  const r = { series: hechas.length, total: todas.length, km: 0, nado: 0, kg: 0, mov: 0, prs: 0, dias: new Set(hechas.map(s => s.fecha)).size };
+  hechas.forEach(s => { const t = tipoDe(s.ejercicio_id); if (t === "fuerza") r.kg += n0(s.peso) * n0(s.reps); else if (t === "movilidad") r.mov += n0(s.tiempo) * (s.por_lado ? 2 : 1) / 60; });
   // Los km y metros sí incluyen calentamiento y vuelta a la calma: también se corren
   seriesVivas().filter(s => s.fecha >= ini && s.fecha < fin && hecha(s)).forEach(s => {
     const t = tipoDe(s.ejercicio_id);
@@ -3470,12 +3524,14 @@ function pintarResumen() {
   if ($("resumenSem").hidden) return;
   const km = v => num(Math.round(v * 10) / 10) + " km", kg = v => num(Math.round(v)) + " kg", uno = v => num(Math.round(v * 10) / 10);
   const dif = (x, y, f) => Math.abs(x - y) < 1e-9 ? "igual que la semana anterior" : (x > y ? "+" : "−") + f(Math.abs(x - y)) + " frente a la anterior";
-  $("resumenLinea").textContent = [a.km || b.km ? km(a.km) : "", a.kg || b.kg ? kg(a.kg) : "", a.series + "/" + a.total + " series", a.prs ? a.prs + " PR" : ""].filter(Boolean).join(" · ");
+  $("resumenLinea").textContent = [a.km || b.km ? km(a.km) : "", a.kg || b.kg ? kg(a.kg) : "", a.mov >= 1 ? num(Math.round(a.mov)) + " min movilidad" : "", a.series + "/" + a.total + " series", a.prs ? a.prs + " PR" : ""].filter(Boolean).join(" · ");
   const cont = $("resumenCont");
   cont.textContent = "";
   if (a.km || b.km) cont.appendChild(recuadro("Carrera", km(a.km), dif(a.km, b.km, km)));
   if (a.nado || b.nado) cont.appendChild(recuadro("Natación", fmtDist(a.nado), dif(a.nado, b.nado, fmtDist)));
   if (a.kg || b.kg) cont.appendChild(recuadro("Fuerza (kg × reps)", kg(a.kg), dif(a.kg, b.kg, kg)));
+  const mins = v => num(Math.round(v)) + " min";
+  if (a.mov || b.mov) cont.appendChild(recuadro("Movilidad", mins(a.mov), dif(Math.round(a.mov), Math.round(b.mov), mins)));
   cont.appendChild(recuadro("Series hechas", a.series + " de " + a.total, (a.total ? Math.round(a.series / a.total * 100) + " % de lo planificado · " : "") + "anterior: " + b.series + " de " + b.total));
   cont.appendChild(recuadro("Días entrenados", String(a.dias), "anterior: " + b.dias));
   cont.appendChild(recuadro("Récords (PR)", String(a.prs), "anterior: " + b.prs, a.prs > 0));
@@ -3583,11 +3639,12 @@ $("impJson").addEventListener("change", ev => { const f = ev.target.files[0]; ev
 
 // ---------- Rutinas en texto: las de ejemplo y las que escribe una IA usan el mismo formato ----------
 // RUTINA: nombre / NOTA: … / SEMANAS: n / SEMANA n / ## Sesión @ Lunes, Jueves / - Ejercicio [tipo]: 4x8 @RPE8 desc 2:00 / - BLOQUE x4: A [carrera] 400m | B [carrera] 200m
-const TIPO_TEXTO = { fuerza: "fuerza", carrera: "carrera", natacion: "natacion", nado: "natacion" };
+const TIPO_TEXTO = { fuerza: "fuerza", carrera: "carrera", natacion: "natacion", nado: "natacion", movilidad: "movilidad", estiramientos: "movilidad", estiramiento: "movilidad" };
 function leerValor(txt, tipo) {
   // Une «400 m» → «400m» para leer cada valor como una sola palabra
   const t = txt.replace(/(\d)\s+(km|m|min|s|seg|reps?)\b/gi, "$1$2").replace(/(\d)\s*(minutos?|mins?)\b/gi, "$1min").trim();
-  const v = { peso: 0, reps: 0, distancia: 0, tiempo: 0, descanso: 0, rec_dist: 0, pct: 0, bilbo: false };
+  const v = { peso: 0, reps: 0, distancia: 0, tiempo: 0, descanso: 0, rec_dist: 0, pct: 0, bilbo: false, por_lado: false };
+  if (/(por|cada|\/)\s*lado|c\/l\b|\bxlado/i.test(t)) v.por_lado = true;
   const tok = (t.split(/\s+/)[0] || "").toLowerCase().replace(/,(?=\d)/, ".");
   let rpe = 0, m;
   if ((m = t.match(/@?\s*RPE\s*(\d+(?:[.,]\d)?)/i))) rpe = parseFloat(m[1].replace(",", "."));
@@ -3610,6 +3667,10 @@ function leerValor(txt, tipo) {
   else if ((m = tok.match(/^(\d+)(?:-\d+)?(?:reps?)?$/))) v.reps = +m[1];
   else if (/^(m[aá]x|amrap|fallo)/.test(tok)) v.reps = 0;
   else return { error: "no entiendo «" + tok + "» (usa 8, máx, 400m, 40min o 3:30)" };
+  if (tipo === "movilidad") {
+    if (v.distancia) return { error: "en movilidad las series van en repeticiones o tiempo (por ejemplo 2x10 por lado o 3x45s)" };
+    return v;
+  }
   if (tipo !== "fuerza" && v.reps >= 25) { v.distancia = v.reps; v.reps = 0; }   // «6x1000» en carrera son metros
   // En fuerza también valen series por tiempo (calentamiento en bici, movilidad, plancha…): 1x5min, 3x45s
   if (tipo === "fuerza" && v.distancia) return { error: "en fuerza las series van en repeticiones o tiempo (por ejemplo 3x12 o 3x45s)" };
@@ -3625,7 +3686,7 @@ function leerEjercicio(txt, conCuenta) {
   if (!m) return { error: conCuenta ? "falta «:» entre el ejercicio y las series (por ejemplo «Sentadilla [fuerza]: 4x8»)" : "cada tramo va como «Ejercicio [tipo] 400m»" };
   const nombre = m[1].trim(), conTipo = m.length === 4, resto = (conTipo ? m[3] : m[2]).trim();
   const tipo = conTipo ? TIPO_TEXTO[norm(m[2]).replace(/[^a-z]/g, "")] : adivinarTipo(nombre);
-  if (!tipo) return { error: "tipo «" + m[2] + "» desconocido (usa fuerza, carrera o natacion)" };
+  if (!tipo) return { error: "tipo «" + m[2] + "» desconocido (usa fuerza, carrera, natacion o movilidad)" };
   if (!nombre) return { error: "falta el nombre del ejercicio" };
   const series = [];
   for (const parte of resto.split(/\s+\+\s+/)) {
@@ -3929,8 +3990,8 @@ function textoPrompt() {
     "- Empieza por «RUTINA: nombre». Después, «NOTA:» con una o dos frases sobre para quién es y cómo progresar.",
     "- Si todas las semanas son iguales, pon «SEMANAS: número» y escribe las sesiones una sola vez. Si el plan cambia cada semana, escribe «SEMANA 1», «SEMANA 2»… y debajo las sesiones de esa semana.",
     "- Cada sesión empieza por «## Nombre @ Día» (Lunes, Martes, Miércoles, Jueves, Viernes, Sábado o Domingo; varios días separados por comas).",
-    "- Un ejercicio por línea: «- Nombre [tipo]: series». El tipo es fuerza, carrera o natacion. Usa nombres de ejercicios comunes en español.",
-    "- Series: 4x8 (repeticiones), 3xmáx, 5x1000m, 8x100m, 1x40min, 6x2min. Sin rangos: 4x10, no 4x8-12. En fuerza también por tiempo: 1x5min (bici de calentamiento), 3x45s (plancha).",
+    "- Un ejercicio por línea: «- Nombre [tipo]: series». El tipo es fuerza, carrera, natacion o movilidad (estiramientos y movilidad). Usa nombres de ejercicios comunes en español.",
+    "- Series: 4x8 (repeticiones), 3xmáx, 5x1000m, 8x100m, 1x40min, 6x2min. Sin rangos: 4x10, no 4x8-12. En fuerza también por tiempo: 1x5min (bici de calentamiento), 3x45s (plancha). En movilidad: 2x10 por lado, 2x30s por lado.",
     "- Intensidad: @RPE8 o @75% (del 1RM) en fuerza, @4:30/km en carrera, @1:50/100m en natación. No pongas kilos fijos.",
     "- Descanso: «desc 2:00» o «desc 90» (segundos). En carrera y natación la recuperación también puede ir en metros: «rec 200m».",
     "- Tramos que se repiten seguidos: «- BLOQUE x4: Ejercicio [tipo] 400m rec 200m | Ejercicio [tipo] 200m».",
@@ -3961,9 +4022,10 @@ function textoPromptSesion() {
     "```", EJEMPLO_SESION_IA, "```",
     "Reglas del formato:",
     "- Empieza por «RUTINA: nombre» y «NOTA:» con una o dos frases. Después UNA sola línea «## Nombre de la sesión» (sin día).",
-    "- Un ejercicio por línea: «- Nombre [tipo]: series». El tipo es fuerza, carrera o natacion. Incluye calentamiento y vuelta a la calma si encajan.",
+    "- Un ejercicio por línea: «- Nombre [tipo]: series». El tipo es fuerza, carrera, natacion o movilidad (estiramientos y movilidad). Incluye calentamiento y vuelta a la calma si encajan.",
     "- Series: 4x8, 3xmáx, 5x1000m, 8x100m, 1x40min, 6x2min. Sin rangos. Intensidad: @RPE8 o @75% en fuerza, @4:30/km en carrera, @1:50/100m en natación.",
-    "- Calentamiento, movilidad o isométricos por tiempo: «- Bicicleta estática [fuerza]: 1x5min», «- Plancha [fuerza]: 3x45s».",
+    "- Calentamiento o isométricos por tiempo: «- Bicicleta estática [fuerza]: 1x5min», «- Plancha [fuerza]: 3x45s».",
+    "- Movilidad y estiramientos en repeticiones o tiempo, y «por lado» si se hace a cada lado: «- Movilidad de cadera 90/90 [movilidad]: 2x8 por lado», «- Estiramiento de isquios [movilidad]: 2x30s por lado».",
     "- Descanso: «desc 2:00» o «desc 90»; en carrera y natación también «rec 200m».",
     "- Divide la sesión en partes con una línea «### Calentamiento», «### Parte principal» y «### Vuelta a la calma» antes de sus ejercicios.",
     "- Tramos que se repiten: «- BLOQUE x4: Ejercicio [tipo] 400m rec 200m | Ejercicio [tipo] 200m». Tirada por tramos: «- Tirada larga [carrera]: 1x8km @5:20/km + 1x6km @4:50/km»."].filter(Boolean).join("\n");
@@ -4145,9 +4207,9 @@ function textoDiscos(kg) {
 // Campo con − y + a los lados
 const paso = input => '<span class="paso"><button type="button" class="menos" aria-label="Menos" tabindex="-1">−</button>' + input + '<button type="button" class="mas" aria-label="Más" tabindex="-1">+</button></span>';
 function ajustarCampo(inp, clase, signo) {
-  const v = clase === "t" ? leerTiempo(inp.value) : parseFloat((inp.value || "0").replace(",", ".")) || 0;
-  const n = Math.max(0, Math.round(((isNaN(v) ? 0 : v) + signo * { kg: ajustes().pasoKg, pct: 2.5, reps: 1, m: enKm() ? 0.1 : 100, t: 5 }[clase]) * 100) / 100);
-  inp.value = !n ? "" : clase === "t" ? fmtTiempo(n) : clase === "kg" || clase === "pct" || clase === "m" ? num(n) : String(n);
+  const v = clase === "t" ? leerTiempo(inp.value) : clase === "s" ? leerSegs(inp.value) : parseFloat((inp.value || "0").replace(",", ".")) || 0;
+  const n = Math.max(0, Math.round(((isNaN(v) ? 0 : v) + signo * { kg: ajustes().pasoKg, pct: 2.5, reps: 1, m: enKm() ? 0.1 : 100, t: 5, s: 5 }[clase]) * 100) / 100);
+  inp.value = !n ? "" : clase === "s" ? (n < 60 ? String(n) : fmtTiempo(n)) : clase === "t" ? fmtTiempo(n) : clase === "kg" || clase === "pct" || clase === "m" ? num(n) : String(n);
   inp.dispatchEvent(new Event("input"));
 }
 
@@ -4744,18 +4806,19 @@ function pintarEntreno() {
   $("enCalent").hidden = !ent.calent;
   if (ent.calent) $("enCalentT").textContent = "¿Calentamiento? " + ent.calent.map(p => (p.barra ? "barra" : num(p.peso) + " kg") + " × " + p.reps).join(" · ");
   // Campos para apuntar lo que de verdad se hizo
-  ent.campos = dist ? (n0(s.distancia) > 0 ? ["m", "t"] : ["t", "m"]) : ["kg", "reps"];
-  const etiqueta = { kg: "Peso (kg)", reps: "Repeticiones", m: enKm() ? "Kilómetros" : "Metros", t: "Tiempo" };
+  const mov = tipo === "movilidad";
+  ent.campos = dist ? (n0(s.distancia) > 0 ? ["m", "t"] : ["t", "m"]) : mov ? (n0(s.reps) > 0 || !(n0(s.tiempo) > 0) ? ["reps", "s"] : ["s", "reps"]) : ["kg", "reps"];
+  const etiqueta = { kg: "Peso (kg)", reps: "Repeticiones" + (mov && s.por_lado ? " por lado" : ""), m: enKm() ? "Kilómetros" : "Metros", t: "Tiempo", s: "Tiempo" + (s.por_lado ? " por lado" : "") + " (45 = segundos)" };
   const valor = c => c === "kg" ? (kg ? num(kg) : "") : c === "reps" ? (s.ciclo_id === "auto" && !hecha(s) ? "" : n0(s.reps) || "")
-    : c === "m" ? distCampo(s.distancia) : n0(s.tiempo) ? fmtTiempo(s.tiempo) : "";
+    : c === "m" ? distCampo(s.distancia) : c === "s" ? (n0(s.tiempo) > 0 ? (n0(s.tiempo) < 60 ? String(n0(s.tiempo)) : fmtTiempo(s.tiempo)) : "") : n0(s.tiempo) ? fmtTiempo(s.tiempo) : "";
   [["enA", "enEtA"], ["enB", "enEtB"]].forEach(([inp, et], k) => {
     const c = ent.campos[k];
-    $(et).textContent = etiqueta[c] + (dist && k === 1 ? " (opcional)" : "");
+    $(et).textContent = etiqueta[c] + ((dist || mov) && k === 1 ? " (opcional)" : "");
     $(inp).value = valor(c);
     $(inp).inputMode = c === "reps" ? "numeric" : "decimal";
     // En carrera, el ejemplo del tiempo es el objetivo de la serie (si lo hay), no un número cualquiera
     const obj = c === "t" && !hecha(s) ? objetivoSerie(s) : null;
-    $(inp).placeholder = c === "reps" && s.ciclo_id ? "máx" : c === "t" ? (obj && obj.tiempo ? "obj. " + fmtTiempo(obj.tiempo) : "3:40") : "";
+    $(inp).placeholder = c === "reps" && s.ciclo_id ? "máx" : c === "s" ? "45" : c === "t" ? (obj && obj.tiempo ? "obj. " + fmtTiempo(obj.tiempo) : "3:40") : "";
   });
   $("enHecha").textContent = hecha(s) ? "Guardar cambios" : "✓ Hecha";
   $("enDesmarcar").hidden = !hecha(s);
@@ -4785,6 +4848,12 @@ $("enHecha").addEventListener("click", () => {
     if (!(reps > 0)) { aviso("Pon las repeticiones que has hecho."); b.focus(); return; }
     fila.peso = kg; fila.reps = reps;
     if (s.ciclo_id === "auto") { const c = cicloActivo(s.ejercicio_id); fila.ciclo_id = c ? c.id : ""; }
+  } else if (ent.campos.includes("s")) {
+    const v = {}; v[ent.campos[0]] = a.value; v[ent.campos[1]] = b.value;
+    fila.reps = parseInt(v.reps, 10) || 0;
+    fila.tiempo = leerSegs(v.s);
+    if (isNaN(fila.tiempo)) { aviso("Revisa el tiempo (por ejemplo 45 o 1,30)."); return; }
+    if (!(fila.reps > 0) && !(fila.tiempo > 0)) { aviso("Pon las repeticiones o el tiempo."); return; }
   } else {
     const v = {}; v[ent.campos[0]] = a.value; v[ent.campos[1]] = b.value;
     fila.distancia = leerDist(v.m);
@@ -4889,7 +4958,7 @@ $("enSalir").addEventListener("click", salirEntreno);
 $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); abrirRpe(d); });
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
-const VERSION_APP = "v58" + (BETA ? " beta" : "");
+const VERSION_APP = "v59" + (BETA ? " beta" : "");
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";

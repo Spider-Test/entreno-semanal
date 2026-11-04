@@ -182,6 +182,7 @@
     <button type="button" data-tipo="fuerza" class="t-fuerza" aria-pressed="false">Fuerza</button>
     <button type="button" data-tipo="carrera" class="t-carrera" aria-pressed="false">Carrera</button>
     <button type="button" data-tipo="natacion" class="t-natacion" aria-pressed="false">Natación</button>
+    <button type="button" data-tipo="movilidad" class="t-movilidad" aria-pressed="false">Movilidad</button>
   </div>
   <div id="listaEj"></div>
 </dialog>
@@ -200,6 +201,7 @@
         <button type="button" data-tipo="fuerza" aria-pressed="false">Fuerza</button>
         <button type="button" data-tipo="carrera" aria-pressed="false">Carrera</button>
         <button type="button" data-tipo="natacion" aria-pressed="false">Natación</button>
+        <button type="button" data-tipo="movilidad" aria-pressed="false">Movilidad</button>
       </div>
     </section>
     <section id="detZonasSec">
@@ -390,7 +392,7 @@
               <option value="pierna">Pierna</option><option value="torso">Torso</option><option value="pecho">Pecho</option><option value="espalda">Espalda</option>
               <option value="hombro">Hombro y brazos</option><option value="completo">Cuerpo completo</option><option value="empuje">Empuje</option><option value="tiron">Tirón</option>
               <option value="series">Carrera: series</option><option value="umbral">Carrera: umbral</option><option value="rodaje">Carrera: rodaje</option><option value="tirada">Carrera: tirada larga</option>
-              <option value="natacion">Natación</option><option value="combinado">Combinado (fuerza + carrera)</option><option value="otro">Otro…</option>
+              <option value="natacion">Natación</option><option value="movilidad">Movilidad y estiramientos</option><option value="combinado">Combinado (fuerza + carrera)</option><option value="otro">Otro…</option>
             </select>
           </label>
           <label class="campo">Duración
@@ -446,9 +448,8 @@
   </form>
   <div class="d-cuerpo ayuda">
     <p>Toca cada apartado para verlo. Puedes volver aquí cuando quieras con el botón <b>?</b> de arriba. ¿Echas algo en falta o algo no va bien? Envíanos una sugerencia:</p>
-    <details class="novedades" open><summary>Novedades · versión 58</summary>
-      <p><b>Importar un documento de entrenamiento</b> (Plan → Crear con IA → «Importar documento…»): PDF, Word, Excel, CSV, texto o foto. La app saca el texto y te prepara el prompt para que tu IA lo convierta al formato de la app; si ya viene en ese formato, lo lee directamente. Después lo guardas como plantillas, mesociclo o en un día.</p>
-      <p>Botón <b>Hoy</b> en verde siempre que no estés en hoy: en otra semana, con hoy plegado o en la vista de otro día. · Al abrir un mesociclo o plantillas que te comparten, toca cada día o plantilla para ver sus ejercicios, series, partes y bloques antes de guardarlo; también en el editor de tus mesociclos. · Al borrar algo, ventana para confirmar con Cancelar o Eliminar.</p>
+    <details class="novedades" open><summary>Novedades · versión 59</summary>
+      <p><b>Nuevo tipo «Movilidad»</b> para estiramientos y movilidad, junto a Fuerza, Carrera y Natación, con su color morado y su apartado en Ejercicios. Cada serie va en <b>repeticiones o tiempo</b> («45» son 45 segundos, también «2 min» o «1,30»), con la casilla <b>Por lado</b> (izquierda y derecha). No tiene récords de peso; su ficha muestra las sesiones y el tiempo total, y el resumen de la semana suma los minutos de movilidad. La IA y los documentos importados también lo entienden: «- Movilidad de cadera 90/90 [movilidad]: 2x8 por lado».</p>
     </details>
     <button type="button" class="nav-btn sug-btn" id="sugAyuda">💬 Enviar una sugerencia o avisar de un fallo</button>
     <details><summary>La semana y el texto del día</summary>
@@ -477,8 +478,9 @@
       <p>En <b>Plan → Ajustes → Distancias en</b> eliges metros, kilómetros o automático (metros y, desde 3 km, kilómetros). Cambia cómo se ven y en qué unidad escribes los campos de distancia; los botones − y + suben 100 m (o 0,1 km). En cualquier campo puedes escribir la unidad: «5 km», «5,2km» o «400 m».</p>
     </details>
     <details><summary>Añadir ejercicios y series</summary>
-      <p>Pulsa <b>+ Ejercicio</b> en un día, busca el ejercicio o escribe uno nuevo. Arriba puedes filtrar por Fuerza, Carrera o Natación.</p>
+      <p>Pulsa <b>+ Ejercicio</b> en un día, busca el ejercicio o escribe uno nuevo. Arriba puedes filtrar por Fuerza, Carrera, Natación o Movilidad.</p>
       <p><b>Fuerza:</b> kg × repeticiones. El botón <b>kg</b> cambia a <b>%</b> del 1RM (pon tu 1RM en la ficha del ejercicio).</p>
+      <p><b>Movilidad:</b> repeticiones o tiempo (un número solo son segundos: «45»; también «2 min» o «1,30»). Marca <b>Por lado</b> si se hace a cada lado. No cuenta récords; el resumen de la semana suma sus minutos (por lado cuenta los dos).</p>
       <p><b>Carrera y natación:</b> metros y tiempo. El botón <b>m</b> cambia a <b>min</b> si prefieres apuntar solo el tiempo.</p>
       <p>Los botones <b>−</b> y <b>+</b> suben o bajan el peso, las repeticiones, los metros (100 m) o el tiempo (5 s). En <b>Plan → Ajustes</b> eliges cuántos kilos sube cada toque (2,5 por defecto) y el peso de la barra; se guardan en cada dispositivo.</p>
       <p><b>×N y OK:</b> escribe el peso y las repeticiones (o metros, tiempo y descanso), cuántas series iguales quieres en <b>×</b> (1 por defecto) y pulsa <b>OK</b>. Se crean todas de golpe y el ejercicio se pliega, limpio: «Press banca · 60 kg × 8 · ×4» con su progreso. Hoy y en días futuros quedan pendientes para marcarlas una a una; en días pasados se apuntan como hechas.</p>
@@ -487,7 +489,7 @@
       <p>Si una serie sale distinta, tócala y edítala sola. <b>+ Serie</b> añade una suelta diferente (por ejemplo, una extra con otro peso). El vídeo, los récords y el historial están en la ficha: <b>⋯ → Ver ficha del ejercicio</b>.</p>
     </details>
     <details><summary>Catálogo de ejercicios</summary>
-      <p>El catálogo se divide en <b>Fuerza</b>, <b>Carrera</b> y <b>Natación</b>, cada una desplegable con su número de ejercicios; la app recuerda cuáles dejas abiertas. Al buscar, se abren las que tienen resultados y se ocultan las vacías.</p>
+      <p>El catálogo se divide en <b>Fuerza</b>, <b>Carrera</b>, <b>Natación</b> y <b>Movilidad</b>, cada una desplegable con su número de ejercicios; la app recuerda cuáles dejas abiertas. Al buscar, se abren las que tienen resultados y se ocultan las vacías.</p>
       <p>En <b>Ejercicios</b> está el catálogo. Los marcados como <b>común</b> los ven todos los usuarios; los editan el administrador y quien él autorice, y solo el administrador puede borrarlos. Los que creas tú son privados.</p>
       <p>Tu 1RM, tus series y tus entrenamientos son siempre tuyos: nadie más los ve.</p>
     </details>
