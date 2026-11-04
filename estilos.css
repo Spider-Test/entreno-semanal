@@ -570,7 +570,7 @@ dialog.pantalla[open] { display: flex; flex-direction: column; }
 @media (min-width: 761px) {
   body { padding-bottom: 40px; padding-left: max(32px, env(safe-area-inset-left, 0px)); padding-right: max(32px, env(safe-area-inset-right, 0px)); }
   #app { max-width: 1200px; margin: 0 auto; gap: 16px; }
-  #vistaEjercicios, #vistaPlan, #vistaMarcas { width: 100%; max-width: 760px; margin: 0 auto; }
+  #vistaEjercicios, #vistaListas, #vistaPlan, #vistaMarcas { width: 100%; max-width: 760px; margin: 0 auto; }
   /* Semana como lista vertical limpia; con sitio de sobra (más abajo), 7 columnas iguales */
   .semana, #navSemana, .sem-barra, .resumen-sem, .meso-banda, .dia-nav { width: 100%; max-width: 760px; margin-left: auto; margin-right: auto; }
   .semana { grid-template-columns: 1fr; gap: 12px; }
@@ -1101,6 +1101,9 @@ h1 { color: var(--titulo); }
 .bloque-rep .series li { align-items: center; padding: 3px 0; }
 .bloque-rep .series { gap: 4px; }
 .br-video { flex: none; width: 34px; height: 30px; margin-left: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--accent); font-size: 13px; cursor: pointer; }
+.br-menu { flex: none; opacity: 1 !important; }
+.br-video + .br-menu { margin-left: 2px; }
+.bloque-rep .series li > .br-menu:first-of-type { margin-left: auto; }
 .br-video:hover { background: var(--accent-soft); }
 
 /* Descripción de un ejercicio o bloque (tempo, banda, EEP…) */
@@ -1136,6 +1139,41 @@ h1 { color: var(--titulo); }
 .copiar-cortar[hidden] { display: none; }
 .add-pegar { color: var(--gold) !important; border-color: color-mix(in srgb, var(--gold) 50%, var(--line)) !important; }
 
+/* Listas de entrenamientos */
+#vistaListas { display: flex; flex-direction: column; gap: 12px; }
+#vistaListas[hidden] { display: none; }
+.listas-barra { align-items: center; }
+.listas-tit { flex: 1; margin: 0; font-family: var(--display); font-size: 18px; text-transform: uppercase; letter-spacing: 0.04em; }
+.lista-cab { display: flex; align-items: center; gap: 4px; }
+.lista-cab .sec-toggle { flex: 1; min-width: 0; }
+.lista-ents { display: flex; flex-direction: column; gap: 6px; }
+.lista-ent { border: 1px solid var(--line); border-radius: 10px; background: var(--card); padding: 6px 8px; }
+.lista-ent.es-siguiente { border-color: var(--accent); box-shadow: inset 3px 0 0 var(--accent); }
+.le-cab { display: flex; align-items: center; gap: 8px; }
+.le-n { flex: none; width: 1.6em; text-align: center; font-family: var(--display); font-weight: 700; color: var(--accent); }
+.le-nombre { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 1px; border: 0; background: none; padding: 4px 0; text-align: left; cursor: pointer; font: inherit; color: var(--fg); }
+.le-tit { font-weight: 700; overflow-wrap: anywhere; }
+.le-res { font-size: 12px; color: var(--muted); }
+.le-sig { margin-left: 8px; padding: 1px 6px; border-radius: 6px; background: var(--accent-soft); color: var(--accent); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; vertical-align: 1px; }
+.le-dia { flex: none; padding: 6px 10px; font-size: 13px; }
+.le-prev { padding: 4px 0 4px 2em; }
+.lista-bloque { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; padding: 0 6px 6px; border-radius: 12px; border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--line)); background: color-mix(in srgb, var(--accent) 6%, var(--card)); }
+.lista-sep { display: flex; align-items: center; gap: 6px; margin: 0 -6px; padding: 4px 8px; border-radius: 11px 11px 0 0; background: var(--accent-soft); }
+.lista-bloque.lb-plegado .lista-sep { border-radius: 11px; }
+.lista-bloque.lb-plegado { padding-bottom: 0; }
+.lista-bloque.lb-plegado > :not(.lista-sep) { display: none !important; }
+.ls-toggle { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; border: 0; background: none; padding: 4px 0; text-align: left; cursor: pointer; font: inherit; color: inherit; }
+.ls-toggle .flecha-dia { transform: rotate(90deg); color: var(--accent); }
+.lista-bloque.lb-plegado .ls-toggle .flecha-dia { transform: none; }
+.ls-tit { font-family: var(--display); font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--accent); }
+.ls-n { font-size: 12px; color: var(--muted); }
+.lb-cuerpo { display: flex; flex-direction: column; gap: 6px; }
+.lb-cuerpo:empty::before { content: "Bloque vacío: arrastra aquí entrenamientos con ≡ o añádelos abajo."; font-size: 13px; color: var(--muted); padding: 6px 2px; }
+.lb-add { margin: 0; }
+@media (max-width: 760px) { .ls-toggle { min-height: 40px; } }
+.lista-sec .menu-btn, .lista-sec .asa { opacity: 1 !important; }
+@media (max-width: 760px) { .le-dia { min-height: 40px; } .le-nombre { min-height: 40px; } }
+
 /* Arrastrar un ejercicio o bloque encima de la cabecera de una parte: entra en ella (como una carpeta) */
 .parte-cab { transition: transform 0.15s, box-shadow 0.15s; }
 .parte-cab.zona-destino { transform: scale(1.03); box-shadow: 0 0 0 3px var(--pc), 0 6px 18px rgba(0, 0, 0, 0.18); }
@@ -1167,6 +1205,6 @@ html[data-tam="125"] { --zoom: 1.25; }
 }
 @media (min-width: 1400px) {
   #app { max-width: 1560px; }
-  #vistaEjercicios, #vistaPlan, #vistaMarcas { max-width: 940px; }
+  #vistaEjercicios, #vistaListas, #vistaPlan, #vistaMarcas { max-width: 940px; }
   .solo-dia .semana, .solo-dia .dia-nav { max-width: 860px; }
 }
