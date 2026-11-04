@@ -2123,6 +2123,27 @@ function tarjetaBloque(dia, bloqueId, series) {
         v.addEventListener("click", ev => { ev.stopPropagation(); verVideo(ejV); });
         li.appendChild(v);
       }
+      // ⋯ de cada ejercicio del bloque (en la primera ronda): su ficha, su descripción o quitarlo del bloque
+      if (r === rondas[0] && ejV) {
+        const mb = document.createElement("button");
+        mb.type = "button"; mb.className = "menu-btn br-menu"; mb.textContent = "⋯";
+        mb.setAttribute("aria-label", "Opciones de " + (ejV.nombre || "este ejercicio"));
+        mb.addEventListener("click", ev => {
+          ev.stopPropagation();
+          const delEj = series.filter(x => x.ejercicio_id === s.ejercicio_id);
+          abrirMenu(ejV.nombre || "Ejercicio", "En este bloque · " + delEj.length + (delEj.length === 1 ? " serie" : " series"), [
+            { texto: "Ver ficha del ejercicio", accion: () => abrirDetalle(s.ejercicio_id) },
+            { texto: notaDe(delEj) ? "Editar la descripción…" : "+ Descripción (tempo, banda, EEP…)", accion: () => editarNota(dia, delEj, "Descripción de " + (ejV.nombre || "el ejercicio")) },
+            variosTramos && { texto: "Quitar del bloque", peligro: true, confirmar: "Pulsa otra vez: se borran sus " + delEj.length + " series de todas las rondas", accion: () => {
+              const antes = delEj.map(x => ["series", { ...x }]);
+              delEj.forEach(x => cambiar("series", { ...x, borrado: true }, true));
+              persistir(); pintarDia(dia);
+              avisoDeshacer((ejV.nombre || "Ejercicio") + " quitado del bloque", antes);
+            } }
+          ]);
+        });
+        li.appendChild(mb);
+      }
       if (prs[s.ejercicio_id] && prs[s.ejercicio_id].has(s.id)) { const p = document.createElement("span"); p.className = "pr"; p.textContent = "PR"; li.appendChild(p); }
       ol.appendChild(li);
     });
@@ -2490,9 +2511,9 @@ function pintarListas() {
     const nSem = (l.items || []).filter(esSep).length;
     const sec = document.createElement("section");
     sec.className = "cat-sec lista-sec" + (abierta ? "" : " cerrada");
-    sec.innerHTML = '<div class="lista-cab"><button type="button" class="sec-toggle"><span class="flecha-dia" aria-hidden="true">▸</span><h3></h3><span class="sec-n"></span></button><button type="button" class="menu-btn">⋯</button></div><div class="sec-cuerpo"><div class="sec-cuerpo-in"><div class="lista-ents"></div><div class="add-fila"><button type="button" class="add-ej">+ Entrenamiento</button><button type="button" class="add-ej">+ Semana o bloque</button></div></div></div>';
+    sec.innerHTML = '<div class="lista-cab"><button type="button" class="sec-toggle"><span class="flecha-dia" aria-hidden="true">▸</span><h3></h3><span class="sec-n"></span></button><button type="button" class="menu-btn">⋯</button></div><div class="sec-cuerpo"><div class="sec-cuerpo-in"><div class="lista-ents"></div><div class="add-fila"><button type="button" class="add-ej">+ Entrenamiento</button><button type="button" class="add-ej">+ Bloque (semana, fase…)</button></div></div></div>';
     sec.querySelector("h3").textContent = l.nombre;
-    sec.querySelector(".sec-n").textContent = "· " + rec.length + (nSem ? " · " + nSem + (nSem === 1 ? " semana/bloque" : " semanas/bloques") : "");
+    sec.querySelector(".sec-n").textContent = "· " + rec.length + (nSem ? " · " + nSem + (nSem === 1 ? " bloque" : " bloques") : "");
     const boton = sec.querySelector(".sec-toggle"), cuerpo = sec.querySelector(".sec-cuerpo");
     boton.setAttribute("aria-expanded", String(abierta)); cuerpo.inert = !abierta;
     boton.addEventListener("click", () => {
@@ -2502,7 +2523,7 @@ function pintarListas() {
     });
     const anadir = tras => elegirPlantilla("Añadir a «" + l.nombre + "»", p => insertarEnLista(l, p.id, tras));
     const nuevaSemana = async tras => {
-      const n = await pedirNombre("Nombre de la semana o bloque", "Semana " + (nSem + 1), "Por ejemplo «Semana 1», «Semana 4 · descarga», «Bloque de fuerza» o «Pretemporada».");
+      const n = await pedirNombre("Nombre del bloque", "Semana " + (nSem + 1), "Por ejemplo «Semana 1», «Semana 4 · descarga», «Bloque de fuerza» o «Pretemporada». Dentro pondrás sus entrenamientos.");
       if (n) insertarEnLista(l, { sep: nuevoId(), titulo: n }, tras);
     };
     const [bEnt, bSem] = sec.querySelectorAll(":scope > .sec-cuerpo .add-fila > .add-ej");
@@ -2512,7 +2533,7 @@ function pintarListas() {
     menu.setAttribute("aria-label", "Opciones de la lista " + l.nombre);
     menu.addEventListener("click", () => abrirMenu(l.nombre, rec.length + (rec.length === 1 ? " entrenamiento" : " entrenamientos"), [
       { texto: "+ Añadir entrenamiento…", accion: () => anadir() },
-      { texto: "+ Añadir semana o bloque…", accion: () => nuevaSemana() },
+      { texto: "+ Añadir bloque (semana, fase…)…", accion: () => nuevaSemana() },
       rec.length && { texto: "Poner el siguiente («" + rec[sig].p.nombre + "») en un día…", accion: () => ponerEntrenoDeLista(l, rec[sig].p, rec[sig].k) },
       { texto: "Cambiar nombre…", accion: async () => { const n = await pedirNombre("Nombre de la lista", l.nombre); if (n) guardarLista(db.listas[l.id], { nombre: n }); } },
       { texto: "Eliminar lista", peligro: true, confirmar: "Los entrenamientos siguen en tus plantillas", accion: () => {
@@ -2524,19 +2545,35 @@ function pintarListas() {
     const caja = sec.querySelector(".lista-ents");
     if (!(l.items || []).length) caja.innerHTML = '<p class="vacio-lista">Lista vacía. Añade entrenamientos con «+ Entrenamiento» (o guarda un día desde su ⋯) y, si quieres, sepáralos en semanas o bloques con «+ Semana o bloque».</p>';
     // Todo (entrenamientos y separadores) se ordena junto con el asa ≡: lo que quede debajo de una semana pasa a ella
-    const hermanos = () => [...caja.querySelectorAll(":scope > .lista-ent, :scope > .lista-sep")];
+    // Entrenamientos: se ordenan junto a las cabeceras de bloque (así se pueden meter en otro bloque); solo los visibles
+    const hermanos = () => [...caja.querySelectorAll(".lista-ent, .lista-sep")].filter(x => x.offsetParent);
     const soltar = n => {
       const fresca = db.listas[l.id], items = fresca.items || [], actual = recorrerLista(fresca)[sig];
-      const nuevo = n.map(x => items[+x.dataset.i]);
-      const conservar = items.filter((x, i) => !n.some(y => +y.dataset.i === i));   // lo que no se pinta (entrenos borrados) se queda al final
-      const todo = nuevo.concat(conservar);
+      // Lo que no se ve (bloques plegados o entrenos borrados) sigue pegado a su bloque; el resto, al final
+      const enN = new Set(n.map(y => +y.dataset.i)), usados = new Set(enN), nuevo = [];
+      n.forEach(y => {
+        const i0 = +y.dataset.i;
+        nuevo.push(items[i0]);
+        if (esSep(items[i0])) for (let j = i0 + 1; j < items.length && !esSep(items[j]); j++) if (!enN.has(j)) { nuevo.push(items[j]); usados.add(j); }
+      });
+      const todo = nuevo.concat(items.filter((x, i) => !usados.has(i)));
       // El «siguiente» sigue siendo el mismo entrenamiento tras moverlo
       const pos = actual ? n.findIndex(y => +y.dataset.i === actual.i) : -1;
       const nuevoSig = pos < 0 ? 0 : nuevo.slice(0, pos).filter(y => typeof y === "string" && db.plantillas[y] && !db.plantillas[y].borrado).length;
       guardarLista(fresca, { items: todo, siguiente: Math.max(0, nuevoSig) });
     };
     const finSeccion = i => { const its = l.items || []; let j = i; while (j + 1 < its.length && !esSep(its[j + 1])) j++; return j; };
-    let k = 0;
+    // Bloques enteros: se mueven con su asa ≡ (todo lo que llevan dentro va con ellos)
+    const soltarBloques = n => {
+      const fresca = db.listas[l.id], its = fresca.items || [], primero = its.findIndex(esSep);
+      const antes = primero < 0 ? its.slice() : its.slice(0, primero);
+      const segs = n.map(b => { const i0 = +b.dataset.i; return its.slice(i0, finSeccion(i0) + 1); });
+      const todo = antes.concat(...segs);
+      const actual = recorrerLista(fresca)[sig], idAct = actual ? actual.p.id : null;
+      guardarLista(fresca, { items: todo, siguiente: 0 });
+      if (idAct) { const nuevoK = recorrerLista(db.listas[l.id]).find(x => x.p.id === idAct); if (nuevoK) guardarLista(db.listas[l.id], { siguiente: nuevoK.k }); }
+    };
+    let k = 0, destino = caja;
     (l.items || []).forEach((x, i) => {
       if (esSep(x)) {
         const fs = document.createElement("div");
@@ -2561,14 +2598,39 @@ function pintarListas() {
             const its = (db.listas[l.id].items || []).map(y => esSep(y) && y.sep === x.sep ? { ...y, titulo: n } : y);
             guardarLista(db.listas[l.id], { items: its });
           } },
-          { texto: "Quitar la separación (los entrenamientos se quedan)", accion: () => {
+          { texto: "Quitar el bloque (sus entrenamientos se quedan en la lista)", accion: () => {
             const fresca = db.listas[l.id], antes = [["listas", { ...fresca }]];
             guardarLista(fresca, { items: (fresca.items || []).filter(y => !(esSep(y) && y.sep === x.sep)) });
             avisoDeshacer("«" + x.titulo + "» quitada", antes);
           } }
         ]));
-        fs.appendChild(asaArrastre(fs, hermanos, soltar, x.titulo));
-        caja.appendChild(fs);
+        // Caja del bloque: cabecera (toca para plegar) y sus entrenamientos dentro
+        const caj = document.createElement("div");
+        caj.className = "lista-bloque";
+        caj.dataset.i = i;
+        const claveB = "b|" + x.sep, plegado = listasAbiertas[claveB] === false;
+        caj.classList.toggle("lb-plegado", plegado);
+        const tit = fs.querySelector(".ls-tit");
+        const tg = document.createElement("button");
+        tg.type = "button"; tg.className = "ls-toggle";
+        tg.innerHTML = '<span class="flecha-dia" aria-hidden="true">▸</span>';
+        tg.setAttribute("aria-expanded", String(!plegado));
+        tit.before(tg); tg.appendChild(tit); tg.appendChild(fs.querySelector(".ls-n"));
+        tg.addEventListener("click", () => {
+          const pl = !caj.classList.contains("lb-plegado");
+          caj.classList.toggle("lb-plegado", pl); tg.setAttribute("aria-expanded", String(!pl));
+          listasAbiertas[claveB] = !pl; escribir("listas-abiertas-v1", listasAbiertas);
+        });
+        fs.appendChild(asaArrastre(caj, () => [...caja.querySelectorAll(":scope > .lista-bloque")], soltarBloques, x.titulo));
+        const cuerpoB = document.createElement("div");
+        cuerpoB.className = "lb-cuerpo";
+        const add = document.createElement("div");
+        add.className = "add-fila lb-add";
+        add.innerHTML = '<button type="button" class="add-ej">+ Entrenamiento en este bloque</button>';
+        add.firstChild.addEventListener("click", () => anadir(finSeccion(i)));
+        caj.append(fs, cuerpoB, add);
+        caja.appendChild(caj);
+        destino = cuerpoB;
         return;
       }
       const p = db.plantillas[x];
@@ -2604,7 +2666,7 @@ function pintarListas() {
         } }
       ]));
       if ((l.items || []).length > 1) fila.querySelector(".le-cab").appendChild(asaArrastre(fila, hermanos, soltar, p.nombre));
-      caja.appendChild(fila);
+      destino.appendChild(fila);
     });
     cont.appendChild(sec);
   });
@@ -5616,7 +5678,7 @@ $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); 
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
 // VERSION_APP es interna (sube en cada publicación para que los móviles se actualicen); la que se ve es siempre la 26
-const VERSION_APP = "v83" + (BETA ? " beta" : "");
+const VERSION_APP = "v85" + (BETA ? " beta" : "");
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";
