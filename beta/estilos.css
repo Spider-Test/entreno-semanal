@@ -1049,17 +1049,42 @@ h1 { color: var(--titulo); }
 
 .lado-op { display: inline-flex; align-items: center; gap: 6px; font-size: .9rem; color: var(--muted); }
 
-/* Pantallas grandes: todo algo más grande y más ancho, para no tener que hacer zoom (la semana sigue en 7 columnas).
+/* Varios entrenos en un día: cada uno se pliega tocando su nombre */
+.g-toggle { display: flex; align-items: baseline; gap: 6px; border: 0; background: none; padding: 4px 0; text-align: left; cursor: pointer; font: inherit; color: inherit; }
+.g-toggle .flecha-dia { transform: rotate(90deg); }
+.g-toggle .gn-txt { flex: 0 0 auto; max-width: 75%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.g-toggle .g-res { flex: 1 1 auto; }
+.grupo.g-plegado .g-toggle .flecha-dia { transform: none; }
+.solo-dia .g-toggle .flecha-dia { display: inline-block; }
+.g-toggle .g-res { display: none; font-family: var(--body); font-size: 12px; font-weight: 500; text-transform: none; letter-spacing: 0; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.grupo.g-plegado .g-res { display: inline; }
+.grupo.g-plegado > :not(.grupo-cab) { display: none !important; }
+.grupo.g-plegado { padding-bottom: 4px !important; }
+@media (max-width: 760px) { .g-toggle { min-height: 40px; align-items: center; } }
+
+/* Vídeo desplegado dentro del día */
+.ver-video { cursor: pointer; padding: 6px 4px; margin: -6px 0; text-decoration: underline; text-underline-offset: 2px; }
+.video-dia { display: flex; flex-direction: column; gap: 4px; margin: 4px 0 6px; }
+.video-dia .video { max-width: 480px; }
+
+/* Ordenador: tamaño automático según la pantalla (suave) o el elegido en Plan → Ajustes.
    Las ventanas se dividen por el zoom para que sigan cabiendo en la pantalla */
-@media (min-width: 1400px) {
-  :root { --zoom: 1.12; }
+:root { --zoom: 1; }
+@media (min-width: 1500px) { :root { --zoom: 1.06; } }
+@media (min-width: 1800px) { :root { --zoom: 1.12; } }
+@media (min-width: 2200px) { :root { --zoom: 1.25; } }
+@media (min-width: 2700px) { :root { --zoom: 1.45; } }
+html[data-tam="90"] { --zoom: 0.9; }
+html[data-tam="100"] { --zoom: 1; }
+html[data-tam="110"] { --zoom: 1.1; }
+html[data-tam="125"] { --zoom: 1.25; }
+@media (min-width: 761px) {
   body { zoom: var(--zoom); }
-  #app { max-width: 1560px; }
-  #vistaEjercicios, #vistaPlan, #vistaMarcas { max-width: 980px; }
-  .solo-dia .semana, .solo-dia .dia-nav { max-width: 900px; }
-  dialog { max-height: calc(88vh / var(--zoom)); width: min(620px, calc((100vw - 24px) / var(--zoom))); }
+  dialog { max-height: calc(88vh / var(--zoom)); width: min(600px, calc((100vw - 24px) / var(--zoom))); }
   dialog.pantalla { width: calc(100vw / var(--zoom)); max-width: calc(100vw / var(--zoom)); height: calc(100dvh / var(--zoom)); max-height: calc(100dvh / var(--zoom)); }
 }
-@media (min-width: 1700px) { :root { --zoom: 1.25; } }
-@media (min-width: 2100px) { :root { --zoom: 1.45; } }
-@media (min-width: 2600px) { :root { --zoom: 1.7; } }
+@media (min-width: 1400px) {
+  #app { max-width: 1560px; }
+  #vistaEjercicios, #vistaPlan, #vistaMarcas { max-width: 940px; }
+  .solo-dia .semana, .solo-dia .dia-nav { max-width: 860px; }
+}

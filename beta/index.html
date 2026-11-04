@@ -135,6 +135,7 @@
         <label class="campo">Peso de la barra (kg) <input id="ajBarra" inputmode="decimal" placeholder="20"></label>
         <label class="campo">Botones − y + de peso (kg) <input id="ajPaso" inputmode="decimal" placeholder="2,5"></label>
       </div>
+      <label class="campo">Tamaño en el ordenador <select id="ajTam"><option value="">Automático (según la pantalla)</option><option value="90">Más pequeño</option><option value="100">Normal</option><option value="110">Grande</option><option value="125">Muy grande</option></select></label>
       <label class="campo">Distancias en <select id="ajUnidad"><option value="auto">Automático (metros y km desde 3 km)</option><option value="m">Metros</option><option value="km">Kilómetros</option></select></label>
       <label class="campo">Al importar, una vuelta más lenta que este ritmo (min/km) es recuperación <input id="ajRitmoRec" inputmode="decimal" placeholder="8:00"></label>
       <label class="campo">Cómo se calcula tu FC máxima
@@ -448,12 +449,15 @@
   </form>
   <div class="d-cuerpo ayuda">
     <p>Toca cada apartado para verlo. Puedes volver aquí cuando quieras con el botón <b>?</b> de arriba. ¿Echas algo en falta o algo no va bien? Envíanos una sugerencia:</p>
-    <details class="novedades" open><summary>Novedades · versión 60</summary>
-      <p><b>Ordenador con pantalla grande:</b> la app se ve más grande y aprovecha más el ancho, sin tener que hacer zoom. Cuanto más grande la pantalla, más se amplía; la semana sigue en 7 columnas y las ventanas caben enteras.</p>
+    <details class="novedades" open><summary>Novedades · versión 61</summary>
+      <p><b>Plegar cada entreno del día:</b> si un día tiene varios entrenos, toca el nombre de uno (▸/▾) para plegarlo o desplegarlo. Plegado muestra sus ejercicios en una línea y su progreso; la app lo recuerda en cada dispositivo.</p>
+      <p><b>Tamaño en el ordenador:</b> la ampliación automática es ahora más suave, y en <b>Plan → Ajustes → Tamaño en el ordenador</b> puedes elegir Más pequeño, Normal, Grande o Muy grande. En el móvil no cambia nada.</p>
+      <p><b>▶ vídeo</b> junto al nombre de un ejercicio despliega su vídeo ahí mismo, en el día (vuelve a tocarlo, «✕ vídeo», para cerrarlo). Antes abría la edición del ejercicio.</p>
+      <p>La beta tiene ahora un <b>icono naranja con «BETA»</b> para no confundirla con la oficial.</p>
     </details>
     <button type="button" class="nav-btn sug-btn" id="sugAyuda">💬 Enviar una sugerencia o avisar de un fallo</button>
     <details><summary>La semana y el texto del día</summary>
-      <p>En el móvil, las secciones están abajo: <b>Semana</b>, <b>Ejercicios</b>, <b>Marcas</b> y <b>Plan</b>. En el ordenador van arriba, centradas, y la semana se ve en 7 columnas. En pantallas grandes todo se amplía solo para aprovechar el ancho.</p>
+      <p>En el móvil, las secciones están abajo: <b>Semana</b>, <b>Ejercicios</b>, <b>Marcas</b> y <b>Plan</b>. En el ordenador van arriba, centradas, y la semana se ve en 7 columnas. En pantallas grandes todo se amplía un poco para aprovechar el ancho; en <b>Plan → Ajustes → Tamaño en el ordenador</b> eliges otro tamaño si lo prefieres.</p>
       <p>Cada día es un <b>desplegable</b>: toca su título (▸/▾) para abrirlo o plegarlo. Plegado muestra el título del entreno (la primera línea de su texto o el nombre de sus sesiones). Por defecto solo hoy está abierto, y la app recuerda los que abras o cierres.</p>
       <p>El botón <b>⤢</b> abre ese día solo, a pantalla completa. Pasa al día anterior o siguiente con ‹ › o deslizando a los lados, y vuelve con <b>‹ Semana</b>.</p>
       <p>Cada día tiene un espacio para escribir lo que quieras. Se guarda solo. Mientras escribes aparece el botón <b>N</b> de negrita.</p>
@@ -464,7 +468,7 @@
       <p><b>Si la has olvidado:</b> en la pantalla de entrada escribe tu email y pulsa <b>¿Has olvidado tu contraseña?</b>. Te llegará un correo (mira también en spam) con un enlace: ábrelo en el móvil o el ordenador donde quieras entrar, y la app te pedirá la contraseña nueva. El enlace caduca al cabo de un rato y solo sirve una vez.</p>
     </details>
     <details><summary>Varios entrenos el mismo día</summary>
-      <p>Si doblas (por ejemplo, gimnasio por la mañana y carrera por la tarde), pulsa <b>+ Entreno</b> debajo del día y ponle nombre («Tarde», «Carrera»…). Se crea vacío, aunque no hayas hecho aún el primero.</p>
+      <p>Si doblas (por ejemplo, gimnasio por la mañana y carrera por la tarde), pulsa <b>+ Entreno</b> debajo del día y ponle nombre («Tarde», «Carrera»…). Se crea vacío, aunque no hayas hecho aún el primero. Con varios entrenos, toca el nombre de cada uno (▸/▾) para plegarlo o desplegarlo.</p>
       <p>Cada entreno va en su propia caja con su nombre, su progreso y sus botones <b>+ Ejercicio</b> y <b>+ Bloque</b>, que añaden a ese entreno. El primero se llama «Entreno 1» hasta que le pongas nombre en su ⋯ («Cambiar nombre del entreno»). En el ⋯ también puedes subirlo o bajarlo, copiarlo, guardarlo como plantilla o quitarlo. Un ejercicio ya apuntado se pasa de uno a otro con su ⋯ → «Mover a otra sesión».</p>
     </details>
     <details><summary>Partes de un entreno</summary>

@@ -55,6 +55,7 @@ Object.keys(TABLAS).forEach(t => { db[t] = db[t] || {}; });
 let cursores = leer("cursores-v3") || {};       // última marca de servidor leída por tabla (v3: relee todo al añadir campos)
 let enEspera = leer("bloques-v1") || {};
 // Entrenos del día aún sin series (fecha -> nombres) y en qué entreno va cada ejercicio añadido sin series (fecha|id -> nombre)
+let gruposPlegados = leer("grupos-plegados-v1") || {};   // entrenos plegados dentro de un día (solo en este dispositivo)
 let sesionesVacias = leer("sesiones-v1") || {}, esperaGrupo = leer("espera-grupo-v1") || {};
 // Partes de cada entreno aún sin series (fecha|entreno -> nombres) y la parte de cada ejercicio añadido sin series (fecha|id -> parte)
 let partesVacias = leer("partes-v1") || {}, esperaParte = leer("espera-parte-v1") || {};
@@ -1105,9 +1106,25 @@ function pintarDia(dia) {
     if (g.nombre || varios) {
       const cab = document.createElement("div");
       cab.className = "grupo-cab";
-      cab.innerHTML = '<span class="g-nombre"></span><span class="g-prog"></span><button type="button" class="menu-btn">⋯</button>';
-      cab.querySelector(".g-nombre").textContent = g.nombre || "Entreno 1";
+      cab.innerHTML = varios
+        ? '<button type="button" class="g-nombre g-toggle"><span class="flecha-dia" aria-hidden="true">▸</span><span class="gn-txt"></span><span class="g-res"></span></button><span class="g-prog"></span><button type="button" class="menu-btn">⋯</button>'
+        : '<span class="g-nombre"><span class="gn-txt"></span></span><span class="g-prog"></span><button type="button" class="menu-btn">⋯</button>';
+      cab.querySelector(".gn-txt").textContent = g.nombre || "Entreno 1";
       const deG = delDia.filter(s => (s.grupo || "") === g.nombre);
+      if (varios) {
+        // Varios entrenos en el día: cada uno se pliega o despliega tocando su nombre (se recuerda en este dispositivo)
+        const clavePl = dia.id + "|" + g.nombre, tg = cab.querySelector(".g-toggle");
+        const nombres = [...new Set(g.ids.map(id => id.startsWith("b:") ? "Bloque" : nombreEj(id)).filter(Boolean))];
+        cab.querySelector(".g-res").textContent = nombres.slice(0, 3).join(", ") + (nombres.length > 3 ? "…" : "");
+        const ponerPl = pl => { caja.classList.toggle("g-plegado", pl); tg.setAttribute("aria-expanded", String(!pl)); };
+        ponerPl(!!gruposPlegados[clavePl]);
+        tg.addEventListener("click", () => {
+          const pl = !caja.classList.contains("g-plegado");
+          if (pl) gruposPlegados[clavePl] = 1; else delete gruposPlegados[clavePl];
+          escribir("grupos-plegados-v1", gruposPlegados);
+          ponerPl(pl);
+        });
+      }
       cab.querySelector(".g-prog").textContent = deG.filter(hecha).length + "/" + deG.length;
       cab.querySelector(".menu-btn").setAttribute("aria-label", "Opciones del entreno " + (g.nombre || "1"));
       cab.querySelector(".menu-btn").addEventListener("click", () => menuGrupo(dia, g.nombre));
@@ -1254,7 +1271,24 @@ function bloque(dia, id, series, grupo, parte) {
   const nom = b.querySelector(".ej-nombre");
   nom.textContent = ej.nombre || "Sin nombre";
   nom.appendChild(etiquetaTipo(tipo));
-  if (ej.video_url) { const v = document.createElement("span"); v.className = "ico"; v.textContent = "▶ vídeo"; nom.appendChild(v); }
+  if (ej.video_url) {
+    // «▶ vídeo» despliega el vídeo debajo del nombre, sin salir del día
+    const v = document.createElement("span");
+    v.className = "ico ver-video"; v.textContent = "▶ vídeo";
+    v.setAttribute("role", "button");
+    v.setAttribute("aria-label", "Ver el vídeo de " + (ej.nombre || "este ejercicio"));
+    v.addEventListener("click", ev => {
+      ev.stopPropagation();
+      const abierto = b.querySelector(":scope > .video-dia");
+      if (abierto) { abierto.remove(); v.textContent = "▶ vídeo"; return; }
+      const caja = document.createElement("div");
+      caja.className = "video-dia";
+      ponerVideo(caja, ej);
+      b.querySelector(".bloque-cab").after(caja);
+      v.textContent = "✕ vídeo";
+    });
+    nom.appendChild(v);
+  }
   const dolor = molestiasDe(id);
   if (dolor.length) { const m = document.createElement("span"); m.className = "molestia-tag"; m.textContent = "⚠ " + dolor.map(x => x.zona).join(", "); m.title = dolor.map(x => x.zona + (x.descripcion ? ": " + x.descripcion : "")).join(" · "); nom.appendChild(m); }
   nom.setAttribute("aria-label", series.length ? "Editar " + (ej.nombre || "ejercicio") + ": valores, número de series o ejercicio" : "Ver " + (ej.nombre || "ejercicio") + ": vídeo, récords e historial");
@@ -2065,6 +2099,11 @@ function idYoutube(u) {
 function pintarVideo(e) {
   const cont = $("detEmbed");
   cont.textContent = "";
+  ponerVideo(cont, e);
+  $("detBuscar").href = "https://www.youtube.com/results?search_query=" + encodeURIComponent((e.nombre || "") + " técnica");
+}
+// El vídeo del ejercicio: YouTube se ve dentro de la app; otros enlaces (Instagram…) se abren aparte
+function ponerVideo(cont, e) {
   const yt = idYoutube(e.video_url);
   if (yt) {
     const w = document.createElement("div"); w.className = "video";
@@ -2085,7 +2124,6 @@ function pintarVideo(e) {
     a.textContent = "▶ Abrir vídeo";
     cont.appendChild(a);
   }
-  $("detBuscar").href = "https://www.youtube.com/results?search_query=" + encodeURIComponent((e.nombre || "") + " técnica");
 }
 function recuadro(etiqueta, valor, sub, oro) {
   const d = document.createElement("div");
@@ -2111,9 +2149,9 @@ function grafica(puntos, etiqueta) {
   svg += '<line class="g-rejilla" x1="' + pl + '" x2="' + (W - pr) + '" y1="' + (H - pb) + '" y2="' + (H - pb) + '"/>';
   svg += '<path class="g-area" d="' + area + '"/><polyline class="g-linea" points="' + linea + '"/>';
   puntos.forEach((p, i) => { svg += '<circle class="' + (i === puntos.length - 1 ? "g-fin" : "g-punto") + '" cx="' + x(i).toFixed(1) + '" cy="' + y(p.v).toFixed(1) + '" r="' + (i === puntos.length - 1 ? 4.5 : 3) + '"/>'; });
-  svg += '<text class="g-txt" x="' + pl + '" y="' + (y(max) - 5) + '">' + etiqueta(Math.max.apply(null, vals)) + "</text>";
-  svg += '<text class="g-txt" x="' + pl + '" y="' + (H - 6) + '">' + fechaCorta(puntos[0].f) + "</text>";
-  svg += '<text class="g-txt" x="' + (W - pr) + '" y="' + (H - 6) + '" text-anchor="end">' + fechaCorta(puntos[puntos.length - 1].f) + "</text>";
+  svg += '<text class="gn-txt" x="' + pl + '" y="' + (y(max) - 5) + '">' + etiqueta(Math.max.apply(null, vals)) + "</text>";
+  svg += '<text class="gn-txt" x="' + pl + '" y="' + (H - 6) + '">' + fechaCorta(puntos[0].f) + "</text>";
+  svg += '<text class="gn-txt" x="' + (W - pr) + '" y="' + (H - 6) + '" text-anchor="end">' + fechaCorta(puntos[puntos.length - 1].f) + "</text>";
   return svg + "</svg>";
 }
 function refrescarDetalle() {
@@ -4193,6 +4231,16 @@ function pintarAjustes() {
   setEstado("Ajuste guardado en este dispositivo");
 }));
 pintarAjustes();
+// Tamaño en el ordenador (en el móvil no cambia nada): automático según la pantalla o elegido
+const ponerTam = () => { const t = ajustes().tam || ""; if (t) document.documentElement.dataset.tam = t; else delete document.documentElement.dataset.tam; $("ajTam").value = t; };
+$("ajTam").addEventListener("change", () => {
+  const a = leer("ajustes-v1") || {};
+  if ($("ajTam").value) a.tam = $("ajTam").value; else delete a.tam;
+  escribir("ajustes-v1", a);
+  ponerTam();
+  setEstado("Tamaño guardado en este dispositivo");
+});
+ponerTam();
 // Discos por lado con los discos habituales (sin límite de pares)
 const DISCOS = [25, 20, 15, 10, 5, 2.5, 1.25];
 function textoDiscos(kg) {
@@ -4958,7 +5006,7 @@ $("enSalir").addEventListener("click", salirEntreno);
 $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); abrirRpe(d); });
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
-const VERSION_APP = "v60" + (BETA ? " beta" : "");
+const VERSION_APP = "v61" + (BETA ? " beta" : "");
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";
