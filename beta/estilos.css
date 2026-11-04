@@ -271,8 +271,8 @@ dialog::backdrop { background: rgba(0,0,0,0.45); }
 .bloque-rep .bloque-cab { gap: 8px; }
 .br-tit { flex: 1; min-width: 0; font-weight: 700; font-size: 15px; overflow-wrap: anywhere; }
 .bloque-rep .g-prog { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
-.rondas { display: flex; flex-direction: column; }
-.ronda { display: grid; grid-template-columns: 2.2em 1fr; gap: 4px; align-items: start; padding: 3px 0; border-top: 1px solid var(--line); }
+.rondas { display: flex; flex-direction: column; gap: 2px; margin-top: 4px; }
+.ronda { display: grid; grid-template-columns: 2.2em 1fr; gap: 4px; align-items: start; padding: 6px 0; border-top: 1px solid var(--line); }
 .ronda:first-child { border-top: 0; }
 .r-lab { font-family: var(--display); font-weight: 700; color: var(--accent); padding-top: 4px; font-variant-numeric: tabular-nums; }
 .ronda .n { color: var(--accent); }
@@ -1065,8 +1065,6 @@ h1 { color: var(--titulo); }
 /* Vídeo desplegado dentro del día */
 .ver-video { cursor: pointer; padding: 6px 4px; margin: -6px 0; text-decoration: underline; text-underline-offset: 2px; }
 
-.br-videos { display: flex; flex-wrap: wrap; gap: 2px 12px; margin: 2px 0 4px; }
-.br-videos .ver-video { border: 0; background: none; font: inherit; font-size: 12px; font-weight: 600; color: var(--accent); }
 
 /* Miniatura del vídeo (ficha) y visor centrado */
 .video-mini { position: relative; display: block; width: 100%; max-width: 420px; aspect-ratio: 16 / 9; padding: 0; border: 0; border-radius: 10px; overflow: hidden; background: #000; cursor: pointer; }
@@ -1097,6 +1095,13 @@ h1 { color: var(--titulo); }
 .parte-caja.p-plegada .p-toggle .flecha-dia { transform: none; }
 .solo-dia .p-toggle .flecha-dia { display: inline-block; }
 @media (max-width: 760px) { .p-toggle { min-height: 36px; } }
+
+/* Orden dentro de cada parte (A1, A2…), vídeo junto a cada ejercicio del bloque y más aire */
+.etq-orden { display: inline-block; margin-right: 8px; padding: 1px 7px; border-radius: 6px; background: var(--pc, var(--accent)); color: var(--card); font-family: var(--display); font-size: 13px; font-weight: 700; letter-spacing: 0.04em; vertical-align: 2px; }
+.bloque-rep .series li { align-items: center; padding: 3px 0; }
+.bloque-rep .series { gap: 4px; }
+.br-video { flex: none; width: 34px; height: 30px; margin-left: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--accent); font-size: 13px; cursor: pointer; }
+.br-video:hover { background: var(--accent-soft); }
 
 /* Arrastrar un ejercicio o bloque encima de la cabecera de una parte: entra en ella (como una carpeta) */
 .parte-cab { transition: transform 0.15s, box-shadow 0.15s; }

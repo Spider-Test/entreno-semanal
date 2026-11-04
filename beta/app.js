@@ -1169,8 +1169,16 @@ function pintarDia(dia) {
           ponerP(pl);
         });
       }
-      p.ids.forEach(id => {
+      const letra = p.nombre ? String.fromCharCode(65 + (conNombre.indexOf(p) % 26)) : "";
+      p.ids.forEach((id, k) => {
         const el = id.startsWith("b:") ? tarjetaBloque(dia, id.slice(2), seriesItem(id)) : bloque(dia, id, seriesItem(id), g.nombre, p.nombre);
+        if (letra) {
+          // A1, A2… en la 1.ª parte; B1, B2… en la 2.ª (como en las hojas de entrenamiento)
+          const et = document.createElement("span");
+          et.className = "etq-orden"; et.textContent = letra + (k + 1);
+          const tit = el.querySelector(":scope > .bloque-cab .br-tit, :scope > .bloque-cab .ej-nombre");
+          if (tit) tit.prepend(et);
+        }
         if (p.nombre) el.className += " en-parte" + color;
         el.dataset.parte = p.nombre;
         dest.appendChild(el);
@@ -1759,24 +1767,10 @@ function tarjetaBloque(dia, bloqueId, series) {
       '<div class="ns-fila"><input class="in-a" autocomplete="off" enterkeyhint="next"><span class="por"></span><input class="in-b" autocomplete="off" enterkeyhint="next"></div>' +
       '<div class="ns-fila"><input class="in-c" inputmode="decimal" placeholder="⏱ recuperación 2,00 o 300 m" aria-label="Recuperación (tiempo o metros)" autocomplete="off" enterkeyhint="done">' +
       '<button class="anadir">✓ Guardar</button></div><button type="button" class="enlace desmarcar" hidden>↺ Marcar como pendiente</button></form>';
-  c.querySelector(".br-tit").textContent = "Bloque ×" + rondas.length + " · " + primera.map(s => nombreEj(s.ejercicio_id)).join(" + ");
+  // El título solo dice «Bloque ×N»; los ejercicios salen en cada ronda (los de nombre con distancia, como «Series 1000 m», van en el título)
+  const enTitulo = [...new Set(primera.map(s => nombreEj(s.ejercicio_id)).filter(n => distDeNombre(n)))];
+  c.querySelector(".br-tit").textContent = "Bloque ×" + rondas.length + (enTitulo.length ? " · " + enTitulo.join(" + ") : "");
   c.querySelector(".g-prog").textContent = series.filter(hecha).length + "/" + series.length;
-  // Vídeos de los ejercicios del bloque: «▶ Nombre» despliega su vídeo debajo de la cabecera
-  const conVideo = [...new Set(primera.map(s => s.ejercicio_id))].map(id => db.ejercicios[id]).filter(e => e && e.video_url);
-  if (conVideo.length) {
-    const fila = document.createElement("div");
-    fila.className = "br-videos";
-    conVideo.forEach(e => {
-      const v = document.createElement("button");
-      v.type = "button"; v.className = "ico ver-video";
-      const etiqueta = conVideo.length > 1 || variosTramos ? "▶ " + (e.nombre || "vídeo") : "▶ vídeo";
-      v.textContent = etiqueta;
-      v.setAttribute("aria-label", "Ver el vídeo de " + (e.nombre || "este ejercicio"));
-      v.addEventListener("click", ev => { ev.stopPropagation(); verVideo(e); });
-      fila.appendChild(v);
-    });
-    c.querySelector(".bloque-cab").after(fila);
-  }
   const menu = c.querySelector(".menu-btn");
   menu.setAttribute("aria-label", "Opciones del bloque");
   menu.addEventListener("click", () => {
@@ -1853,12 +1847,20 @@ function tarjetaBloque(dia, bloqueId, series) {
       } else li.querySelector(".n").replaceWith(botonHecha(s, "✓", "ronda " + r + ", " + nombreEj(s.ejercicio_id)));
       deslizable(li, !hecha(s) ? () => marcarHecha(s, { ...s, hecha: true, peso: pesoMostrado(s) }) : () => desmarcar(s), null);
       // El nombre del tramo solo si aporta algo: «Series 1000 m · 1000 m» se queda en «1000 m»
-      const nomTramo = variosTramos && !distDeNombre(nombreEj(s.ejercicio_id)) ? nombreEj(s.ejercicio_id) + " · " : "";
+      const nomTramo = !distDeNombre(nombreEj(s.ejercicio_id)) ? nombreEj(s.ejercicio_id) + " · " : "";
       li.querySelector(".sv-p").textContent = nomTramo + serieTexto(s);
       if (descTexto(s)) { const d = document.createElement("span"); d.className = "desc"; d.textContent = descTexto(s); li.querySelector(".sv").appendChild(d); }
       if (!hecha(s) && tipoDe(s.ejercicio_id) === "carrera") { const o = objetivoSerie(s); if (o) { const ob = document.createElement("span"); ob.className = "objetivo"; ob.textContent = textoObjetivo(o); li.querySelector(".sv").appendChild(ob); } }
       li.querySelector(".sv").setAttribute("aria-label", "Apuntar ronda " + r + ", " + nombreEj(s.ejercicio_id) + ": " + serieTexto(s));
       li.querySelector(".sv").addEventListener("click", () => { if (!li.dataset.deslizado) editar(s, li); });
+      const ejV = db.ejercicios[s.ejercicio_id];
+      if (r === rondas[0] && ejV && ejV.video_url) {
+        const v = document.createElement("button");
+        v.type = "button"; v.className = "br-video"; v.textContent = "▶";
+        v.title = "Ver el vídeo"; v.setAttribute("aria-label", "Ver el vídeo de " + (ejV.nombre || "este ejercicio"));
+        v.addEventListener("click", ev => { ev.stopPropagation(); verVideo(ejV); });
+        li.appendChild(v);
+      }
       if (prs[s.ejercicio_id] && prs[s.ejercicio_id].has(s.id)) { const p = document.createElement("span"); p.className = "pr"; p.textContent = "PR"; li.appendChild(p); }
       ol.appendChild(li);
     });
@@ -5133,7 +5135,7 @@ $("enSalir").addEventListener("click", salirEntreno);
 $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); abrirRpe(d); });
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
-const VERSION_APP = "v63" + (BETA ? " beta" : "");
+const VERSION_APP = "v64" + (BETA ? " beta" : "");
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";
