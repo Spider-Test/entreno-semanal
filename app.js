@@ -1023,6 +1023,7 @@ function menuDia(dia) {
   const series = seriesDelDia(dia.id), html = db.entrenos[dia.id]?.html || "";
   const titulo = NOMBRES[dia.i] + " " + fmt(deIso(dia.id));
   abrirMenu(titulo, "", [
+    (series.length || (enEspera[dia.id] || []).length) && { texto: "📅 Mover el entrenamiento a otro día…", accion: () => elegirDiaDestino(lunesDe(deIso(dia.id)), "¿A qué día muevo el entrenamiento del " + titulo.toLowerCase() + "?", f => moverADia(dia, null, f)) },
     (series.length || aTexto(html).trim()) && { texto: "Copiar día", accion: () => copiar(titulo, html, series, "dia") },
     hayItemsCopiados() && { texto: "📋 Pegar «" + porta.nombre + "» en este día", accion: () => pegar(dia) },
     { texto: "Añadir plantilla…", accion: () => elegirPlantilla("Añadir plantilla al " + titulo, p => aplicarPlantilla(dia, p)) },
@@ -1142,10 +1143,37 @@ async function nuevoEntreno(dia) {
   const caja = dia.bloquesEl.querySelector('.grupo[data-grupo="' + CSS.escape(n) + '"]');
   if (caja) caja.scrollIntoView({ block: "center", behavior: "smooth" });
 }
+// Pasar un entreno (o todo el día si grupo es null) a otro día: sus series, los ejercicios aún sin series y sus partes vacías
+function moverADia(dia, grupo, f) {
+  if (f === dia.id) return;
+  const ss = seriesDelDia(dia.id).filter(x => grupo === null || (x.grupo || "") === grupo);
+  const antes = ss.map(x => ["series", { ...x }]);
+  ss.forEach(x => cambiar("series", { ...x, fecha: f }, true));
+  const vale = g => grupo === null || g === grupo;
+  // Lo que vive fuera de las series: ejercicios sin series, entrenos y partes vacías, descripciones, letras y posiciones
+  (enEspera[dia.id] || []).filter(id => vale(esperaGrupo[dia.id + "|" + id] || "")).forEach(id => {
+    (enEspera[f] = enEspera[f] || []).includes(id) || enEspera[f].push(id);
+    ["esperaGrupo", "esperaParte", "esperaNota", "esperaLetra", "esperaAntes"].forEach(n => {
+      const o = { esperaGrupo, esperaParte, esperaNota, esperaLetra, esperaAntes }[n], k = dia.id + "|" + id;
+      if (o[k] !== undefined) { o[f + "|" + id] = o[k]; delete o[k]; }
+    });
+    quitarEspera(dia.id, id);
+  });
+  (sesionesVacias[dia.id] || []).filter(vale).forEach(n => { (sesionesVacias[f] = sesionesVacias[f] || []).includes(n) || sesionesVacias[f].push(n); });
+  if (sesionesVacias[dia.id]) { sesionesVacias[dia.id] = sesionesVacias[dia.id].filter(n => !vale(n)); if (!sesionesVacias[dia.id].length) delete sesionesVacias[dia.id]; }
+  Object.keys(partesVacias).filter(k => k.startsWith(dia.id + "|") && vale(k.slice(dia.id.length + 1))).forEach(k => {
+    const nk = f + k.slice(dia.id.length); partesVacias[nk] = [...new Set((partesVacias[nk] || []).concat(partesVacias[k]))]; delete partesVacias[k];
+  });
+  guardarEspera(); guardarSesiones(); escribir("espera-nota-v1", esperaNota); escribir("espera-letra-v1", esperaLetra); escribir("espera-antes-v1", esperaAntes);
+  persistir();
+  irADia(f);
+  avisoDeshacer((grupo === null ? "Entrenamiento" : "«" + (grupo || "Entreno 1") + "»") + " movido al " + NOMBRES[(deIso(f).getDay() + 6) % 7].toLowerCase() + " " + fmt(deIso(f)), antes.length ? antes : null);
+}
 function menuGrupo(dia, grupo) {
   const series = seriesDelDia(dia.id).filter(s => (s.grupo || "") === grupo);
   const nGrupos = new Set(seriesDelDia(dia.id).map(s => s.grupo || "")).size;
   abrirMenu(grupo, resumenItems(itemsDe(series)), [
+    { texto: "📅 Mover a otro día…", accion: () => elegirDiaDestino(lunesDe(deIso(dia.id)), "¿A qué día muevo «" + (grupo || "Entreno 1") + "»?", f => moverADia(dia, grupo, f)) },
     nGrupos > 1 && { texto: "Subir sesión", accion: () => moverGrupo(dia.id, grupo, -1) },
     nGrupos > 1 && { texto: "Bajar sesión", accion: () => moverGrupo(dia.id, grupo, 1) },
     series.filter(s => !s.bloque_id).length > 1 && { texto: "Seleccionar series para agrupar en bloque", accion: () => empezarSelSeries(dia) },
@@ -5933,7 +5961,7 @@ $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); 
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
 // VERSION_APP es interna (sube en cada publicación para que los móviles se actualicen); la que se ve es siempre la 26
-const VERSION_APP = "v107" + (BETA ? " beta" : "");
+const VERSION_APP = "v108" + (BETA ? " beta" : "");
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";
