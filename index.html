@@ -57,7 +57,7 @@
       <button type="button" class="nav-btn flecha" id="antBtn" aria-label="Semana anterior">‹</button>
       <div class="semana-info"><span id="rango"></span><span id="relativa"></span></div>
       <button type="button" class="nav-btn flecha" id="sigBtn" aria-label="Semana siguiente">›</button>
-      <button type="button" class="nav-btn" id="hoyBtn" hidden>Hoy</button>
+      <button type="button" class="nav-btn btn-hoy" id="hoyBtn" hidden>Hoy</button>
       <button type="button" class="nav-btn cal-btn" id="calBtn" aria-label="Calendario: ir a otra fecha" title="Calendario">📅</button>
     </nav>
     <div class="sem-barra" id="semBarra" hidden><span></span></div>
@@ -66,6 +66,7 @@
       <span class="dia-nav-t" id="diaNavTit"></span>
       <button type="button" class="nav-btn flecha" id="diaAnt" aria-label="Día anterior">‹</button>
       <button type="button" class="nav-btn flecha" id="diaSig" aria-label="Día siguiente">›</button>
+      <button type="button" class="nav-btn btn-hoy" id="diaHoy" hidden>Hoy</button>
     </nav>
     <p class="meso-banda" id="mesoBanda" hidden></p>
     <details class="resumen-sem" id="resumenSem" hidden>
@@ -106,7 +107,8 @@
     <section class="plan-sec" data-sec="ia">
       <h3>Crear con IA</h3>
       <p class="vacio-lista">Elige tu objetivo, copia el prompt, pégalo en ChatGPT, Claude u otra IA y pega aquí su respuesta: la app crea las plantillas (o el mesociclo) y los ejercicios que falten.</p>
-      <div class="botonera"><button type="button" class="anadir" id="iaAbrir">Crear con IA</button><button type="button" class="nav-btn" id="iaPegarAbrir">Pegar entrenamiento de IA</button></div>
+      <div class="botonera"><button type="button" class="anadir" id="iaAbrir">Crear con IA</button><button type="button" class="nav-btn" id="iaPegarAbrir">Pegar entrenamiento de IA</button><label class="nav-btn doc-btn">Importar documento…<input type="file" id="iaDocArchivo" accept=".pdf,.docx,.txt,.md,.csv,.xlsx,.xls,.ods,image/*,application/pdf" hidden></label></div>
+      <p class="menu-det nota">«Importar documento»: un plan en PDF, Word, Excel, CSV o texto (o una foto). La app saca su texto y te prepara el prompt para convertirlo; si ya viene en el formato de la app, lo lee directamente.</p>
     </section>
     <section class="plan-sec" data-sec="rutinas">
       <h3>Rutinas tipo</h3>
@@ -180,6 +182,7 @@
     <button type="button" data-tipo="fuerza" class="t-fuerza" aria-pressed="false">Fuerza</button>
     <button type="button" data-tipo="carrera" class="t-carrera" aria-pressed="false">Carrera</button>
     <button type="button" data-tipo="natacion" class="t-natacion" aria-pressed="false">Natación</button>
+    <button type="button" data-tipo="movilidad" class="t-movilidad" aria-pressed="false">Movilidad</button>
   </div>
   <div id="listaEj"></div>
 </dialog>
@@ -198,6 +201,7 @@
         <button type="button" data-tipo="fuerza" aria-pressed="false">Fuerza</button>
         <button type="button" data-tipo="carrera" aria-pressed="false">Carrera</button>
         <button type="button" data-tipo="natacion" aria-pressed="false">Natación</button>
+        <button type="button" data-tipo="movilidad" aria-pressed="false">Movilidad</button>
       </div>
     </section>
     <section id="detZonasSec">
@@ -246,6 +250,7 @@
     <button class="cerrar" aria-label="Cerrar" autofocus>✕</button>
   </form>
   <p id="menuDet" class="menu-det"></p>
+  <div id="menuExtra" class="menu-extra" hidden></div>
   <div id="menuOpciones" class="menu-op"></div>
 </dialog>
 
@@ -352,6 +357,7 @@
       <button type="button" role="tab" data-paso="pegar" aria-selected="false">2 · Pegar respuesta</button>
     </div>
     <div id="iaPrompt" class="ia-paso">
+      <p class="ia-doc-nota" id="iaDocNota" hidden></p>
       <label class="campo">¿Qué quieres?
         <select id="iaModo"><option value="plan">Plan de varias semanas o mesociclo</option><option value="sesion">Entrenamiento suelto (una sesión)</option></select>
       </label>
@@ -386,7 +392,7 @@
               <option value="pierna">Pierna</option><option value="torso">Torso</option><option value="pecho">Pecho</option><option value="espalda">Espalda</option>
               <option value="hombro">Hombro y brazos</option><option value="completo">Cuerpo completo</option><option value="empuje">Empuje</option><option value="tiron">Tirón</option>
               <option value="series">Carrera: series</option><option value="umbral">Carrera: umbral</option><option value="rodaje">Carrera: rodaje</option><option value="tirada">Carrera: tirada larga</option>
-              <option value="natacion">Natación</option><option value="combinado">Combinado (fuerza + carrera)</option><option value="otro">Otro…</option>
+              <option value="natacion">Natación</option><option value="movilidad">Movilidad y estiramientos</option><option value="combinado">Combinado (fuerza + carrera)</option><option value="otro">Otro…</option>
             </select>
           </label>
           <label class="campo">Duración
@@ -442,8 +448,8 @@
   </form>
   <div class="d-cuerpo ayuda">
     <p>Toca cada apartado para verlo. Puedes volver aquí cuando quieras con el botón <b>?</b> de arriba. ¿Echas algo en falta o algo no va bien? Envíanos una sugerencia:</p>
-    <details class="novedades" open><summary>Novedades · versión 56</summary>
-      <p>Al borrar algo (un ejercicio, un bloque, una parte, un entreno, una plantilla…) aparece una ventana para confirmar con <b>Cancelar</b> o <b>Eliminar</b>, en lugar de tener que pulsar dos veces. · La app está ahora en <b>spider-test.github.io/fuerza-y-ritmo/</b>.</p>
+    <details class="novedades" open><summary>Novedades · versión 59</summary>
+      <p><b>Nuevo tipo «Movilidad»</b> para estiramientos y movilidad, junto a Fuerza, Carrera y Natación, con su color morado y su apartado en Ejercicios. Cada serie va en <b>repeticiones o tiempo</b> («45» son 45 segundos, también «2 min» o «1,30»), con la casilla <b>Por lado</b> (izquierda y derecha). No tiene récords de peso; su ficha muestra las sesiones y el tiempo total, y el resumen de la semana suma los minutos de movilidad. La IA y los documentos importados también lo entienden: «- Movilidad de cadera 90/90 [movilidad]: 2x8 por lado».</p>
     </details>
     <button type="button" class="nav-btn sug-btn" id="sugAyuda">💬 Enviar una sugerencia o avisar de un fallo</button>
     <details><summary>La semana y el texto del día</summary>
@@ -468,11 +474,13 @@
     </details>
     <details><summary>Calendario y unidades</summary>
       <p>El botón <b>📅</b>, junto a las fechas de la semana, abre el calendario del mes: cada día con entrenamiento lleva un punto (relleno si lo hiciste entero, a medias o vacío si estaba planificado). Cambia de mes con ‹ › y toca un día para ir a su semana con ese día abierto.</p>
+      <p>El botón verde <b>Hoy</b> aparece cuando estás en otra semana, cuando hoy está plegado o en la vista de otro día: te lleva a hoy, desplegado y a la vista.</p>
       <p>En <b>Plan → Ajustes → Distancias en</b> eliges metros, kilómetros o automático (metros y, desde 3 km, kilómetros). Cambia cómo se ven y en qué unidad escribes los campos de distancia; los botones − y + suben 100 m (o 0,1 km). En cualquier campo puedes escribir la unidad: «5 km», «5,2km» o «400 m».</p>
     </details>
     <details><summary>Añadir ejercicios y series</summary>
-      <p>Pulsa <b>+ Ejercicio</b> en un día, busca el ejercicio o escribe uno nuevo. Arriba puedes filtrar por Fuerza, Carrera o Natación.</p>
+      <p>Pulsa <b>+ Ejercicio</b> en un día, busca el ejercicio o escribe uno nuevo. Arriba puedes filtrar por Fuerza, Carrera, Natación o Movilidad.</p>
       <p><b>Fuerza:</b> kg × repeticiones. El botón <b>kg</b> cambia a <b>%</b> del 1RM (pon tu 1RM en la ficha del ejercicio).</p>
+      <p><b>Movilidad:</b> repeticiones o tiempo (un número solo son segundos: «45»; también «2 min» o «1,30»). Marca <b>Por lado</b> si se hace a cada lado. No cuenta récords; el resumen de la semana suma sus minutos (por lado cuenta los dos).</p>
       <p><b>Carrera y natación:</b> metros y tiempo. El botón <b>m</b> cambia a <b>min</b> si prefieres apuntar solo el tiempo.</p>
       <p>Los botones <b>−</b> y <b>+</b> suben o bajan el peso, las repeticiones, los metros (100 m) o el tiempo (5 s). En <b>Plan → Ajustes</b> eliges cuántos kilos sube cada toque (2,5 por defecto) y el peso de la barra; se guardan en cada dispositivo.</p>
       <p><b>×N y OK:</b> escribe el peso y las repeticiones (o metros, tiempo y descanso), cuántas series iguales quieres en <b>×</b> (1 por defecto) y pulsa <b>OK</b>. Se crean todas de golpe y el ejercicio se pliega, limpio: «Press banca · 60 kg × 8 · ×4» con su progreso. Hoy y en días futuros quedan pendientes para marcarlas una a una; en días pasados se apuntan como hechas.</p>
@@ -481,7 +489,7 @@
       <p>Si una serie sale distinta, tócala y edítala sola. <b>+ Serie</b> añade una suelta diferente (por ejemplo, una extra con otro peso). El vídeo, los récords y el historial están en la ficha: <b>⋯ → Ver ficha del ejercicio</b>.</p>
     </details>
     <details><summary>Catálogo de ejercicios</summary>
-      <p>El catálogo se divide en <b>Fuerza</b>, <b>Carrera</b> y <b>Natación</b>, cada una desplegable con su número de ejercicios; la app recuerda cuáles dejas abiertas. Al buscar, se abren las que tienen resultados y se ocultan las vacías.</p>
+      <p>El catálogo se divide en <b>Fuerza</b>, <b>Carrera</b>, <b>Natación</b> y <b>Movilidad</b>, cada una desplegable con su número de ejercicios; la app recuerda cuáles dejas abiertas. Al buscar, se abren las que tienen resultados y se ocultan las vacías.</p>
       <p>En <b>Ejercicios</b> está el catálogo. Los marcados como <b>común</b> los ven todos los usuarios; los editan el administrador y quien él autorice, y solo el administrador puede borrarlos. Los que creas tú son privados.</p>
       <p>Tu 1RM, tus series y tus entrenamientos son siempre tuyos: nadie más los ve.</p>
     </details>
@@ -535,6 +543,7 @@
       <p>En <b>Plan → Crear con IA</b> eliges objetivo, días, nivel, material y limitaciones. Copia el prompt, pégalo en ChatGPT, Claude u otra IA y pega su respuesta en el paso 2.</p>
       <p>La app te muestra una vista previa y lo guarda como plantillas o como mesociclo. Crea los ejercicios que falten. Si algo no encaja, te dice qué línea falla.</p>
       <p><b>Entrenamiento suelto:</b> en «¿Qué quieres?» elige «Entrenamiento suelto», el tipo de sesión (pierna, torso, series, umbral, tirada larga, natación, «Otro»…), la duración y la intensidad. Tus molestias activas y tus ritmos van en el prompt. Al pegar la respuesta, elige el día y pulsa <b>Añadir al día</b> (y, si quieres, guárdala también como plantilla).</p>
+      <p><b>Importar un documento:</b> en Plan → Crear con IA, «Importar documento…» admite PDF, Word (.docx), Excel (.xlsx), CSV, texto o una foto. La app saca el texto (los lectores se descargan solo al importar) y te prepara un prompt que pide a la IA convertirlo sin inventar nada; lo pegas en tu IA y pegas su respuesta en el paso 2, con vista previa antes de guardar. Si el documento ya está en el formato de la app, se lee directamente. Un PDF escaneado o una foto no tienen texto que leer: la app te lo dice y te prepara el prompt para que adjuntes el archivo a la IA.</p>
       <p><b>Media maratón y maratón:</b> además de 5 y 10 km. Puedes poner tu marca objetivo y la fecha de la carrera (las semanas se cuentan hasta ella). El prompt incluye tus marcas previstas de Marcas (VDOT y Riegel) y pide descarga y tapering antes de la carrera. Las tiradas largas pueden llevar ritmos distintos por tramos.</p>
       <p>En <b>Rutinas tipo</b> tienes algunos ejemplos listos. Todo se copia a tus plantillas y lo puedes editar como cualquier otra.</p>
       <p>Son sugerencias generales, no un plan médico ni personalizado.</p>

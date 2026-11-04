@@ -67,6 +67,10 @@ Apunta en cada versión: fecha, versión, dispositivo (iPhone / Mac / Android) y
 - [ ] «+ Parte» → «Calentamiento» y «Parte principal»: cabeceras de colores distintos; «+ Ejercicio» y «+ Bloque» de cada parte guardan ahí; «Mover a otra parte»; subir, bajar, renombrar, quitar y borrar (con deshacer).
 - [ ] Guardar el día como plantilla y aplicarla otro día: mantiene las partes. Pegar en Crear con IA una sesión con «### Calentamiento»: la vista previa y el día las muestran. El modo entreno pone «Entreno · Parte».
 
+- [ ] «Hoy» (verde): aparece en otra semana, con hoy plegado y en la vista de otro día; lleva a hoy desplegado (o al día de hoy en la vista de día).
+- [ ] Abrir un mesociclo o plantillas compartidos (#c=…): cada día o plantilla se despliega con sus ejercicios, partes y bloques; en el editor del mesociclo, cada día también.
+- [ ] Borrar cualquier cosa abre la ventana Cancelar / Eliminar.
+
 ## 5. Desplegables
 - [ ] Plegar y desplegar cada día; tras recargar, quedan como estaban.
 - [ ] Resumen de la semana, secciones de Plan, tipos de Ejercicios y apartados de la Ayuda: abren y cierran.
@@ -117,6 +121,8 @@ Apunta en cada versión: fecha, versión, dispositivo (iPhone / Mac / Android) y
 - [ ] Objetivo «Maratón» con marca y fecha: el prompt cuenta las semanas hasta la carrera, incluye las marcas previstas y pide tapering; pegar un plan de maratón de ejemplo con SEMANA 1…N y una tirada larga por tramos («1x8km @5:20/km + 1x6km @4:50/km») y crear el mesociclo.
 
 - [ ] Pegar una sesión con «Bicicleta estática [fuerza]: 1x5min» y «Plancha [fuerza]: 3x45s»: se lee sin error y en el día sale «5 min» y «45 s».
+
+- [ ] «Importar documento…» con un PDF y un Word de un plan: el prompt incluye su texto y el formato; un .txt ya en formato de la app abre la vista previa directamente; una foto avisa de que no hay texto y prepara el prompt para adjuntarla.
 
 ## 11c. Aviso de novedades
 - [ ] Con una versión nueva, el «?» lleva un punto (y pulso suave; sin animación con «Reducir movimiento»). Al pulsarlo se abren las Novedades y el punto desaparece; en otro dispositivo con la misma cuenta tampoco sale.
