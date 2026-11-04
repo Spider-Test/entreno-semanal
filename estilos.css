@@ -735,7 +735,7 @@ dialog.pantalla[open] { display: flex; flex-direction: column; }
   .ns-fila .paso { height: 40px; }
   .paso button { width: 32px; font-size: 17px; }
   .modo, .modo-dist { height: 40px; min-width: 40px; font-size: 15px; }
-  .veces { min-height: 40px; font-size: 15px; }
+  .veces { min-height: 40px; font-size: 16px; }   /* 16 px o más: el iPhone no amplía la pantalla al escribir */
   .anadir { min-height: 40px; padding: 8px 12px; font-size: 15px; }
   .quitar, .borrar { width: 36px; height: 40px; font-size: 14px; }
   .asa { width: 34px; height: 40px; font-size: 18px; }
@@ -1202,6 +1202,11 @@ h1 { color: var(--titulo); }
   .bloque:not(.bloque-rep) > .bloque-cab .ej-resumen + .g-prog, .bloque:not(.bloque-rep) > .bloque-cab .g-prog { margin-left: 8px; }
   .bloque:not(.bloque-rep) > .bloque-cab::after { content: ""; order: 9; flex-basis: 100%; }
 }
+
+/* Selectores de tipo (ficha y buscador): caben siempre; en el móvil, en dos filas si hace falta */
+#detTipo, #selTipo { display: grid; grid-template-columns: repeat(auto-fit, minmax(76px, 1fr)); gap: 4px; flex-wrap: wrap; }
+#detTipo button, #selTipo button { min-width: 0; padding-left: 6px; padding-right: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#detalle .d-cuerpo, #detalle section { min-width: 0; }
 
 /* Arrastrar un ejercicio o bloque encima de la cabecera de una parte: entra en ella (como una carpeta) */
 .parte-cab { transition: transform 0.15s, box-shadow 0.15s; }

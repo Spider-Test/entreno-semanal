@@ -1243,6 +1243,27 @@ function pintarBloques(forzar) {
   dias.forEach(pintarDia);
   pintarProgresoSemana();
 }
+// Último ejercicio o bloque tocado (para mantenerlo quieto en pantalla al repintar)
+let ultimoTocado = null;
+document.addEventListener("pointerdown", ev => { const b = ev.target.closest && ev.target.closest(".bloque[data-clave]"); const d = b && b.closest(".dia"); if (b && d) ultimoTocado = { clave: b.dataset.clave, dia: d.dataset.fecha || [...document.querySelectorAll(".dia")].indexOf(d) }; }, true);
+function anclaVista() {
+  if (!ultimoTocado || $("vistaSemana").hidden) return null;
+  const el = buscarTocado();
+  if (!el) return null;
+  const top = el.getBoundingClientRect().top;
+  return top > -200 && top < innerHeight ? { top } : null;
+}
+function buscarTocado() {
+  const ds = [...document.querySelectorAll(".dia")];
+  const d = typeof ultimoTocado.dia === "number" ? ds[ultimoTocado.dia] : ds.find(x => x.dataset.fecha === ultimoTocado.dia);
+  return d ? d.querySelector('.bloque[data-clave="' + CSS.escape(ultimoTocado.clave) + '"]') : null;
+}
+function recolocar(ancla) {
+  const el = buscarTocado();
+  if (!el) return;
+  const dif = el.getBoundingClientRect().top - ancla.top;
+  if (Math.abs(dif) > 2) scrollBy(0, dif);
+}
 $("semana").addEventListener("focusout", () => setTimeout(() => { if (repintarLuego && !escribiendoSerie()) pintarBloques(); }, 0));
 
 function quitarEspera(fecha, id) {
@@ -1253,7 +1274,13 @@ function quitarEspera(fecha, id) {
 }
 
 // Agrupa los ejercicios del día por sesión («Pierna», «Pecho»…); los sueltos van sin título
+// Que la pantalla no salte al repintar un día: el ejercicio que estabas tocando se queda donde estaba
 function pintarDia(dia) {
+  const ancla = anclaVista();
+  pintarDiaSinAncla(dia);
+  if (ancla) recolocar(ancla);
+}
+function pintarDiaSinAncla(dia) {
   const cont = dia.bloquesEl;
   cont.textContent = "";
   const delDia = seriesDelDia(dia.id);
@@ -1613,8 +1640,23 @@ function bloque(dia, id, series, grupo, parte) {
     otroEj.textContent = "";
     vivos("ejercicios").filter(e => tipoDe(e.id) === tipo).sort((x, y) => x.nombre.localeCompare(y.nombre, "es")).forEach(e => otroEj.add(new Option(e.nombre, e.id, e.id === id, e.id === id)));
     fa.focus();
+    tomarFoto();
   }
   b.abrirEdicion = abrirGrupo;
+  // Guardado automático: al editar series que ya existen, si sales del formulario con algo cambiado, se guarda solo (como pulsar OK)
+  let foto = null;
+  const valoresForm = () => [fa.value, fb.value, fc.value, vecesEl.value, otroEj.value, ...[...formEl.querySelectorAll("input[type=checkbox]")].map(x => x.checked)].join("|");
+  function tomarFoto() { foto = valoresForm(); }
+  formEl.addEventListener("focusout", ev => {
+    if (formEl.contains(ev.relatedTarget)) return;
+    setTimeout(() => {
+      if (formEl.hidden || formEl.contains(document.activeElement) || !b.isConnected) return;
+      if (!(modoForm === "editar" || (modoForm === "grupo" && series.length))) return;
+      if (foto === null || valoresForm() === foto) return;
+      foto = null;
+      formEl.requestSubmit();
+    }, 200);
+  });
 
   const fa = b.querySelector(".in-a"), fb = b.querySelector(".in-b"), fc = b.querySelector(".in-c"), boton = b.querySelector(".anadir");
   // Fuerza por tiempo (isométricos: plancha, sentadilla isométrica…): el segundo campo pasa a ser el tiempo
@@ -1806,6 +1848,7 @@ function bloque(dia, id, series, grupo, parte) {
       rellenarCon(s, true);
       if (chkBilbo) chkBilbo.checked = !!s.ciclo_id;
       if (s.ciclo_id === "auto") { fb.value = ""; fb.placeholder = "reps máx"; }
+      tomarFoto();
       boton.textContent = "✓ Guardar " + nSerie;
       b.querySelector(".desmarcar").hidden = planificada;
       b.querySelector(".desmarcar").onclick = () => desmarcar(s);
@@ -2147,7 +2190,19 @@ function tarjetaBloque(dia, bloqueId, series) {
     li.classList.add("editando");
     form.hidden = false;
     (dist && n0(s.distancia) > 0 ? fb : fa).focus();
+    fotoR = [fa.value, fb.value, fc.value].join("|");
   };
+  // Guardado automático al salir de la edición de una ronda, si algo ha cambiado
+  let fotoR = null;
+  form.addEventListener("focusout", ev => {
+    if (form.contains(ev.relatedTarget)) return;
+    setTimeout(() => {
+      if (form.hidden || form.contains(document.activeElement) || !c.isConnected || fotoR === null) return;
+      if ([fa.value, fb.value, fc.value].join("|") === fotoR) return;
+      fotoR = null;
+      form.requestSubmit();
+    }, 200);
+  });
   const terminar = () => pintarBloques(true);
 
   const cont = c.querySelector(".rondas");
@@ -4536,21 +4591,34 @@ const textoDias = dias => dias.map(d => NOMBRES[d].slice(0, 3)).join(", ");
 const lunesSiguiente = () => { const hoy = new Date(); return iso(hoy.getDay() === 1 ? lunesDe(hoy) : sumarDias(lunesDe(hoy), 7)); };
 const semanasRutina = r => r.semanas || (r.multi ? r.bloques.length : 4);
 // Guarda la rutina como plantillas (y, si se pide, un mesociclo que las reparte por los días); los ejercicios que falten se crean
-function guardarRutina(r, comoMeso, inicio, semanas) {
+function guardarRutina(r, comoMeso, inicio, semanas, enLista) {
   const usados = new Set(vivos("plantillas").map(p => norm(p.nombre)));
   const libre = n => { let x = n, k = 2; while (usados.has(norm(x))) x = n + " (" + k++ + ")"; usados.add(norm(x)); return x; };
   const prefijo = r.nombre.split(/[(:·]/)[0].trim();
-  const dias = {};
+  const dias = {}, porSemana = [];
   let n = 0;
   r.bloques.forEach((b, w) => {
     const destino = r.multi ? (dias["s" + (w + 1)] = {}) : dias;
+    porSemana.push([]);
     b.sesiones.forEach(s => {
       const id = nuevoId();
+      porSemana[w].push(id);
       cambiar("plantillas", { id, nombre: libre(r.multi ? prefijo + " · S" + (w + 1) + " · " + s.nombre : s.nombre), items: desdeCompartido(s.items), borrado: false }, true);
       n++;
       s.dias.forEach(d => (destino[d] = destino[d] || []).push(id));
     });
   });
+  // En una lista de entrenamientos: si el plan cambia cada semana, cada semana va en su bloque
+  if (enLista) {
+    const fresca = db.listas[enLista.id], items = (fresca.items || []).slice();
+    porSemana.forEach((ids, w) => { if (r.multi) items.push({ sep: nuevoId(), titulo: "Semana " + (w + 1) }); items.push(...ids); });
+    cambiar("listas", { ...fresca, items }, true);
+    listasAbiertas[fresca.id] = true; escribir("listas-abiertas-v1", listasAbiertas);
+    persistir(); pintarPlan();
+    avisoDeshacer(n + (n === 1 ? " entrenamiento guardado" : " entrenamientos guardados") + " en la lista «" + fresca.nombre + "»", null);
+    verPestana("listas");
+    return;
+  }
   if (comoMeso) {
     const id = nuevoId();
     cambiar("mesociclos", { id, nombre: r.nombre, inicio, semanas, dias, progresion: 0, descarga: {}, notas: r.nota || "", borrado: false }, true);
@@ -4917,6 +4985,12 @@ $("iaRevisar").addEventListener("click", () => {
 });
 $("iaRespuesta").addEventListener("input", () => { rutinaIA = null; $("iaError").textContent = ""; pintarVistaIA(); });
 $("iaPlantillas").addEventListener("click", () => { if (!rutinaIA) return; $("dlgIA").close(); guardarRutina(rutinaIA, false); });
+$("iaLista").addEventListener("click", () => {
+  if (!rutinaIA) return;
+  const r = rutinaIA;
+  $("dlgIA").close();
+  elegirLista("¿En qué lista guardo «" + r.nombre + "»?", l => guardarRutina(r, false, null, null, l));
+});
 $("iaMeso").addEventListener("click", () => {
   if (!rutinaIA) return;
   const sem = parseInt($("iaMesoSem").value, 10), ini = $("iaInicio").value;
@@ -5747,7 +5821,7 @@ $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); 
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
 // VERSION_APP es interna (sube en cada publicación para que los móviles se actualicen); la que se ve es siempre la 26
-const VERSION_APP = "v92" + (BETA ? " beta" : "");
+const VERSION_APP = "v96" + (BETA ? " beta" : "");
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";

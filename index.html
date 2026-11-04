@@ -447,6 +447,7 @@
       <p class="menu-det nota" id="iaAvisoDias" role="status"></p>
       <div class="d-botones">
         <button type="button" class="nav-btn" id="iaPlantillas">Usar como plantillas</button>
+        <button type="button" class="nav-btn" id="iaLista">Guardar en una lista</button>
         <button type="button" class="anadir" id="iaMeso" hidden>Crear mesociclo</button>
       </div>
       <div id="iaDiaOp" hidden>
@@ -468,6 +469,8 @@
   <div class="d-cuerpo ayuda">
     <p>Toca cada apartado para verlo. Puedes volver aquí cuando quieras con el botón <b>?</b> de arriba. ¿Echas algo en falta o algo no va bien? Envíanos una sugerencia:</p>
     <details class="novedades" open><summary>Novedades · versión 26</summary>
+      <p><b>Se guarda solo:</b> al editar un ejercicio o una serie (también en las rondas de un bloque), en cuanto sales del formulario se guarda, sin pulsar OK ni Guardar. Si no cambias nada, no toca nada.</p>
+      <p><b>Importar a una lista:</b> al importar un documento (PDF, Word…) o crear con IA, el botón <b>«Guardar en una lista»</b> mete sus entrenamientos en la lista que elijas (o en una nueva); si el plan cambia cada semana, cada semana va en su bloque.</p>
       <p><b>Lo mismo en todos tus dispositivos:</b> los ejercicios que añades a un día y aún no tienen series, los entrenos y partes vacíos, su descripción y su orden ya se guardan en tu cuenta. Antes se quedaban solo en el móvil o el ordenador donde los pusiste.</p>
       <p><b>⋯ en los ejercicios de un bloque:</b> en un bloque ×N, cada ejercicio tiene su ⋯ (en la primera ronda) para ver su ficha, ponerle o editar su descripción o quitarlo del bloque.</p>
       <p><b>Listas de entrenamientos</b> (nueva pestaña <b>Listas</b>, junto a Ejercicios): crea listas como «Fuerza 3 días» o «Torso / Pierna», guarda en ellas tus entrenamientos y ordénalos con ≡. Toca uno para ver sus ejercicios y pulsa <b>+ Día</b> para ponerlo en el día que elijas.</p>
@@ -578,7 +581,7 @@
     </details>
     <details><summary>Crear con IA y rutinas tipo</summary>
       <p>En <b>Plan → Crear con IA</b> eliges objetivo, días, nivel, material y limitaciones. Copia el prompt, pégalo en ChatGPT, Claude u otra IA y pega su respuesta en el paso 2.</p>
-      <p>La app te muestra una vista previa y lo guarda como plantillas o como mesociclo. Crea los ejercicios que falten. Si algo no encaja, te dice qué línea falla.</p>
+      <p>La app te muestra una vista previa y lo guarda como plantillas, en una <b>lista de entrenamientos</b> (si cambia cada semana, cada semana va en su bloque) o como mesociclo. Crea los ejercicios que falten. Si algo no encaja, te dice qué línea falla.</p>
       <p><b>Entrenamiento suelto:</b> en «¿Qué quieres?» elige «Entrenamiento suelto», el tipo de sesión (pierna, torso, series, umbral, tirada larga, natación, «Otro»…), la duración y la intensidad. Tus molestias activas y tus ritmos van en el prompt. Al pegar la respuesta, elige el día y pulsa <b>Añadir al día</b> (y, si quieres, guárdala también como plantilla).</p>
       <p><b>Importar un documento:</b> en Plan → Crear con IA, «Importar documento…» admite PDF, Word (.docx), Excel (.xlsx), CSV, texto o una foto. La app saca el texto (los lectores se descargan solo al importar) y te prepara un prompt que pide a la IA convertirlo sin inventar nada; lo pegas en tu IA y pegas su respuesta en el paso 2, con vista previa antes de guardar. Si el documento ya está en el formato de la app, se lee directamente. Un PDF escaneado o una foto no tienen texto que leer: la app te lo dice y te prepara el prompt para que adjuntes el archivo a la IA.</p>
       <p><b>Media maratón y maratón:</b> además de 5 y 10 km. Puedes poner tu marca objetivo y la fecha de la carrera (las semanas se cuentan hasta ella). El prompt incluye tus marcas previstas de Marcas (VDOT y Riegel) y pide descarga y tapering antes de la carrera. Las tiradas largas pueden llevar ritmos distintos por tramos.</p>
