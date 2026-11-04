@@ -255,6 +255,18 @@
   <div id="menuOpciones" class="menu-op"></div>
 </dialog>
 
+<dialog id="dlgTexto" aria-labelledby="txtTit">
+  <form method="dialog" class="d-form">
+    <h3 id="txtTit"></h3>
+    <textarea id="txtInput" rows="3" maxlength="300" aria-label="Descripción" placeholder="Tempo 3-2-1-2 · banda roja · EEP 2"></textarea>
+    <p id="txtAyuda" class="menu-det"></p>
+    <div class="d-botones">
+      <button value="quitar" class="nav-btn peligro-txt" formnovalidate>Quitar</button>
+      <button value="" class="nav-btn" formnovalidate>Cancelar</button>
+      <button value="ok" class="anadir">Guardar</button>
+    </div>
+  </form>
+</dialog>
 <dialog id="dlgNombre" aria-labelledby="nomTit">
   <form method="dialog" class="d-form">
     <h3 id="nomTit"></h3>
@@ -449,11 +461,9 @@
   </form>
   <div class="d-cuerpo ayuda">
     <p>Toca cada apartado para verlo. Puedes volver aquí cuando quieras con el botón <b>?</b> de arriba. ¿Echas algo en falta o algo no va bien? Envíanos una sugerencia:</p>
-    <details class="novedades" open><summary>Novedades · versión 64</summary>
-      <p><b>Bloques más claros:</b> el título dice solo «A3 ×2» (o «×2 rondas» si no está en una parte) y los ejercicios salen en cada ronda, sin repetirse. El vídeo de cada ejercicio es un botón ▶ a su derecha, en la primera ronda.</p>
-      <p><b>Orden A1, A2…:</b> dentro de cada parte, los ejercicios y bloques llevan una etiqueta: A1, A2… en la primera parte; B1, B2… en la segunda, y así.</p>
-      <p><b>Partes como cajas desplegables:</b> cada parte (Calentamiento, Parte principal…) es ahora una caja de su color con sus ejercicios dentro. Toca su nombre (▸/▾) para plegarla o desplegarla; se recuerda en cada dispositivo.</p>
-      <p><b>Editar bloques:</b> en el ⋯ de un bloque, «+ Añadir un ejercicio al bloque…» lo mete en todas las rondas, y «Quitar un ejercicio del bloque…» lo saca. También puedes <b>arrastrar un ejercicio suelto</b> (por su asa ≡) <b>encima del título del bloque</b>: se ilumina y, al soltarlo, entra con una serie en cada ronda.</p>
+    <details class="novedades" open><summary>Novedades · versión 65</summary>
+      <p><b>Descripción de cada ejercicio:</b> en el ⋯ de un ejercicio o de un bloque, «+ Descripción» para apuntar el tempo (3-2-1-2), el tipo de banda o resistencia, el EEP/RIR, pausas o cómo hacerlo. Se ve debajo del ejercicio (tócala para editarla) y en el modo entreno, y se copia con las plantillas, los mesociclos y lo que compartes. En un bloque puedes ponerla a todo el bloque o a un ejercicio.</p>
+      <p>Las rutinas en texto y la IA también la entienden: «- Sentadilla [fuerza]: 4x6 @RPE8 nota: Tempo 3-1-1-0».</p>
     </details>
     <button type="button" class="nav-btn sug-btn" id="sugAyuda">💬 Enviar una sugerencia o avisar de un fallo</button>
     <details><summary>La semana y el texto del día</summary>
@@ -518,6 +528,7 @@
     </details>
     <details><summary>Bloques ×N</summary>
       <p><b>+ Bloque</b> crea uno o varios tramos que se repiten, por ejemplo 1000 m + recuperación 300 m ×4, o Press banca + Remo ×4. Se muestran ronda a ronda.</p>
+      <p><b>Descripción:</b> en el ⋯ de un ejercicio o bloque, «+ Descripción» guarda indicaciones como el tempo, la banda, el EEP/RIR o pausas. Sale debajo del ejercicio (tócala para cambiarla o quitarla) y en el modo entreno. En texto: «nota: …» al final de la línea del ejercicio.</p>
       <p><b>Editar un bloque:</b> en su ⋯, «+ Añadir un ejercicio al bloque…» (entra en todas las rondas) o «Quitar un ejercicio del bloque…». También puedes arrastrar un ejercicio suelto por su asa ≡ y soltarlo encima del título del bloque: entra con una serie en cada ronda.</p>
       <p><b>Agrupar series ya apuntadas:</b> mantén pulsada una serie (o ⋯ del día o de la sesión → <b>Seleccionar series para agrupar en bloque</b>), toca las que quieras y pulsa <b>Agrupar en bloque</b>. Si hay un patrón que se repite (por ejemplo 1000 m + trote 300 m, cuatro veces) te propone el bloque ×4; también puedes juntarlas en una sola ronda o en el orden en que las tocaste. Se conservan valores, hechas y pendientes, tiempos, desnivel y pulsaciones, y se puede deshacer. <b>⋯ del bloque → Desagrupar</b> lo vuelve a dejar en series sueltas.</p>
       <p><b>Al importar</b> una carrera, en la vista previa marca las casillas de las vueltas y pulsa <b>Agrupar las marcadas en bloque ×N</b>; «Quitar agrupación» lo deshace antes de guardar.</p>
@@ -745,6 +756,7 @@
   <div class="en-cuerpo">
     <p class="en-grupo" id="enGrupo"></p>
     <h2 class="en-ej" id="enEj"></h2>
+    <p class="en-nota" id="enNota" hidden></p>
     <p class="en-serie" id="enSerie"></p>
     <p class="en-valor" id="enValor"></p>
     <p class="en-extra" id="enExtra"></p>

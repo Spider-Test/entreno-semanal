@@ -41,12 +41,12 @@ const TABLAS = {
   ciclos: { clave: "id", conflicto: "id", campos: ["id", "ejercicio_id", "numero", "rm_inicio", "peso_inicial", "incremento", "reps_reset", "importadas", "cerrado", "borrado", "actualizado"] },
   plantillas: { clave: "id", conflicto: "id", campos: ["id", "nombre", "items", "borrado", "actualizado"] },
   mesociclos: { clave: "id", conflicto: "id", campos: ["id", "nombre", "inicio", "semanas", "dias", "progresion", "descarga", "notas", "borrado", "actualizado"] },
-  series: { clave: "id", conflicto: "id", campos: ["id", "fecha", "ejercicio_id", "orden", "peso", "reps", "distancia", "tiempo", "descanso", "hecha", "grupo", "meso_id", "bloque_id", "ronda", "rec_dist", "pct", "ciclo_id", "calentamiento", "desnivel_pos", "desnivel_neg", "ritmo_ajustado", "fc_media", "fc_max", "cadencia", "fc_pico", "fc_hist", "seccion", "por_lado", "borrado", "actualizado"] },
+  series: { clave: "id", conflicto: "id", campos: ["id", "fecha", "ejercicio_id", "orden", "peso", "reps", "distancia", "tiempo", "descanso", "hecha", "grupo", "meso_id", "bloque_id", "ronda", "rec_dist", "pct", "ciclo_id", "calentamiento", "desnivel_pos", "desnivel_neg", "ritmo_ajustado", "fc_media", "fc_max", "cadencia", "fc_pico", "fc_hist", "seccion", "por_lado", "nota", "borrado", "actualizado"] },
   entrenos: { clave: "fecha", conflicto: "user_id,fecha", campos: ["fecha", "html", "texto", "rpe", "sensacion", "actualizado"] },
   molestias: { clave: "id", conflicto: "id", campos: ["id", "zona", "descripcion", "inicio", "estado", "borrado", "actualizado"] },
   carreras: { clave: "id", conflicto: "id", campos: ["id", "nombre", "fecha", "lugar", "distancia", "tiempo", "chip", "pos_general", "total_general", "categoria", "pos_categoria", "total_categoria", "desnivel_pos", "fc_media", "notas", "enlace", "previsto", "borrado", "actualizado"] }
 };
-const DEFECTOS = { seccion: "", por_lado: false, fecha: null, lugar: "", categoria: "", enlace: "", fc_hist: [], tipo: "fuerza", hecha: true, grupo: "", meso_id: "", bloque_id: "", ciclo_id: "", importadas: [], cerrado: false, compartido: false, items: [], dias: {}, descarga: {}, zonas: [], calentamiento: false, inicio: null, zona: "", descripcion: "", estado: "activa", nombre: "", video_url: "", notas: "", html: "", texto: "", sensacion: "", borrado: false };
+const DEFECTOS = { seccion: "", por_lado: false, nota: "", fecha: null, lugar: "", categoria: "", enlace: "", fc_hist: [], tipo: "fuerza", hecha: true, grupo: "", meso_id: "", bloque_id: "", ciclo_id: "", importadas: [], cerrado: false, compartido: false, items: [], dias: {}, descarga: {}, zonas: [], calentamiento: false, inicio: null, zona: "", descripcion: "", estado: "activa", nombre: "", video_url: "", notas: "", html: "", texto: "", sensacion: "", borrado: false };
 let sesion = leer("sesion-v1");                 // {access_token, refresh_token, expires_at, user_id, email}
 let perfil = leer("perfil-v1");                 // {aprobado, es_admin, email}
 let usuarios = [];                              // solo para el administrador
@@ -621,6 +621,37 @@ function abrirMenu(titulo, detalle, opciones, extra) {
   });
   if (!$("menu").open) $("menu").showModal();
 }
+// Texto largo (descripción): devuelve el texto ("" = quitarlo) o null si se cancela
+function pedirTexto(titulo, valor, ayuda) {
+  return new Promise(resolver => {
+    const d = $("dlgTexto");
+    $("txtTit").textContent = titulo;
+    $("txtAyuda").textContent = ayuda || "";
+    $("txtInput").value = valor || "";
+    d.returnValue = "";
+    d.onclose = () => resolver(d.returnValue === "ok" ? $("txtInput").value.trim().slice(0, 300) : d.returnValue === "quitar" ? "" : null);
+    d.showModal();
+    $("txtInput").focus();
+  });
+}
+const AYUDA_NOTA = "Por ejemplo «Tempo 3-2-1-2», «Banda roja», «EEP 2 (en reserva)», «Pausa 2 s abajo» o cómo hacerlo. Se ve debajo del ejercicio y en el modo entreno.";
+// Pone la misma descripción a todas las series de un ejercicio (o de un tramo de un bloque) en ese día
+async function editarNota(dia, seriesItem, titulo) {
+  const actual = (seriesItem.find(x => x.nota) || {}).nota || "";
+  const t = await pedirTexto(titulo, actual, AYUDA_NOTA);
+  if (t === null || t === actual) return;
+  seriesItem.forEach(x => cambiar("series", { ...x, nota: t }, true));
+  persistir();
+  pintarDia(dia);
+}
+const notaDe = lista => (lista.find(x => x.nota) || {}).nota || "";
+function lineaNota(texto, alTocar) {
+  const n = document.createElement("button");
+  n.type = "button"; n.className = "ej-nota"; n.textContent = texto;
+  n.setAttribute("aria-label", "Descripción: " + texto + ". Toca para editarla");
+  n.addEventListener("click", ev => { ev.stopPropagation(); alTocar(); });
+  return n;
+}
 function pedirNombre(titulo, valor, ayuda) {
   return new Promise(resolver => {
     const d = $("dlgNombre");
@@ -767,7 +798,7 @@ document.addEventListener("selectionchange", () => {
 const seriesDelDia = fecha => (indiceSeries().porFecha[fecha] || []).slice();
 // Convierte series en una lista de ejercicios con sus series (para copiar o guardar como plantilla)
 // Los bloques se guardan como tramos con una serie por ronda: { bloque: true, tramos: [{ ejercicio_id, series: [ronda 1, ronda 2…] }] }
-const valores = s => ({ peso: n0(s.peso), reps: s.ciclo_id ? 0 : n0(s.reps), distancia: n0(s.distancia), tiempo: n0(s.tiempo), descanso: n0(s.descanso), rec_dist: n0(s.rec_dist), pct: n0(s.pct), bilbo: !!s.ciclo_id, calentamiento: !!s.calentamiento, por_lado: !!s.por_lado });
+const valores = s => ({ peso: n0(s.peso), reps: s.ciclo_id ? 0 : n0(s.reps), distancia: n0(s.distancia), tiempo: n0(s.tiempo), descanso: n0(s.descanso), rec_dist: n0(s.rec_dist), pct: n0(s.pct), bilbo: !!s.ciclo_id, calentamiento: !!s.calentamiento, por_lado: !!s.por_lado, nota: s.nota || "" });
 function itemsDe(series) {
   const items = [], bloques = {};
   series.forEach(s => {
@@ -794,7 +825,7 @@ function pegarItems(fecha, items, grupo, mesoId, masKg) {
   const nueva = (ejercicio_id, v, extra) => cambiar("series", Object.assign({
     id: nuevoId(), fecha, ejercicio_id, orden: orden++,
     peso: n0(v.peso) > 0 ? Math.max(0, n0(v.peso) + n0(masKg)) : 0, reps: n0(v.reps), distancia: n0(v.distancia), tiempo: n0(v.tiempo),
-    descanso: n0(v.descanso), rec_dist: n0(v.rec_dist), pct: n0(v.pct), ciclo_id: v.bilbo ? "auto" : "", calentamiento: !!v.calentamiento, por_lado: !!v.por_lado, hecha: false, meso_id: mesoId || "", bloque_id: "", ronda: 0, borrado: false
+    descanso: n0(v.descanso), rec_dist: n0(v.rec_dist), pct: n0(v.pct), ciclo_id: v.bilbo ? "auto" : "", calentamiento: !!v.calentamiento, por_lado: !!v.por_lado, nota: v.nota || "", hecha: false, meso_id: mesoId || "", bloque_id: "", ronda: 0, borrado: false
   }, extra), true);
   items.forEach(it => {
     const g = grupo !== undefined ? grupo : (it.grupo || "");
@@ -1250,6 +1281,7 @@ function pintarDia(dia) {
       m.setAttribute("aria-label", "Opciones de " + nombre);
       m.addEventListener("click", () => abrirMenu(nombre, "", [
         !espera && el.abrirEdicion && { texto: "Editar (valores, ×N o ejercicio)", accion: () => el.abrirEdicion() },
+        !espera && { texto: notaDe(seriesDeItem(dia.id, g.nombre, clave)) ? "Editar la descripción…" : "+ Descripción (tempo, banda, EEP…)", accion: () => editarNota(dia, seriesDeItem(dia.id, g.nombre, clave), "Descripción de " + nombre) },
         movibles().length > 1 && { texto: "Subir", accion: () => mover(el, -1) },
         movibles().length > 1 && { texto: "Bajar", accion: () => mover(el, 1) },
         nombresPartes(dia.id, g.nombre).length > 1 && { texto: "Mover a otra parte…", accion: () => moverAParte(dia, g.nombre, clave, espera) },
@@ -1347,6 +1379,7 @@ function bloque(dia, id, series, grupo, parte) {
   nom.setAttribute("aria-label", series.length ? "Editar " + (ej.nombre || "ejercicio") + ": valores, número de series o ejercicio" : "Ver " + (ej.nombre || "ejercicio") + ": vídeo, récords e historial");
   // Con series: tocar el nombre abre (o cierra sin guardar) la edición del ejercicio; sin series, su ficha
   nom.addEventListener("click", () => !series.length ? abrirDetalle(id) : formEl.hidden ? abrirGrupo() : pintarBloques(true));
+  if (notaDe(series)) b.querySelector(".bloque-cab").after(lineaNota(notaDe(series), () => editarNota(dia, series, "Descripción de " + (ej.nombre || "el ejercicio"))));
   const quitar = b.querySelector(".quitar");
   if (series.length) quitar.remove();
   else quitar.addEventListener("click", () => { quitarEspera(dia.id, id); pintarDia(dia); });
@@ -1616,7 +1649,7 @@ function bloque(dia, id, series, grupo, parte) {
       if (fila.hecha) avisarSiPR(fila);
       return;
     }
-    const nueva = k => ({ id: nuevoId(), fecha: dia.id, ejercicio_id: id, orden: Date.now() + k, grupo, seccion: parte || "", meso_id: "", bloque_id: "", ronda: 0, borrado: false, calentamiento: false, ...v, hecha: nuevaHecha });
+    const nueva = k => ({ id: nuevoId(), fecha: dia.id, ejercicio_id: id, orden: Date.now() + k, grupo, seccion: parte || "", meso_id: "", bloque_id: "", ronda: 0, borrado: false, calentamiento: false, nota: notaDe(series), ...v, hecha: nuevaHecha });
     if (modoForm === "una" || !series.length) {
       const n = modoForm === "una" ? 1 : Math.min(50, Math.max(1, parseInt(vecesEl.value, 10) || 1));
       if (!series.length) {
@@ -1775,6 +1808,10 @@ function tarjetaBloque(dia, bloqueId, series) {
   const enTitulo = [...new Set(primera.map(s => nombreEj(s.ejercicio_id)).filter(n => distDeNombre(n)))];
   c.querySelector(".br-tit").textContent = "×" + rondas.length + " rondas" + (enTitulo.length ? " · " + enTitulo.join(" + ") : "");
   c.querySelector(".g-prog").textContent = series.filter(hecha).length + "/" + series.length;
+  // Descripción: si todos los ejercicios tienen la misma, bajo el título; si no, cada una junto a su ejercicio en la R1
+  const notasT = primera.map(s0 => notaDe(series.filter(x => x.ejercicio_id === s0.ejercicio_id)));
+  const notaComun = notasT.every(n => n === notasT[0]) ? notasT[0] : "";
+  if (notaComun) c.querySelector(".bloque-cab").after(lineaNota(notaComun, () => editarNota(dia, series, "Descripción del bloque")));
   const menu = c.querySelector(".menu-btn");
   menu.setAttribute("aria-label", "Opciones del bloque");
   menu.addEventListener("click", () => {
@@ -1789,6 +1826,9 @@ function tarjetaBloque(dia, bloqueId, series) {
         persistir(); pintarDia(dia);
       } },
       rondas.length > 1 && { texto: "Quitar la última ronda", accion: () => { ultima.forEach(s => cambiar("series", { ...s, borrado: true }, true)); persistir(); pintarDia(dia); } },
+      { texto: notaDe(series) ? "Editar la descripción…" : "+ Descripción (tempo, banda, EEP…)", accion: () => !variosTramos ? editarNota(dia, series, "Descripción del bloque")
+        : abrirMenu("¿Descripción de qué?", "", [{ texto: "De todo el bloque", accion: () => editarNota(dia, series, "Descripción del bloque") }]
+          .concat(primera.map(s0 => ({ texto: nombreEj(s0.ejercicio_id), accion: () => editarNota(dia, series.filter(x => x.ejercicio_id === s0.ejercicio_id), "Descripción de " + nombreEj(s0.ejercicio_id)) })))) },
       { texto: "+ Añadir un ejercicio al bloque…", accion: () => abrirSelector(dia, id => meterEnBloque(dia, series, id, null), series[0].grupo || "", series[0].seccion || "") },
       variosTramos && { texto: "Quitar un ejercicio del bloque…", accion: () => abrirMenu("¿Qué ejercicio quitas?", "Se borran sus series de todas las rondas", primera.map(s0 => ({ texto: nombreEj(s0.ejercicio_id), peligro: true, accion: () => {
         const fuera = series.filter(x => x.ejercicio_id === s0.ejercicio_id);
@@ -1857,6 +1897,8 @@ function tarjetaBloque(dia, bloqueId, series) {
       if (!hecha(s) && tipoDe(s.ejercicio_id) === "carrera") { const o = objetivoSerie(s); if (o) { const ob = document.createElement("span"); ob.className = "objetivo"; ob.textContent = textoObjetivo(o); li.querySelector(".sv").appendChild(ob); } }
       li.querySelector(".sv").setAttribute("aria-label", "Apuntar ronda " + r + ", " + nombreEj(s.ejercicio_id) + ": " + serieTexto(s));
       li.querySelector(".sv").addEventListener("click", () => { if (!li.dataset.deslizado) editar(s, li); });
+      const notaT = !notaComun && r === rondas[0] ? notasT[primera.findIndex(x => x.ejercicio_id === s.ejercicio_id)] : "";
+      if (notaT) { const d = document.createElement("span"); d.className = "nota-tramo"; d.textContent = notaT; li.querySelector(".sv").appendChild(d); }
       const ejV = db.ejercicios[s.ejercicio_id];
       if (r === rondas[0] && ejV && ejV.video_url) {
         const v = document.createElement("button");
@@ -3846,7 +3888,10 @@ function leerValor(txt, tipo) {
 function leerEjercicio(txt, conCuenta) {
   const m = txt.match(/^(.+?)\s*\[([^\]]+)\]\s*:?\s*(.*)$/) || txt.match(/^([^:]+):\s*(.*)$/);
   if (!m) return { error: conCuenta ? "falta «:» entre el ejercicio y las series (por ejemplo «Sentadilla [fuerza]: 4x8»)" : "cada tramo va como «Ejercicio [tipo] 400m»" };
-  const nombre = m[1].trim(), conTipo = m.length === 4, resto = (conTipo ? m[3] : m[2]).trim();
+  const nombre = m[1].trim(), conTipo = m.length === 4;
+  let resto = (conTipo ? m[3] : m[2]).trim(), nota = "";
+  const mn = resto.match(/\s*\b(?:nota|descripci[oó]n)\s*:\s*(.+)$/i);
+  if (mn) { nota = mn[1].trim().slice(0, 300); resto = resto.slice(0, mn.index).trim(); }
   const tipo = conTipo ? TIPO_TEXTO[norm(m[2]).replace(/[^a-z]/g, "")] : adivinarTipo(nombre);
   if (!tipo) return { error: "tipo «" + m[2] + "» desconocido (usa fuerza, carrera, natacion o movilidad)" };
   if (!nombre) return { error: "falta el nombre del ejercicio" };
@@ -3857,7 +3902,7 @@ function leerEjercicio(txt, conCuenta) {
     if (!(+c[1] >= 1 && +c[1] <= 50)) return { error: "entre 1 y 50 series" };
     const v = leerValor(c[2], tipo);
     if (v.error) return v;
-    for (let k = 0; k < +c[1]; k++) series.push({ ...v });
+    for (let k = 0; k < +c[1]; k++) series.push({ ...v, nota });
   }
   return { ejercicio: nombre.slice(0, 80), tipo, series };
 }
@@ -4156,6 +4201,7 @@ function textoPrompt() {
     "- Series: 4x8 (repeticiones), 3xmáx, 5x1000m, 8x100m, 1x40min, 6x2min. Sin rangos: 4x10, no 4x8-12. En fuerza también por tiempo: 1x5min (bici de calentamiento), 3x45s (plancha). En movilidad: 2x10 por lado, 2x30s por lado.",
     "- Intensidad: @RPE8 o @75% (del 1RM) en fuerza, @4:30/km en carrera, @1:50/100m en natación. No pongas kilos fijos.",
     "- Descanso: «desc 2:00» o «desc 90» (segundos). En carrera y natación la recuperación también puede ir en metros: «rec 200m».",
+    "- Indicaciones de un ejercicio (tempo, tipo de banda o resistencia, EEP/RIR, pausas…): al final de su línea, «nota: …». Ejemplo: «- Sentadilla [fuerza]: 4x6 @RPE8 nota: Tempo 3-1-1-0».",
     "- Tramos que se repiten seguidos: «- BLOQUE x4: Ejercicio [tipo] 400m rec 200m | Ejercicio [tipo] 200m».",
     "- Partes opcionales dentro de una sesión (si ayudan): una línea «### Calentamiento», «### Parte principal» o «### Vuelta a la calma» antes de sus ejercicios.",
     "- Tirada larga con ritmos distintos por tramos, en una línea: «- Tirada larga [carrera]: 1x8km @5:20/km + 1x6km @4:50/km + 1x2km @5:30/km».",
@@ -4189,6 +4235,7 @@ function textoPromptSesion() {
     "- Calentamiento o isométricos por tiempo: «- Bicicleta estática [fuerza]: 1x5min», «- Plancha [fuerza]: 3x45s».",
     "- Movilidad y estiramientos en repeticiones o tiempo, y «por lado» si se hace a cada lado: «- Movilidad de cadera 90/90 [movilidad]: 2x8 por lado», «- Estiramiento de isquios [movilidad]: 2x30s por lado».",
     "- Descanso: «desc 2:00» o «desc 90»; en carrera y natación también «rec 200m».",
+    "- Indicaciones (tempo, banda, EEP/RIR, pausas…): al final de la línea del ejercicio, «nota: …». Ejemplo: «- Remo con banda [fuerza]: 3x12 nota: Banda roja, tempo 2-0-1-1».",
     "- Divide la sesión en partes con una línea «### Calentamiento», «### Parte principal» y «### Vuelta a la calma» antes de sus ejercicios.",
     "- Tramos que se repiten: «- BLOQUE x4: Ejercicio [tipo] 400m rec 200m | Ejercicio [tipo] 200m». Tirada por tramos: «- Tirada larga [carrera]: 1x8km @5:20/km + 1x6km @4:50/km»."].filter(Boolean).join("\n");
 }
@@ -4966,6 +5013,8 @@ function pintarEntreno() {
   $("enGrupo").textContent = (s.grupo || NOMBRES[ent.dia.i] + " " + fmt(deIso(ent.dia.id))) + (s.seccion ? " · " + s.seccion : "");
   $("enEj").textContent = nombreEj(s.ejercicio_id);
   $("enEj").appendChild(etiquetaTipo(tipo));
+  $("enNota").textContent = s.nota || "";
+  $("enNota").hidden = !s.nota;
   if (s.bloque_id) {
     const rondas = Math.max.apply(null, lista.filter(x => x.bloque_id === s.bloque_id).map(x => n0(x.ronda)));
     $("enSerie").textContent = "Bloque · ronda " + n0(s.ronda) + " de " + rondas;
@@ -5139,7 +5188,7 @@ $("enSalir").addEventListener("click", salirEntreno);
 $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); abrirRpe(d); });
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
-const VERSION_APP = "v64" + (BETA ? " beta" : "");
+const VERSION_APP = "v65" + (BETA ? " beta" : "");
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";
