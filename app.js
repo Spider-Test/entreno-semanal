@@ -510,6 +510,26 @@ async function sincronizar() {
 }
 
 // ---------- Ventanas pequeñas: menú de opciones y pedir un nombre ----------
+// Confirmación antes de borrar: ventana con «Cancelar» y «Eliminar» (Esc o tocar fuera = cancelar)
+function confirmar(titulo, texto, si) {
+  return new Promise(res => {
+    const d = $("dlgConfirmar");
+    $("confTit").textContent = titulo;
+    $("confTxt").textContent = texto || "";
+    $("confTxt").hidden = !texto;
+    $("confSi").textContent = si || "Eliminar";
+    let hecho = false;
+    const fin = v => { if (hecho) return; hecho = true; if (d.open) d.close(); res(v); };
+    $("confSi").onclick = () => fin(true);
+    $("confNo").onclick = () => fin(false);
+    d.onclose = () => fin(false);
+    d.onclick = e => { if (e.target === d) fin(false); };
+    d.showModal();
+    $("confNo").focus();
+  });
+}
+// Texto de la confirmación a partir del antiguo «Pulsa otra vez: …»
+const textoConfirmar = t => { const m = String(t || "").match(/^Pulsa otra vez:\s*(.+)$/i); return m ? m[1].charAt(0).toUpperCase() + m[1].slice(1) + "." : "No se puede deshacer."; };
 function abrirMenu(titulo, detalle, opciones) {
   $("menuTit").textContent = titulo;
   $("menuDet").textContent = detalle || "";
@@ -522,7 +542,11 @@ function abrirMenu(titulo, detalle, opciones) {
     b.className = "opcion" + (o.peligro ? " peligro-op" : "");
     b.textContent = o.texto;
     b.addEventListener("click", () => {
-      if (o.peligro && !b.dataset.confirmar) { b.dataset.confirmar = "1"; b.textContent = o.confirmar || "Pulsa otra vez para confirmar"; return; }
+      if (o.peligro) {
+        $("menu").close();
+        confirmar("¿" + o.texto.replace(/…$/, "") + "?", textoConfirmar(o.confirmar), "Eliminar").then(ok => { if (ok) o.accion(); });
+        return;
+      }
       if (!o.mantener) $("menu").close();
       o.accion();
     });
@@ -895,7 +919,7 @@ function menuGrupo(dia, grupo) {
 }
 
 // ---------- Compartir con amigos: un código (o enlace) que otro usuario añade a su calendario ----------
-const URL_APP = "https://spider-test.github.io/entreno-semanal/";
+const URL_APP = "https://spider-test.github.io/fuerza-y-ritmo/";
 const nuevoCodigo = () => Array.from(crypto.getRandomValues(new Uint8Array(8)), b => "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"[b % 32]).join("");
 // Los ejercicios viajan por nombre y tipo, porque cada usuario tiene los suyos
 const paraCompartir = items => items.map(it => it.bloque
@@ -2233,11 +2257,11 @@ $("detVideo").addEventListener("change", () => {
 });
 $("detNotas").addEventListener("change", () => editarEjercicio({ notas: $("detNotas").value }));
 $("detBorrar").addEventListener("click", () => {
-  const b = $("detBorrar");
   if (!puedeQuitarDelCatalogo(ejercicioVivo(detalleId))) return;
-  if (!b.classList.contains("confirmar")) { b.classList.add("confirmar"); b.textContent = "Pulsa otra vez para eliminarlo con todas sus series"; return; }
-  editarEjercicio({ borrado: true });
-  $("detalle").close();
+  confirmar("¿Eliminar este ejercicio?", "Se borra con todas sus series.").then(ok => { if (!ok) return;
+    editarEjercicio({ borrado: true });
+    $("detalle").close();
+  });
 });
 $("detalle").addEventListener("close", () => {
   $("detEmbed").textContent = "";   // para que el vídeo deje de sonar
@@ -2687,9 +2711,8 @@ $("carGuardar").addEventListener("click", () => {
   pintarMarcas();
   setEstado("Carrera «" + c.nombre + "» guardada");
 });
-$("carBorrar").addEventListener("click", () => {
-  const b = $("carBorrar");
-  if (!b.classList.contains("confirmar")) { b.classList.add("confirmar"); b.textContent = "Pulsa otra vez para eliminarla"; return; }
+$("carBorrar").addEventListener("click", async () => {
+  if (!await confirmar("¿Eliminar esta carrera?", "Podrás deshacerlo justo después.")) return;
   const antes = { ...db.carreras[carEdit.id] };
   cambiar("carreras", { ...antes, borrado: true });
   $("dlgCarrera").close();
@@ -3043,9 +3066,8 @@ $("mesoQuitar").addEventListener("click", () => {
   persistir();
   $("mesoAviso").textContent = n ? "Quitadas " + n + " series planificadas (las que ya hiciste se conservan)." : "No había series planificadas de este mesociclo.";
 });
-$("mesoBorrar").addEventListener("click", () => {
-  const b = $("mesoBorrar");
-  if (!b.classList.contains("confirmar")) { b.classList.add("confirmar"); b.textContent = "Pulsa otra vez: se quitan también sus series planificadas"; return; }
+$("mesoBorrar").addEventListener("click", async () => {
+  if (!await confirmar("¿Eliminar este mesociclo?", "Se quitan también sus series planificadas del calendario (las hechas se conservan).")) return;
   quitarMesoDelCalendario(mesoEdit.id);
   cambiar("mesociclos", { ...db.mesociclos[mesoEdit.id], borrado: true });
   $("dlgMeso").close(); pintarPlan();
@@ -4103,9 +4125,8 @@ $("molGuardar").addEventListener("click", () => {
   pintarPlan();
   pintarBloques(true);
 });
-$("molBorrar").addEventListener("click", () => {
-  const b = $("molBorrar");
-  if (!b.classList.contains("confirmar")) { b.classList.add("confirmar"); b.textContent = "Pulsa otra vez para eliminarla"; return; }
+$("molBorrar").addEventListener("click", async () => {
+  if (!await confirmar("¿Eliminar esta molestia?")) return;
   cambiar("molestias", { ...db.molestias[molEdit.id], borrado: true });
   $("dlgMolestia").close();
   pintarPlan();
@@ -4741,7 +4762,7 @@ $("enSalir").addEventListener("click", salirEntreno);
 $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); abrirRpe(d); });
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
-const VERSION_APP = "v55" + (BETA ? " beta" : "");
+const VERSION_APP = "v56" + (BETA ? " beta" : "");
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";

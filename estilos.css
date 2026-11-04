@@ -1011,3 +1011,12 @@ h1 { color: var(--titulo); }
 .rutina-parte { list-style: none; margin-left: -1em; font-weight: 700; font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--accent); }
 /* Botones de añadir del día (Ejercicio, Bloque, Entreno, Parte): 2 × 2 en el móvil */
 @media (max-width: 760px) { .dia-cuerpo-in > .add-fila { display: grid; grid-template-columns: 1fr 1fr; } }
+
+/* Confirmación de borrado: ventana centrada con Cancelar y Eliminar */
+.dlg-confirmar { width: min(360px, calc(100vw - 40px)); }
+.dlg-confirmar .d-cuerpo { padding: 20px 18px 16px; text-align: center; }
+.conf-tit { font-family: var(--body); text-transform: none; font-size: 18px; font-weight: 700; margin: 0 0 8px; color: var(--fg); }
+.conf-txt { margin: 0 0 16px; color: var(--muted); font-size: 15px; line-height: 1.4; }
+.conf-botones { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.conf-botones button { min-height: 46px; font-size: 16px; font-weight: 700; border-radius: 12px; }
+.conf-si { border: 0; background: var(--error); color: #fff; }
