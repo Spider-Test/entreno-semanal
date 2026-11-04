@@ -191,7 +191,9 @@ function adivinarTipo(nombre) {
   if (/(carrera|correr|rodaje|tirada|sprint|series de|fartlek|cuesta|trote|running|\d+ ?m\b|\d+ ?km\b)/.test(n) || /^\d+$/.test(n)) return "carrera";
   return "fuerza";
 }
-const hecha = s => s.hecha !== false;   // las series planificadas tienen hecha = false
+const hecha = s => s.hecha !== false;
+// Serie «al máximo» sin apuntar todavía (máx reps o máx tiempo): al hacerla hay que escribir lo que salió
+const esMaxSinDato = s => !s.ciclo_id && !(n0(s.reps) > 0) && !(n0(s.tiempo) > 0) && !(n0(s.distancia) > 0);   // las series planificadas tienen hecha = false
 const rm = s => n0(s.reps) <= 1 ? n0(s.peso) : n0(s.peso) * (1 + n0(s.reps) / 30);    // 1RM estimado (Epley)
 const redondear = kg => Math.round(kg / 2.5) * 2.5;
 // 1RM de referencia: el que pongas en la ficha o, si no, el mejor estimado de tus series
@@ -1781,7 +1783,7 @@ function bloque(dia, id, series, grupo, parte) {
       if (b.querySelector(".por-lado")) b.querySelector(".por-lado").checked = !!s.por_lado;
       const esMax = !(n0(s.reps) > 0) && !(n0(s.tiempo) > 0) && !s.ciclo_id;
       // Completar una serie «máx» pendiente: se apunta lo que salió (reps o segundos)
-      if (esMax && modoForm === "editar" && !hecha(s)) { ponerMax(false); fb.placeholder = t ? "¿cuántos segundos?" : "¿cuántas reps?"; }
+      if (esMax && modoForm === "editar") { ponerMax(false); fb.placeholder = t ? "¿cuántos segundos?" : "¿cuántas reps?"; }
       else ponerMax(esMax);
     }
     fc.value = conRec ? recTexto(s) : "";
@@ -1831,7 +1833,7 @@ function bloque(dia, id, series, grupo, parte) {
       c.type = "button"; c.className = "marcar"; c.textContent = "";
       c.setAttribute("aria-label", "Marcar como hecha la serie " + numero);
       c.addEventListener("click", () => {
-        if (s.ciclo_id === "auto") { li.querySelector(".sv").click(); return; }   // en Bilbo hay que apuntar las repeticiones
+        if (s.ciclo_id === "auto" || (tipo === "fuerza" && esMaxSinDato(s))) { li.querySelector(".sv").click(); return; }   // en Bilbo y en «máx» hay que apuntar lo que salió
         marcarHecha(s, { ...s, hecha: true, peso: pesoMostrado(s) });
       });
       marca.replaceWith(c);
@@ -1863,7 +1865,7 @@ function bloque(dia, id, series, grupo, parte) {
     if (prs.has(s.id)) { const p = document.createElement("span"); p.className = "pr"; p.textContent = "PR"; p.title = "Récord personal"; li.querySelector(".sv").after(p); }
     li.querySelector(".borrar").addEventListener("click", () => borrarSerie(s));
     // Deslizar: a la derecha la marca hecha; a la izquierda la borra (con Deshacer)
-    deslizable(li, planificada ? (s.ciclo_id !== "auto" ? () => marcarHecha(s, { ...s, hecha: true, peso: pesoMostrado(s) }) : null) : () => desmarcar(s), () => borrarSerie(s));
+    deslizable(li, planificada ? (s.ciclo_id !== "auto" && !(tipo === "fuerza" && esMaxSinDato(s)) ? () => marcarHecha(s, { ...s, hecha: true, peso: pesoMostrado(s) }) : null) : () => desmarcar(s), () => borrarSerie(s));
     li.dataset.sid = s.id;
     mantenerPulsado(li, () => { if (!selSeries) empezarSelSeries(dia, s.id); });   // mantener pulsada una serie: elegir varias para agruparlas
     if (series.length > 1) li.appendChild(asaArrastre(li, () => [...ol.querySelectorAll(":scope > li[data-sid]")], n => reordenar(n.map(x => [db.series[x.dataset.sid]]), "Serie movida"), "Serie " + (s.calentamiento ? "de calentamiento" : numero)));
@@ -2185,9 +2187,10 @@ function tarjetaBloque(dia, bloqueId, series) {
     const isoT = !dist && !mov && (n0(s.tiempo) > 0 || !!s.max_tiempo) && !(n0(s.reps) > 0);
     form.dataset.isoT = isoT ? "1" : "";
     if (isoT) { fb.placeholder = "tiempo 45 s"; fb.inputMode = "decimal"; fb.setAttribute("aria-label", "Tiempo: 45 son segundos"); c.querySelector(".por").textContent = "·"; }
+    const maxSin = !dist && !mov && esMaxSinDato(s);
     if (mov) { fa.value = n0(s.reps) || ""; fb.value = (n0(s.tiempo) > 0 ? (n0(s.tiempo) < 60 ? String(n0(s.tiempo)) : fmtTiempo(s.tiempo)) : ""); }
     else if (dist) { fa.value = distCampo(s.distancia); fb.value = n0(s.tiempo) > 0 ? fmtTiempo(s.tiempo) : ""; }
-    else { fa.value = pesoMostrado(s) > 0 ? num(pesoMostrado(s)) : ""; fb.value = isoT ? (n0(s.tiempo) > 0 ? (n0(s.tiempo) < 60 ? String(n0(s.tiempo)) : fmtTiempo(s.tiempo)) : "máx") : n0(s.reps) || "máx"; }
+    else { fa.value = pesoMostrado(s) > 0 ? num(pesoMostrado(s)) : ""; fb.value = maxSin ? "" : isoT ? (n0(s.tiempo) > 0 ? (n0(s.tiempo) < 60 ? String(n0(s.tiempo)) : fmtTiempo(s.tiempo)) : "máx") : n0(s.reps) || "máx"; if (maxSin) fb.placeholder = isoT ? "¿cuántos segundos?" : "¿cuántas reps?"; }
     fc.value = recTexto(s);
     c.querySelectorAll("li").forEach(x => x.classList.remove("editando"));
     li.classList.add("editando");
@@ -2223,10 +2226,10 @@ function tarjetaBloque(dia, bloqueId, series) {
         const m = document.createElement("button");
         m.type = "button"; m.className = "marcar";
         m.setAttribute("aria-label", "Marcar como hecho: ronda " + r + ", " + nombreEj(s.ejercicio_id));
-        m.addEventListener("click", () => marcarHecha(s, { ...s, hecha: true, peso: pesoMostrado(s) }));
+        m.addEventListener("click", () => tipoDe(s.ejercicio_id) === "fuerza" && esMaxSinDato(s) ? editar(s, li) : marcarHecha(s, { ...s, hecha: true, peso: pesoMostrado(s) }));
         li.querySelector(".n").replaceWith(m);
       } else li.querySelector(".n").replaceWith(botonHecha(s, "✓", "ronda " + r + ", " + nombreEj(s.ejercicio_id)));
-      deslizable(li, !hecha(s) ? () => marcarHecha(s, { ...s, hecha: true, peso: pesoMostrado(s) }) : () => desmarcar(s), null);
+      deslizable(li, !hecha(s) ? (tipoDe(s.ejercicio_id) === "fuerza" && esMaxSinDato(s) ? null : () => marcarHecha(s, { ...s, hecha: true, peso: pesoMostrado(s) })) : () => desmarcar(s), null);
       // El nombre del tramo solo si aporta algo: «Series 1000 m · 1000 m» se queda en «1000 m»
       const nomTramo = !distDeNombre(nombreEj(s.ejercicio_id)) ? nombreEj(s.ejercicio_id) + " · " : "";
       li.querySelector(".sv-p").textContent = nomTramo + serieTexto(s);
@@ -5824,7 +5827,7 @@ $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); 
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
 // VERSION_APP es interna (sube en cada publicación para que los móviles se actualicen); la que se ve es siempre la 26
-const VERSION_APP = "v99" + (BETA ? " beta" : "");
+const VERSION_APP = "v100" + (BETA ? " beta" : "");
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";
