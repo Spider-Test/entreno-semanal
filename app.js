@@ -544,6 +544,7 @@ function marcarExtra() {
 const hayPendientes = () => Object.keys(TABLAS).some(t => Object.values(db[t]).some(v => v.sucio));
 
 let sincronizando = false, repetir = false;
+const faltanColumnas = new Set();   // columnas o tablas nuevas que aún no existen en Supabase
 async function sincronizar() {
   if (!sesion) return;
   if (sincronizando) { repetir = true; return; }
@@ -558,8 +559,16 @@ async function sincronizar() {
       // Bajar solo lo que ha cambiado en el servidor (con 5 s de margen)
       for (const t of Object.keys(TABLAS)) {
         const desde = cursores[t] ? "&servidor_ts=gte." + encodeURIComponent(new Date(Date.parse(cursores[t]) - 5000).toISOString()) : "";
-        const r = await api("/rest/v1/" + t + "?select=" + TABLAS[t].campos.join(",") + ",servidor_ts&order=servidor_ts.asc" + desde);
-        if (!r.ok) { if (TABLAS[t].opcional) continue; throw new Error("leer " + t + " " + r.status); }
+        let r = await api("/rest/v1/" + t + "?select=" + TABLAS[t].campos.join(",") + ",servidor_ts&order=servidor_ts.asc" + desde);
+        // Si en la base de datos falta una columna nueva (no se ejecutó su SQL), se sigue sin ella en vez de parar toda la sincronización
+        for (let intento = 0; !r.ok && r.status === 400 && intento < 5; intento++) {
+          const m = ((await r.clone().json().catch(() => ({}))).message || "").match(/column \w+\.(\w+) does not exist/);
+          if (!m || !TABLAS[t].campos.includes(m[1])) break;
+          TABLAS[t].campos = TABLAS[t].campos.filter(c => c !== m[1]);
+          faltanColumnas.add(t + "." + m[1]);
+          r = await api("/rest/v1/" + t + "?select=" + TABLAS[t].campos.join(",") + ",servidor_ts&order=servidor_ts.asc" + desde);
+        }
+        if (!r.ok) { if (TABLAS[t].opcional) { faltanColumnas.add(t); continue; } throw new Error("leer " + t + " " + r.status); }
         for (const f of await r.json()) {
           if (mezclar(t, f)) cambio = true;
           if (!cursores[t] || Date.parse(f.servidor_ts) > Date.parse(cursores[t])) cursores[t] = f.servidor_ts;
@@ -581,7 +590,7 @@ async function sincronizar() {
       }
     } while (repetir);
     await enviarSugerencias();
-    setEstado("Sincronizado");
+    setEstado(faltanColumnas.size ? "Sincronizado, pero falta en la base de datos: " + [...faltanColumnas].join(", ") + " (hay que ejecutar su SQL en Supabase)" : "Sincronizado", faltanColumnas.size > 0);
   } catch (e) {
     if (e instanceof SesionCaducada) cerrarSesion("Tu sesión ha caducado. Vuelve a entrar; lo que escribiste sigue guardado en este dispositivo.");
     else setEstado(hayPendientes() ? "Sin conexión · guardado en el dispositivo, se subirá al volver la conexión" : "Sin conexión · mostrando lo último guardado");
@@ -5732,7 +5741,7 @@ $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); 
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
 // VERSION_APP es interna (sube en cada publicación para que los móviles se actualicen); la que se ve es siempre la 26
-const VERSION_APP = "v88" + (BETA ? " beta" : "");
+const VERSION_APP = "v89" + (BETA ? " beta" : "");
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";
