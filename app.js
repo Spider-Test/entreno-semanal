@@ -322,9 +322,11 @@ function serieTexto(s) {
   }
   const lado = s.por_lado ? " por lado" : "";
   const kg = pesoMostrado(s), reps = n0(s.reps) > 0 ? n0(s.reps) : "máx";
-  if (s.max_tiempo && !(n0(s.tiempo) > 0) && !(n0(s.reps) > 0)) return (kg > 0 ? num(kg) + " kg · " : "") + "máx tiempo" + lado;   // aguantar el máximo
-  if (n0(s.tiempo) > 0 && !(n0(s.reps) > 0)) return (kg > 0 ? num(kg) + " kg · " : "") + fmtSegs(s.tiempo) + lado;   // por tiempo: bici, plancha, isométricos…
-  return (s.ciclo_id ? "Bilbo · " : "") + (n0(s.pct) > 0 ? num(s.pct) + " % · " : "") + (kg > 0 ? num(kg) + " kg × " + reps : reps + " reps") + lado;
+  // Como en una hoja: primero las repeticiones (o el tiempo) y el peso detrás, entre paréntesis: «10 reps (100 kg)»
+  const peso = kg > 0 || n0(s.pct) > 0 ? " (" + (n0(s.pct) > 0 ? num(s.pct) + " %" + (kg > 0 ? " · " : "") : "") + (kg > 0 ? num(kg) + " kg" : "") + ")" : "";
+  if (s.max_tiempo && !(n0(s.tiempo) > 0) && !(n0(s.reps) > 0)) return "máx tiempo" + lado + peso;   // aguantar el máximo
+  if (n0(s.tiempo) > 0 && !(n0(s.reps) > 0)) return fmtSegs(s.tiempo) + lado + peso;   // por tiempo: bici, plancha, isométricos…
+  return (s.ciclo_id ? "Bilbo · " : "") + (reps === "máx" ? "máx reps" : reps + " reps") + lado + peso;
 }
 const descTexto = s => n0(s.rec_dist) > 0 ? "rec. " + fmtDist(s.rec_dist) : n0(s.descanso) > 0 ? "desc. " + fmtTiempo(s.descanso) : "";
 const recTexto = s => n0(s.rec_dist) > 0 ? num(s.rec_dist) + " m" : n0(s.descanso) > 0 ? fmtTiempo(s.descanso) : "";
@@ -1555,14 +1557,13 @@ function bloque(dia, id, series, grupo, parte) {
   b.innerHTML = '<div class="bloque-cab"><button type="button" class="ej-nombre"></button><button type="button" class="quitar" aria-label="Quitar ejercicio">✕</button></div>' +
     '<ol class="series"></ol>' +
     '<form class="nueva-serie">' +
-      '<div class="ns-fila ns-series"><label class="veces-l">Series <button type="button" class="v-menos" aria-label="Una serie menos">−</button><input class="veces" inputmode="numeric" pattern="[0-9]*" value="1" aria-label="Cuántas series iguales" autocomplete="off" enterkeyhint="next"><button type="button" class="v-mas" aria-label="Una serie más">+</button></label></div>' +
-      '<div class="ns-fila">' + (dist
+      '<div class="ns-fila ns-principal"><label class="veces-l veces-izq" title="Cuántas series iguales"><input class="veces" inputmode="numeric" pattern="[0-9]*" value="1" aria-label="Cuántas series iguales" autocomplete="off" enterkeyhint="next"><span class="vz-et">series</span></label><span class="x-series">×</span>' + (dist
         ? '<button type="button" class="modo-dist" aria-label="Cambiar entre metros y tiempo">m</button>' + paso('<input class="in-a" inputmode="decimal" placeholder="' + UD() + '" aria-label="Distancia en ' + UD() + '" autocomplete="off" enterkeyhint="next">') +
           paso('<input class="in-b" inputmode="decimal" placeholder="tiempo 3,40" aria-label="Tiempo (minutos y segundos)" autocomplete="off" enterkeyhint="next">')
         : mov ? paso('<input class="in-a" inputmode="numeric" pattern="[0-9]*" placeholder="reps" aria-label="Repeticiones (opcional si pones tiempo)" autocomplete="off" enterkeyhint="next">') +
           '<span class="por">o</span>' + paso('<input class="in-b" inputmode="decimal" placeholder="tiempo 45 s" aria-label="Tiempo: 45 son segundos, 2 min o 1,30" autocomplete="off" enterkeyhint="next">')
-        : '<button type="button" class="modo" aria-label="Cambiar entre kg y % del 1RM">kg</button>' + paso('<input class="in-a" inputmode="decimal" placeholder="kg" aria-label="Peso en kg" autocomplete="off" enterkeyhint="next">') +
-          '<span class="por">×</span>' + paso('<input class="in-b" inputmode="numeric" placeholder="reps" aria-label="Repeticiones (o «máx»)" autocomplete="off" enterkeyhint="next">')) +
+        : paso('<input class="in-b" inputmode="numeric" placeholder="reps" aria-label="Repeticiones (o «máx»)" autocomplete="off" enterkeyhint="next">') +
+          '<span class="kg-par">(</span><button type="button" class="modo" aria-label="Cambiar entre kg y % del 1RM">kg</button>' + paso('<input class="in-a" inputmode="decimal" placeholder="kg" aria-label="Peso en kg" autocomplete="off" enterkeyhint="next">') + '<span class="kg-par">)</span>') +
       '</div>' + (dist ? '<div class="ns-extra"><span class="calc"></span></div>' : mov ? '<div class="ns-extra"><label class="lado-op"><input type="checkbox" class="por-lado"> Por lado (izq. y der.)</label></div>' : '<div class="ns-extra"><span class="calc"></span><span class="ops-fuerza seg-medida" role="group" aria-label="Cómo se mide la serie"><button type="button" data-m="reps">Reps</button><button type="button" data-m="t">⏱ Tiempo</button><button type="button" data-m="maxr">Máx. reps</button><button type="button" data-m="maxt">Máx. tiempo</button><input type="checkbox" class="es-max" hidden><input type="checkbox" class="por-t" hidden></span><label class="lado-op"><input type="checkbox" class="por-lado"> Por lado (izq. y der.)</label><label class="bilbo-op" hidden><input type="checkbox" class="es-bilbo"> <span></span></label></div>') +
       '<div class="ns-fila"><input class="in-c" inputmode="decimal" placeholder="⏱ descanso 1,30 o 300 m" aria-label="Descanso o recuperación después de la serie (tiempo o metros)" autocomplete="off" enterkeyhint="done">' +
       '<button class="anadir ok">OK</button></div>' +
@@ -1611,19 +1612,21 @@ function bloque(dia, id, series, grupo, parte) {
     if (efect.length && textos.size === 1) {
       const r = document.createElement("span");
       r.className = "ej-resumen";
-      r.textContent = [...textos][0] + " · ×" + efect.length;
+      // Fuerza: «3 × 10 (100 kg)», como se suele apuntar (series × repeticiones y el peso)
+      const e0 = efect[0], kg0 = pesoMostrado(e0);
+      r.textContent = tipo === "fuerza" && n0(e0.reps) > 0 && !(n0(e0.tiempo) > 0) && !e0.pct && !e0.ciclo_id
+        ? efect.length + " × " + n0(e0.reps) + (kg0 > 0 ? " (" + num(kg0) + " kg)" : "") + (e0.por_lado ? " por lado" : "")
+        : [...textos][0] + " · ×" + efect.length;
       prog.before(r);
     }
     formEl.hidden = true;
   }
   // El formulario tiene tres usos: «grupo» (×N series iguales y OK, también para editarlas todas), «una» (+ Serie suelta) y «editar» (una serie)
   let modoForm = "grupo";
-  b.querySelector(".v-menos").addEventListener("click", () => { vecesEl.value = Math.max(1, (parseInt(vecesEl.value, 10) || 1) - 1); vecesEl.dispatchEvent(new Event("input")); });
-  b.querySelector(".v-mas").addEventListener("click", () => { vecesEl.value = Math.min(50, (parseInt(vecesEl.value, 10) || 0) + 1); vecesEl.dispatchEvent(new Event("input")); });
   const vecesEl = b.querySelector(".veces"), cambiarEl = b.querySelector(".cambiar-ej"), otroEj = b.querySelector(".otro-ej");
   const ponerModoForm = m => {
     modoForm = m;
-    b.querySelector(".ns-series").hidden = m !== "grupo";
+    b.querySelector(".veces-izq").hidden = m !== "grupo";
     cambiarEl.hidden = !(m === "grupo" && series.length);
     if (m !== "editar") boton.textContent = m === "grupo" ? "OK" : "+ Añadir serie";
     boton.setAttribute("aria-label", m === "grupo" ? (series.length ? "OK: guardar los cambios en las series" : "OK: crear las series") : m === "una" ? "Añadir una serie suelta" : "Guardar la serie");
@@ -5821,7 +5824,7 @@ $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); 
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
 // VERSION_APP es interna (sube en cada publicación para que los móviles se actualicen); la que se ve es siempre la 26
-const VERSION_APP = "v96" + (BETA ? " beta" : "");
+const VERSION_APP = "v99" + (BETA ? " beta" : "");
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";

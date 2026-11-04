@@ -1208,6 +1208,22 @@ h1 { color: var(--titulo); }
 #detTipo button, #selTipo button { min-width: 0; padding-left: 6px; padding-right: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #detalle .d-cuerpo, #detalle section { min-width: 0; }
 
+/* Número de series a la izquierda, en la misma fila que kg × reps (o metros, tiempo…) */
+.veces-izq { flex: none; display: flex; flex-direction: column; align-items: center; gap: 0; margin-right: 4px; }
+.veces-izq[hidden] { display: none; }
+.ns-fila .veces-izq .veces { width: 2.6em; flex: none; text-align: center; font-weight: 700; padding: 6px 2px; border: 1px solid var(--accent); border-radius: 8px; color: var(--accent); background: var(--accent-soft); }
+.vz-et { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--accent); line-height: 1.2; }
+@media (max-width: 760px) {
+  .ns-fila .veces-izq .veces { width: 2.4em; font-size: 18px; padding: 8px 2px; }
+  .ns-principal .paso button { display: none; }   /* en el móvil, casillas anchas sin − y + */
+  .ns-principal .paso input { border-radius: 8px; }
+}
+
+/* Series × repeticiones (peso) */
+.x-series { flex: none; font-weight: 700; color: var(--muted); margin: 0 2px; }
+.veces-izq[hidden] + .x-series { display: none; }
+.kg-par { flex: none; color: var(--muted); font-weight: 600; }
+
 /* Arrastrar un ejercicio o bloque encima de la cabecera de una parte: entra en ella (como una carpeta) */
 .parte-cab { transition: transform 0.15s, box-shadow 0.15s; }
 .parte-cab.zona-destino { transform: scale(1.03); box-shadow: 0 0 0 3px var(--pc), 0 6px 18px rgba(0, 0, 0, 0.18); }
