@@ -3022,6 +3022,70 @@ $("loginForm").addEventListener("submit", async e => {
     $("loginBtn").disabled = false;
   }
 });
+// ---------- Contraseña: «¿Has olvidado tu contraseña?» (enlace por correo) y cambiarla con la sesión abierta ----------
+$("olvideBtn").addEventListener("click", async () => {
+  const email = $("email").value.trim();
+  if (!/^\S+@\S+\.\S+$/.test(email)) { $("loginError").textContent = "Escribe arriba tu email y vuelve a pulsar «¿Has olvidado tu contraseña?»."; $("email").focus(); return; }
+  $("olvideBtn").disabled = true;
+  try {
+    const vuelta = encodeURIComponent(location.origin + location.pathname);
+    const r = await fetch(SUPA + "/auth/v1/recover?redirect_to=" + vuelta, { method: "POST", headers: { apikey: CLAVE, "Content-Type": "application/json" }, body: JSON.stringify({ email }) });
+    if (r.status === 429) throw new Error("Has pedido varios correos seguidos. Espera unos minutos y vuelve a probar.");
+    if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(traducir(j.msg || j.error_description || j.message || "") || "No se ha podido enviar el correo."); }
+    $("loginError").textContent = "Si hay una cuenta con " + email + ", te hemos enviado un correo con un enlace para elegir una contraseña nueva. Ábrelo en este dispositivo (mira también en spam).";
+  } catch (err) {
+    $("loginError").textContent = navigator.onLine === false ? "Necesitas conexión para pedir el correo." : err.message;
+  } finally { $("olvideBtn").disabled = false; }
+});
+// Al volver desde el enlace del correo (#access_token=…&type=recovery): se entra y se pide la contraseña nueva
+async function entrarDesdeEnlace() {
+  const p = new URLSearchParams(location.hash.slice(1));
+  history.replaceState(null, "", location.pathname);
+  if (p.get("error")) { $("login").hidden = false; $("loginError").textContent = /expired/i.test(p.get("error_code") || p.get("error_description") || "") ? "El enlace ha caducado o ya se usó. Pide otro con «¿Has olvidado tu contraseña?»." : "No se ha podido usar el enlace. Pide otro."; return; }
+  try {
+    const token = p.get("access_token");
+    const r = await fetch(SUPA + "/auth/v1/user", { headers: { apikey: CLAVE, Authorization: "Bearer " + token } });
+    if (!r.ok) throw new Error();
+    const user = await r.json();
+    if (leer("entrenos-dueno") !== user.id) {
+      db = {}; Object.keys(TABLAS).forEach(t => { db[t] = {}; }); versionDatos++; cursores = {}; enEspera = {}; perfil = null; porta = null;
+      guardarLocal(); guardarEspera(); escribir("perfil-v1", null); escribir("portapapeles-v1", null); escribir("entrenos-dueno", user.id);
+    }
+    guardarSesion({ access_token: token, refresh_token: p.get("refresh_token"), expires_in: +p.get("expires_in") || 3600, user });
+    try { await cargarPerfil(); } catch {}
+    mostrarApp();
+    abrirClave(true);
+  } catch {
+    $("login").hidden = false;
+    $("loginError").textContent = "El enlace no es válido o ha caducado. Pide otro con «¿Has olvidado tu contraseña?».";
+  }
+}
+function abrirClave(recuperando) {
+  $("claveTit").textContent = recuperando ? "Elige tu contraseña nueva" : "Cambiar contraseña";
+  $("claveTexto").textContent = recuperando ? "Has entrado con el enlace del correo. Elige ahora una contraseña nueva de al menos 6 caracteres." : "Elige una contraseña nueva de al menos 6 caracteres. Seguirás con la sesión abierta en tus otros dispositivos.";
+  $("claveNueva").value = ""; $("claveRepite").value = ""; $("claveAviso").textContent = "";
+  $("dlgClave").showModal();
+  $("claveNueva").focus();
+}
+$("claveBtn").addEventListener("click", () => abrirClave(false));
+$("claveGuardar").addEventListener("click", async () => {
+  const a = $("claveNueva").value, b = $("claveRepite").value;
+  if (a.length < 6) { $("claveAviso").textContent = "La contraseña debe tener al menos 6 caracteres."; $("claveNueva").focus(); return; }
+  if (a !== b) { $("claveAviso").textContent = "Las dos contraseñas no coinciden."; $("claveRepite").focus(); return; }
+  $("claveGuardar").disabled = true;
+  try {
+    const r = await api("/auth/v1/user", { method: "PUT", body: JSON.stringify({ password: a }) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      const m = j.msg || j.error_description || j.message || "";
+      throw new Error(/same|different/i.test(m) ? "La contraseña nueva tiene que ser distinta de la actual." : /reauth/i.test(m) ? "Por seguridad, cierra sesión, vuelve a entrar y cámbiala enseguida (o usa «¿Has olvidado tu contraseña?»)." : traducir(m) || "No se ha podido cambiar.");
+    }
+    $("dlgClave").close();
+    setEstado("Contraseña cambiada");
+  } catch (err) {
+    $("claveAviso").textContent = navigator.onLine === false ? "Necesitas conexión para cambiar la contraseña." : err.message;
+  } finally { $("claveGuardar").disabled = false; }
+});
 function cerrarSesion(msg) {
   sesion = null; escribir("sesion-v1", null);
   $("app").hidden = true; $("pendiente").hidden = true; $("login").hidden = false;
@@ -5312,6 +5376,7 @@ pintarAvisoNovedades();
 $("ayudaBtn").addEventListener("click", abrirAyuda);
 $("dlgAyuda").querySelectorAll("details").forEach(d => d.addEventListener("toggle", () => { if (d.open) verAlAbrir(d); }));
 
-if (sesion) mostrarApp(); else $("login").hidden = false;
+if (/type=recovery|error_code=/.test(location.hash)) entrarDesdeEnlace();
+else if (sesion) mostrarApp(); else $("login").hidden = false;
 
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});

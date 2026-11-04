@@ -27,6 +27,7 @@
       <div id="loginError" role="alert"></div>
       <button class="primario" id="loginBtn" type="submit">Entrar</button>
       <button class="enlace" id="modoBtn" type="button">¿Primera vez? Crear cuenta</button>
+      <button class="enlace" id="olvideBtn" type="button">¿Has olvidado tu contraseña?</button>
     </div>
   </form>
 </section>
@@ -164,6 +165,7 @@
   <div class="pie">
     <span id="estado" role="status"></span>
     <button type="button" class="enlace" id="sugPie">Enviar sugerencia</button>
+    <button type="button" class="enlace" id="claveBtn">Cambiar contraseña</button>
     <button type="button" class="enlace" id="salirBtn">Cerrar sesión</button>
   </div>
 </section>
@@ -442,6 +444,7 @@
     <p>Toca cada apartado para verlo. Puedes volver aquí cuando quieras con el botón <b>?</b> de arriba. ¿Echas algo en falta o algo no va bien? Envíanos una sugerencia:</p>
     <details class="novedades" open><summary>Novedades · versión 53</summary>
       <p>La app se llama ahora <b>Fuerza y Ritmo</b>, con icono y colores nuevos (azul marino y verde). Para ver el icono nuevo en el iPhone, quita la app de la pantalla de inicio y añádela otra vez.</p>
+      <p><b>Contraseña:</b> «¿Has olvidado tu contraseña?» en la pantalla de entrada (te llega un enlace por correo) y «Cambiar contraseña» abajo del todo, junto a «Cerrar sesión».</p>
     </details>
     <button type="button" class="nav-btn sug-btn" id="sugAyuda">💬 Enviar una sugerencia o avisar de un fallo</button>
     <details><summary>La semana y el texto del día</summary>
@@ -450,6 +453,10 @@
       <p>El botón <b>⤢</b> abre ese día solo, a pantalla completa. Pasa al día anterior o siguiente con ‹ › o deslizando a los lados, y vuelve con <b>‹ Semana</b>.</p>
       <p>Cada día tiene un espacio para escribir lo que quieras. Se guarda solo. Mientras escribes aparece el botón <b>N</b> de negrita.</p>
       <p>Cambia de semana con las flechas ‹ ›; <b>Hoy</b> te devuelve a la semana actual. El anillo de cada día y la barra bajo las fechas muestran cuántas series llevas hechas de las planificadas.</p>
+    </details>
+    <details><summary>Tu cuenta y tu contraseña</summary>
+      <p><b>Cambiar la contraseña:</b> abajo del todo, junto a «Cerrar sesión», pulsa <b>Cambiar contraseña</b>, escríbela dos veces y guarda. En tus otros dispositivos sigues con la sesión abierta.</p>
+      <p><b>Si la has olvidado:</b> en la pantalla de entrada escribe tu email y pulsa <b>¿Has olvidado tu contraseña?</b>. Te llegará un correo (mira también en spam) con un enlace: ábrelo en el móvil o el ordenador donde quieras entrar, y la app te pedirá la contraseña nueva. El enlace caduca al cabo de un rato y solo sirve una vez.</p>
     </details>
     <details><summary>Calendario y unidades</summary>
       <p>El botón <b>📅</b>, junto a las fechas de la semana, abre el calendario del mes: cada día con entrenamiento lleva un punto (relleno si lo hiciste entero, a medias o vacío si estaba planificado). Cambia de mes con ‹ › y toca un día para ir a su semana con ese día abierto.</p>
@@ -593,6 +600,20 @@
     </div>
     <p class="menu-det nota">No sustituye la opinión de un profesional: si el dolor no mejora, consulta con tu médico o fisioterapeuta.</p>
     <div class="d-botones"><button type="button" class="peligro" id="molBorrar">Eliminar</button><button type="button" class="anadir" id="molGuardar">Guardar</button></div>
+  </div>
+</dialog>
+
+<dialog id="dlgClave" aria-label="Cambiar contraseña">
+  <form method="dialog" class="d-cab">
+    <h3 class="d-tit" id="claveTit">Cambiar contraseña</h3>
+    <button class="cerrar" aria-label="Cerrar">✕</button>
+  </form>
+  <div class="d-cuerpo">
+    <p class="menu-det nota" id="claveTexto">Elige una contraseña nueva de al menos 6 caracteres. Seguirás con la sesión abierta en tus otros dispositivos.</p>
+    <label class="campo">Contraseña nueva <input id="claveNueva" type="password" autocomplete="new-password" minlength="6"></label>
+    <label class="campo">Repítela <input id="claveRepite" type="password" autocomplete="new-password" minlength="6"></label>
+    <p class="aviso" id="claveAviso" role="status"></p>
+    <div class="d-botones"><button type="button" class="anadir" id="claveGuardar">Guardar contraseña</button></div>
   </div>
 </dialog>
 
