@@ -31,7 +31,13 @@ const $ = id => document.getElementById(id);
 const BETA = location.pathname.includes("/beta/"), PREFIJO = BETA ? "beta:" : "";
 const VERSION_VISIBLE = "26";   // la versión que se ve en la app (fija); la interna es VERSION_APP
 const leer = k => { try { return JSON.parse(localStorage.getItem(PREFIJO + k)); } catch { return null; } };
-const escribir = (k, v) => { try { v === null ? localStorage.removeItem(PREFIJO + k) : localStorage.setItem(PREFIJO + k, JSON.stringify(v)); } catch {} };
+const escribir = (k, v) => {
+  try { v === null ? localStorage.removeItem(PREFIJO + k) : localStorage.setItem(PREFIJO + k, JSON.stringify(v)); } catch {}
+  if (CLAVES_EXTRA.has(k)) marcarExtra();   // lo que antes vivía solo en este dispositivo también se sube
+};
+// Datos de cada día que no son series (ejercicios añadidos aún sin series, entrenos y partes vacíos, su descripción,
+// su letra y su posición): se guardan en el día (tabla entrenos, columna extra) para verlos igual en todos los dispositivos
+const CLAVES_EXTRA = new Set(["bloques-v1", "sesiones-v1", "espera-grupo-v1", "partes-v1", "espera-parte-v1", "espera-nota-v1", "espera-letra-v1", "espera-antes-v1"]);
 if (BETA) { document.documentElement.classList.add("beta"); document.title = "Fuerza y Ritmo β"; document.querySelector('meta[name="apple-mobile-web-app-title"]').content = "Fuerza y Ritmo β"; }
 
 // Cada tabla se sincroniza igual: gana la edición más reciente de cada fila.
@@ -43,12 +49,12 @@ const TABLAS = {
   plantillas: { clave: "id", conflicto: "id", campos: ["id", "nombre", "items", "borrado", "actualizado"] },
   mesociclos: { clave: "id", conflicto: "id", campos: ["id", "nombre", "inicio", "semanas", "dias", "progresion", "descarga", "notas", "borrado", "actualizado"] },
   series: { clave: "id", conflicto: "id", campos: ["id", "fecha", "ejercicio_id", "orden", "peso", "reps", "distancia", "tiempo", "descanso", "hecha", "grupo", "meso_id", "bloque_id", "ronda", "rec_dist", "pct", "ciclo_id", "calentamiento", "desnivel_pos", "desnivel_neg", "ritmo_ajustado", "fc_media", "fc_max", "cadencia", "fc_pico", "fc_hist", "seccion", "por_lado", "nota", "letra_nueva", "max_tiempo", "borrado", "actualizado"] },
-  entrenos: { clave: "fecha", conflicto: "user_id,fecha", campos: ["fecha", "html", "texto", "rpe", "sensacion", "actualizado"] },
+  entrenos: { clave: "fecha", conflicto: "user_id,fecha", campos: ["fecha", "html", "texto", "rpe", "sensacion", "extra", "actualizado"] },
   molestias: { clave: "id", conflicto: "id", campos: ["id", "zona", "descripcion", "inicio", "estado", "borrado", "actualizado"] },
   listas: { clave: "id", conflicto: "id", campos: ["id", "nombre", "items", "siguiente", "borrado", "actualizado"], opcional: true },
   carreras: { clave: "id", conflicto: "id", campos: ["id", "nombre", "fecha", "lugar", "distancia", "tiempo", "chip", "pos_general", "total_general", "categoria", "pos_categoria", "total_categoria", "desnivel_pos", "fc_media", "notas", "enlace", "previsto", "borrado", "actualizado"] }
 };
-const DEFECTOS = { seccion: "", por_lado: false, nota: "", letra_nueva: false, max_tiempo: false, fecha: null, lugar: "", categoria: "", enlace: "", fc_hist: [], tipo: "fuerza", hecha: true, grupo: "", meso_id: "", bloque_id: "", ciclo_id: "", importadas: [], cerrado: false, compartido: false, items: [], dias: {}, descarga: {}, zonas: [], calentamiento: false, inicio: null, zona: "", descripcion: "", estado: "activa", nombre: "", video_url: "", notas: "", html: "", texto: "", sensacion: "", borrado: false };
+const DEFECTOS = { extra: {}, seccion: "", por_lado: false, nota: "", letra_nueva: false, max_tiempo: false, fecha: null, lugar: "", categoria: "", enlace: "", fc_hist: [], tipo: "fuerza", hecha: true, grupo: "", meso_id: "", bloque_id: "", ciclo_id: "", importadas: [], cerrado: false, compartido: false, items: [], dias: {}, descarga: {}, zonas: [], calentamiento: false, inicio: null, zona: "", descripcion: "", estado: "activa", nombre: "", video_url: "", notas: "", html: "", texto: "", sensacion: "", borrado: false };
 let sesion = leer("sesion-v1");                 // {access_token, refresh_token, expires_at, user_id, email}
 let perfil = leer("perfil-v1");                 // {aprobado, es_admin, email}
 let usuarios = leer("usuarios-v1") || [];        // solo para el administrador (se guarda para no verla vacía al abrir)
@@ -491,7 +497,49 @@ function mezclar(tabla, f) {
   fila.sucio = false;
   db[tabla][k] = fila;
   versionDatos++;
+  if (tabla === "entrenos") aplicarExtra(k, fila.extra || {});
   return true;
+}
+// ---- Extra de cada día: construirlo desde lo guardado en el dispositivo y aplicarlo cuando llega del servidor ----
+function extraDe(f) {
+  const pre = f + "|";
+  const sub = o => { const r = {}; Object.keys(o || {}).filter(k => k.startsWith(pre)).sort().forEach(k => { r[k.slice(pre.length)] = o[k]; }); return r; };
+  const e = { e: enEspera[f] || [], s: sesionesVacias[f] || [], g: sub(esperaGrupo), p: sub(partesVacias), pa: sub(esperaParte), n: sub(esperaNota), l: sub(esperaLetra), a: sub(esperaAntes) };
+  Object.keys(e).forEach(k => { if (Array.isArray(e[k]) ? !e[k].length : !Object.keys(e[k]).length) delete e[k]; });
+  return e;
+}
+let aplicandoExtra = false, timerExtra = null;
+function aplicarExtra(f, e) {
+  aplicandoExtra = true;
+  const pre = f + "|";
+  const poner = (o, datos) => { Object.keys(o).forEach(k => { if (k.startsWith(pre)) delete o[k]; }); Object.keys(datos || {}).forEach(k => { o[pre + k] = datos[k]; }); };
+  if ((e.e || []).length) enEspera[f] = e.e.slice(); else delete enEspera[f];
+  if ((e.s || []).length) sesionesVacias[f] = e.s.slice(); else delete sesionesVacias[f];
+  poner(esperaGrupo, e.g); poner(partesVacias, e.p); poner(esperaParte, e.pa); poner(esperaNota, e.n); poner(esperaLetra, e.l); poner(esperaAntes, e.a);
+  escribir("bloques-v1", enEspera); guardarSesiones(); escribir("espera-nota-v1", esperaNota); escribir("espera-letra-v1", esperaLetra); escribir("espera-antes-v1", esperaAntes);
+  aplicandoExtra = false;
+}
+// Tras cambiar algo local, se compara cada día con lo guardado y se marca para subir lo que cambie
+function marcarExtra() {
+  if (aplicandoExtra) return;
+  try { esperaAntes; esperaNota; esperaLetra; } catch { return; }   // aún cargando la app
+  clearTimeout(timerExtra);
+  timerExtra = setTimeout(() => {
+    if (!sesion) return;
+    const fechas = new Set([...Object.keys(enEspera), ...Object.keys(sesionesVacias)]);
+    [esperaGrupo, partesVacias, esperaParte, esperaNota, esperaLetra, esperaAntes].forEach(o => Object.keys(o || {}).forEach(k => fechas.add(k.split("|")[0])));
+    Object.values(db.entrenos).forEach(x => { if (x.extra && Object.keys(x.extra).length) fechas.add(x.fecha); });
+    let hay = false;
+    fechas.forEach(f => {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(f)) return;
+      const e = extraDe(f), actual = (db.entrenos[f] || {}).extra || {};
+      if (JSON.stringify(e) === JSON.stringify(actual)) return;
+      const previo = db.entrenos[f] || { fecha: f, html: "", texto: "", rpe: 0, sensacion: "" };
+      cambiar("entrenos", { ...previo, fecha: f, extra: e }, true);
+      hay = true;
+    });
+    if (hay) persistir();
+  }, 400);
 }
 const hayPendientes = () => Object.keys(TABLAS).some(t => Object.values(db[t]).some(v => v.sucio));
 
@@ -1095,8 +1143,8 @@ function idPorNombre(nombre, tipo) {
 const desdeCompartido = items => items.map(it => it.bloque
   ? { bloque: true, seccion: it.seccion || "", tramos: it.tramos.map(t => ({ ejercicio_id: idPorNombre(t.ejercicio, t.tipo), series: t.series })) }
   : { ejercicio_id: idPorNombre(it.ejercicio, it.tipo), seccion: it.seccion || "", series: it.series });
-function copiarTexto(t) {
-  (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(() => setEstado("Copiado: " + t), () => setEstado("Código: " + t));
+function copiarTexto(t, que) {
+  (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(() => avisoDeshacer("📋 " + (que || "Copiado") + ": " + t, null), () => avisoDeshacer((que || "Copia esto") + ": " + t, null));
 }
 async function compartir(nombre, items, crudo) {
   const codigo = nuevoCodigo();
@@ -1106,11 +1154,15 @@ async function compartir(nombre, items, crudo) {
     if (!r.ok) throw new Error();
   } catch { setEstado("No se ha podido compartir. Necesitas conexión.", true); return; }
   const enlace = URL_APP + "#c=" + codigo;
-  abrirMenu("Compartir «" + nombre + "»", "Código " + codigo + ". Tu amigo puede abrir el enlace o pegar el código en Plan → Añadir algo compartido.", [
-    navigator.share && { texto: "Enviar…", mantener: true, accion: () => navigator.share({ title: nombre, text: "Entrenamiento «" + nombre + "» para Fuerza y Ritmo (código " + codigo + ")", url: enlace }).catch(() => {}) },
-    { texto: "Copiar enlace", mantener: true, accion: () => copiarTexto(enlace) },
-    { texto: "Copiar código", mantener: true, accion: () => copiarTexto(codigo) }
-  ]);
+  const caja = document.createElement("div");
+  caja.className = "codigo-comp";
+  caja.innerHTML = '<span class="cc-et">Código</span><span class="cc-cod"></span><button type="button" class="anadir">Copiar código</button>';
+  caja.querySelector(".cc-cod").textContent = codigo;
+  caja.querySelector("button").addEventListener("click", () => copiarTexto(codigo, "Código copiado"));
+  abrirMenu("Compartir «" + nombre + "»", "Tu amigo puede abrir el enlace o pegar el código en Plan → Añadir algo compartido (también en otra cuenta tuya).", [
+    { texto: "Copiar enlace", mantener: true, accion: () => copiarTexto(enlace, "Enlace copiado") },
+    navigator.share && { texto: "Enviar…", mantener: true, accion: () => navigator.share({ title: nombre, text: "Entrenamiento «" + nombre + "» para Fuerza y Ritmo. Código: " + codigo, url: enlace }).catch(() => {}) }
+  ], caja);
 }
 async function abrirCompartido(texto) {
   const m = (texto || "").toUpperCase().match(/([A-Z2-9]{8})\s*$/);
@@ -5680,7 +5732,7 @@ $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); 
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
 // VERSION_APP es interna (sube en cada publicación para que los móviles se actualicen); la que se ve es siempre la 26
-const VERSION_APP = "v86" + (BETA ? " beta" : "");
+const VERSION_APP = "v88" + (BETA ? " beta" : "");
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";
@@ -6462,7 +6514,7 @@ if (window.visualViewport) {
 const VERSION_NOV = VERSION_APP.split(" ")[0];
 const novedadesVistas = () => [(perfil && perfil.novedades_vistas) || "", leer("novedades-vistas-v1") || ""].includes(VERSION_NOV);
 // Versiones con novedades que merece la pena avisar; en las demás (o para quien entra por primera vez) no hay aviso
-const AVISAR_NOVEDADES = false;   // v86: solo un arreglo (quitar un entreno vacío); las novedades son las mismas
+const AVISAR_NOVEDADES = true;
 function pintarAvisoNovedades() {
   // Quien nunca ha visto ninguna versión entra por primera vez: para él todo es nuevo, así que se da por vista
   if (sesion && perfil && !perfil.novedades_vistas && !leer("novedades-vistas-v1")) { marcarNovedadesVistas(); return; }
@@ -6495,4 +6547,19 @@ $("dlgAyuda").querySelectorAll("details").forEach(d => d.addEventListener("toggl
 if (/type=recovery|error_code=/.test(location.hash)) entrarDesdeEnlace();
 else if (sesion) mostrarApp(); else $("login").hidden = false;
 
-if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+// Versión nueva: en el navegador (y en la app) se busca al volver a la pestaña; cuando la nueva toma el control,
+// la página se recarga sola una vez (si no estás escribiendo), para que la web y la app vayan siempre igual
+if ("serviceWorker" in navigator) {
+  const habiaControl = !!navigator.serviceWorker.controller;
+  let recargando = false;
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (!habiaControl || recargando) return;
+    const recargar = () => { if (recargando) return; recargando = true; location.reload(); };
+    if (escribiendoSerie() || document.querySelector("dialog[open]")) document.addEventListener("visibilitychange", () => { if (document.hidden) recargar(); }, { once: true });
+    else recargar();
+  });
+  navigator.serviceWorker.register("sw.js").then(reg => {
+    document.addEventListener("visibilitychange", () => { if (!document.hidden) reg.update().catch(() => {}); });
+    setInterval(() => reg.update().catch(() => {}), 30 * 60e3);
+  }).catch(() => {});
+}
