@@ -3898,6 +3898,7 @@ NOTA: Para nivel intermedio. Sube 2,5 kg cuando completes todas las series.
 ## Rodaje @ Sábado
 - Rodaje [carrera]: 1x45min`;
 function textoPrompt() {
+  if (docIA) return textoPromptDocumento();
   if ($("iaModo").value === "sesion") return textoPromptSesion();
   const g = id => $(id).value.trim(), obj = g("iaObjetivo");
   const f = rendimiento().forma;
@@ -3967,7 +3968,71 @@ function textoPromptSesion() {
     "- Divide la sesión en partes con una línea «### Calentamiento», «### Parte principal» y «### Vuelta a la calma» antes de sus ejercicios.",
     "- Tramos que se repiten: «- BLOQUE x4: Ejercicio [tipo] 400m rec 200m | Ejercicio [tipo] 200m». Tirada por tramos: «- Tirada larga [carrera]: 1x8km @5:20/km + 1x6km @4:50/km»."].filter(Boolean).join("\n");
 }
+// ---------- Importar un documento de entrenamiento (PDF, Word, Excel, CSV, texto o foto) ----------
+let docIA = null;   // { nombre, texto, sinTexto } mientras el prompt es para convertir un documento
+const cargarScript = url => new Promise((ok, mal) => {
+  if (document.querySelector('script[src="' + url + '"]')) return ok();
+  const sc = document.createElement("script"); sc.src = url; sc.onload = ok; sc.onerror = () => mal(new Error("No se ha podido cargar el lector (¿sin conexión?)."));
+  document.head.appendChild(sc);
+});
+async function textoDocumento(f) {
+  const n = f.name.toLowerCase();
+  if (/^image\//.test(f.type) || /\.(jpe?g|png|heic|webp)$/.test(n)) return "";
+  if (/\.pdf$/.test(n) || f.type === "application/pdf") {
+    await cargarScript("https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js");
+    pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+    const pdf = await pdfjsLib.getDocument({ data: await f.arrayBuffer() }).promise, partes = [];
+    for (let i = 1; i <= Math.min(pdf.numPages, 40); i++) {
+      const c = await (await pdf.getPage(i)).getTextContent();
+      // Une los trozos por líneas (cambia la altura del texto = línea nueva)
+      let linea = "", y = null;
+      c.items.forEach(it => { const yy = Math.round(it.transform[5]); if (y !== null && Math.abs(yy - y) > 2) { partes.push(linea); linea = ""; } linea += (linea && !linea.endsWith(" ") ? " " : "") + it.str; y = yy; });
+      partes.push(linea, "");
+    }
+    return partes.join("\n");
+  }
+  if (/\.docx$/.test(n)) {
+    await cargarScript("https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js");
+    return (await mammoth.extractRawText({ arrayBuffer: await f.arrayBuffer() })).value;
+  }
+  if (/\.(xlsx|xls|ods)$/.test(n)) {
+    await cargarScript("https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js");
+    const lib = XLSX.read(await f.arrayBuffer());
+    return lib.SheetNames.map(h => "## Hoja «" + h + "»\n" + XLSX.utils.sheet_to_csv(lib.Sheets[h], { FS: " | " }).replace(/(\s*\|\s*)+$/gm, "")).join("\n\n");
+  }
+  return f.text();
+}
+async function importarDocumento(f) {
+  setEstado("Leyendo «" + f.name + "»…");
+  let texto = "";
+  try { texto = (await textoDocumento(f) || "").replace(/\r/g, "").replace(/[ \t]{2,}/g, " ").replace(/\n{3,}/g, "\n\n").trim(); }
+  catch (e) { setEstado(e.message || "No se ha podido leer el documento.", true); return; }
+  // Si ya viene en el formato de la app, se lee directamente, sin IA
+  const directo = texto && leerRutina(texto);
+  if (directo && !directo.error) {
+    abrirIA("pegar");
+    $("iaRespuesta").value = texto;
+    $("iaRevisar").click();
+    setEstado("«" + f.name + "» ya estaba en el formato de la app: revisa la vista previa.");
+    return;
+  }
+  abrirIA("prompt");
+  docIA = { nombre: f.name, texto: texto.slice(0, 15000), cortado: texto.length > 15000, sinTexto: texto.replace(/\s/g, "").length < 40 };
+  pintarCamposIA();
+  setEstado(docIA.sinTexto ? "«" + f.name + "» no tiene texto que leer: adjúntalo a tu IA junto con el prompt." : "Prompt preparado con el texto de «" + f.name + "».");
+}
+function textoPromptDocumento() {
+  const d = docIA, formato = (() => { const p = docIA; docIA = null; const t = textoPrompt(); docIA = p; return t.slice(t.indexOf("Responde SOLO")); })();
+  return ["Actúa como entrenador. " + (d.sinTexto ? "Te adjunto en este mismo mensaje un documento («" + d.nombre + "», foto o PDF escaneado) con un plan o un entrenamiento." : "Este es el texto de un documento («" + d.nombre + "») con un plan o un entrenamiento."),
+    "Conviértelo a mi formato SIN inventar nada: respeta los ejercicios, series, repeticiones, cargas, distancias, ritmos, descansos, días y semanas que indica. Si algo no aparece, déjalo con la opción más prudente. Si el plan cambia cada semana, usa «SEMANA 1», «SEMANA 2»…; si todas son iguales, «SEMANAS: número». Si es un solo entrenamiento, una sola sesión sin día.",
+    d.sinTexto ? "" : "Documento:\n<<<\n" + d.texto + (d.cortado ? "\n[… el documento sigue; convierte al menos esta parte]" : "") + "\n>>>", "", formato].filter(x => x !== "").join("\n");
+}
 function pintarCamposIA() {
+  $("iaPrompt").classList.toggle("con-doc", !!docIA);
+  $("iaDocNota").hidden = !docIA;
+  if (docIA) $("iaDocNota").textContent = docIA.sinTexto
+    ? "📄 «" + docIA.nombre + "» no tiene texto que la app pueda leer (foto o PDF escaneado). Copia el prompt y pégalo en ChatGPT, Claude u otra IA adjuntando el documento; después pega aquí su respuesta (paso 2)."
+    : "📄 Prompt preparado con el texto de «" + docIA.nombre + "»" + (docIA.cortado ? " (es largo: va la primera parte)" : "") + ". Cópialo, pégalo en tu IA y pega aquí su respuesta (paso 2).";
   const sesion = $("iaModo").value === "sesion", carrera = !sesion && !!CARRERA_IA[$("iaObjetivo").value];
   $("iaCamposPlan").hidden = sesion;
   $("iaCamposSesion").hidden = !sesion;
@@ -3985,6 +4050,7 @@ function pasoIA(paso) {
 }
 function abrirIA(paso) {
   rutinaIA = null;
+  docIA = null;
   $("iaVistaTit").textContent = "";
   $("iaError").textContent = "";
   $("dlgIA").setAttribute("aria-label", paso === "vista" ? "Rutina tipo" : "Crear con IA");
@@ -4046,6 +4112,7 @@ $("iaAnadirDia").addEventListener("click", () => {
   setEstado("«" + s.nombre + "» añadida al " + fechaCorta(f));
 });
 $("iaAbrir").addEventListener("click", () => abrirIA("prompt"));
+$("iaDocArchivo").addEventListener("change", ev => { const f = ev.target.files[0]; ev.target.value = ""; if (f) importarDocumento(f); });
 $("iaPegarAbrir").addEventListener("click", () => { abrirIA("pegar"); $("iaRespuesta").focus(); });
 pintarRutinas();
 
@@ -4822,7 +4889,7 @@ $("enSalir").addEventListener("click", salirEntreno);
 $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); abrirRpe(d); });
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
-const VERSION_APP = "v57" + (BETA ? " beta" : "");
+const VERSION_APP = "v58" + (BETA ? " beta" : "");
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";

@@ -1032,3 +1032,8 @@ h1 { color: var(--titulo); }
 .vp-lista { margin: 6px 0 2px; padding-left: 1.2em; font-size: 14px; line-height: 1.45; }
 #mesoDias .vp-det { margin: 2px 0 8px 6.5em; }
 @media (max-width: 760px) { #mesoDias .vp-det { margin-left: 0; } }
+
+/* Importar documento */
+.doc-btn { cursor: pointer; }
+#iaPrompt.con-doc > .campo:not(:has(#iaTexto)), #iaPrompt.con-doc > #iaCamposPlan, #iaPrompt.con-doc > #iaCamposSesion { display: none; }
+.ia-doc-nota { margin: 0 0 10px; padding: 10px 12px; border-radius: 10px; background: var(--accent-soft); font-size: 14px; line-height: 1.4; }

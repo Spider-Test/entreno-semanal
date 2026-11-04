@@ -107,7 +107,8 @@
     <section class="plan-sec" data-sec="ia">
       <h3>Crear con IA</h3>
       <p class="vacio-lista">Elige tu objetivo, copia el prompt, pégalo en ChatGPT, Claude u otra IA y pega aquí su respuesta: la app crea las plantillas (o el mesociclo) y los ejercicios que falten.</p>
-      <div class="botonera"><button type="button" class="anadir" id="iaAbrir">Crear con IA</button><button type="button" class="nav-btn" id="iaPegarAbrir">Pegar entrenamiento de IA</button></div>
+      <div class="botonera"><button type="button" class="anadir" id="iaAbrir">Crear con IA</button><button type="button" class="nav-btn" id="iaPegarAbrir">Pegar entrenamiento de IA</button><label class="nav-btn doc-btn">Importar documento…<input type="file" id="iaDocArchivo" accept=".pdf,.docx,.txt,.md,.csv,.xlsx,.xls,.ods,image/*,application/pdf" hidden></label></div>
+      <p class="menu-det nota">«Importar documento»: un plan en PDF, Word, Excel, CSV o texto (o una foto). La app saca su texto y te prepara el prompt para convertirlo; si ya viene en el formato de la app, lo lee directamente.</p>
     </section>
     <section class="plan-sec" data-sec="rutinas">
       <h3>Rutinas tipo</h3>
@@ -354,6 +355,7 @@
       <button type="button" role="tab" data-paso="pegar" aria-selected="false">2 · Pegar respuesta</button>
     </div>
     <div id="iaPrompt" class="ia-paso">
+      <p class="ia-doc-nota" id="iaDocNota" hidden></p>
       <label class="campo">¿Qué quieres?
         <select id="iaModo"><option value="plan">Plan de varias semanas o mesociclo</option><option value="sesion">Entrenamiento suelto (una sesión)</option></select>
       </label>
@@ -444,7 +446,8 @@
   </form>
   <div class="d-cuerpo ayuda">
     <p>Toca cada apartado para verlo. Puedes volver aquí cuando quieras con el botón <b>?</b> de arriba. ¿Echas algo en falta o algo no va bien? Envíanos una sugerencia:</p>
-    <details class="novedades" open><summary>Novedades · versión 57</summary>
+    <details class="novedades" open><summary>Novedades · versión 58</summary>
+      <p><b>Importar un documento de entrenamiento</b> (Plan → Crear con IA → «Importar documento…»): PDF, Word, Excel, CSV, texto o foto. La app saca el texto y te prepara el prompt para que tu IA lo convierta al formato de la app; si ya viene en ese formato, lo lee directamente. Después lo guardas como plantillas, mesociclo o en un día.</p>
       <p>Botón <b>Hoy</b> en verde siempre que no estés en hoy: en otra semana, con hoy plegado o en la vista de otro día. · Al abrir un mesociclo o plantillas que te comparten, toca cada día o plantilla para ver sus ejercicios, series, partes y bloques antes de guardarlo; también en el editor de tus mesociclos. · Al borrar algo, ventana para confirmar con Cancelar o Eliminar.</p>
     </details>
     <button type="button" class="nav-btn sug-btn" id="sugAyuda">💬 Enviar una sugerencia o avisar de un fallo</button>
@@ -538,6 +541,7 @@
       <p>En <b>Plan → Crear con IA</b> eliges objetivo, días, nivel, material y limitaciones. Copia el prompt, pégalo en ChatGPT, Claude u otra IA y pega su respuesta en el paso 2.</p>
       <p>La app te muestra una vista previa y lo guarda como plantillas o como mesociclo. Crea los ejercicios que falten. Si algo no encaja, te dice qué línea falla.</p>
       <p><b>Entrenamiento suelto:</b> en «¿Qué quieres?» elige «Entrenamiento suelto», el tipo de sesión (pierna, torso, series, umbral, tirada larga, natación, «Otro»…), la duración y la intensidad. Tus molestias activas y tus ritmos van en el prompt. Al pegar la respuesta, elige el día y pulsa <b>Añadir al día</b> (y, si quieres, guárdala también como plantilla).</p>
+      <p><b>Importar un documento:</b> en Plan → Crear con IA, «Importar documento…» admite PDF, Word (.docx), Excel (.xlsx), CSV, texto o una foto. La app saca el texto (los lectores se descargan solo al importar) y te prepara un prompt que pide a la IA convertirlo sin inventar nada; lo pegas en tu IA y pegas su respuesta en el paso 2, con vista previa antes de guardar. Si el documento ya está en el formato de la app, se lee directamente. Un PDF escaneado o una foto no tienen texto que leer: la app te lo dice y te prepara el prompt para que adjuntes el archivo a la IA.</p>
       <p><b>Media maratón y maratón:</b> además de 5 y 10 km. Puedes poner tu marca objetivo y la fecha de la carrera (las semanas se cuentan hasta ella). El prompt incluye tus marcas previstas de Marcas (VDOT y Riegel) y pide descarga y tapering antes de la carrera. Las tiradas largas pueden llevar ritmos distintos por tramos.</p>
       <p>En <b>Rutinas tipo</b> tienes algunos ejemplos listos. Todo se copia a tus plantillas y lo puedes editar como cualquier otra.</p>
       <p>Son sugerencias generales, no un plan médico ni personalizado.</p>
