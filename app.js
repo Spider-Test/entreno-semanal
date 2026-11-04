@@ -55,6 +55,7 @@ Object.keys(TABLAS).forEach(t => { db[t] = db[t] || {}; });
 let cursores = leer("cursores-v3") || {};       // última marca de servidor leída por tabla (v3: relee todo al añadir campos)
 let enEspera = leer("bloques-v1") || {};
 // Entrenos del día aún sin series (fecha -> nombres) y en qué entreno va cada ejercicio añadido sin series (fecha|id -> nombre)
+let gruposPlegados = leer("grupos-plegados-v1") || {};   // entrenos plegados dentro de un día (solo en este dispositivo)
 let sesionesVacias = leer("sesiones-v1") || {}, esperaGrupo = leer("espera-grupo-v1") || {};
 // Partes de cada entreno aún sin series (fecha|entreno -> nombres) y la parte de cada ejercicio añadido sin series (fecha|id -> parte)
 let partesVacias = leer("partes-v1") || {}, esperaParte = leer("espera-parte-v1") || {};
@@ -872,6 +873,7 @@ function menuDia(dia) {
 function cabeceraParte(dia, grupo, p, color, nNombradas, partes, seriesItem) {
   const cab = document.createElement("div");
   cab.className = "parte-cab" + color;
+  cab.dataset.parte = p.nombre;
   cab.innerHTML = '<span class="p-nombre"></span><span class="g-prog"></span><button type="button" class="menu-btn">⋯</button>';
   cab.querySelector(".p-nombre").textContent = p.nombre;
   const ss = p.ids.flatMap(seriesItem);
@@ -935,6 +937,14 @@ async function nuevaParte(dia, grupo) {
   if (!hay.includes(n)) { const k = dia.id + "|" + grupo; (partesVacias[k] = partesVacias[k] || []).push(n); guardarSesiones(); }
   if (dia.col.classList.contains("plegado")) plegarDia(dia);
   pintarDia(dia);
+}
+// Cambia la parte de un ejercicio o bloque (sin repintar)
+function ponerParte(dia, grupo, clave, espera, x) {
+  const antes = espera ? esperaParte[dia.id + "|" + clave] || "" : (seriesDeItem(dia.id, grupo, clave)[0] || {}).seccion || "";
+  // La parte que se queda sin nada no desaparece: queda vacía para poder volver a llenarla
+  if (antes && antes !== x) { const k = dia.id + "|" + grupo; if (!(partesVacias[k] || []).includes(antes)) (partesVacias[k] = partesVacias[k] || []).push(antes); guardarSesiones(); }
+  if (espera) { if (x) esperaParte[dia.id + "|" + clave] = x; else delete esperaParte[dia.id + "|" + clave]; guardarSesiones(); }
+  else { seriesDeItem(dia.id, grupo, clave).forEach(sr => cambiar("series", { ...sr, seccion: x }, true)); persistir(); }
 }
 // Pasar un ejercicio o bloque a otra parte del mismo entreno
 function moverAParte(dia, grupo, clave, espera) {
@@ -1105,9 +1115,25 @@ function pintarDia(dia) {
     if (g.nombre || varios) {
       const cab = document.createElement("div");
       cab.className = "grupo-cab";
-      cab.innerHTML = '<span class="g-nombre"></span><span class="g-prog"></span><button type="button" class="menu-btn">⋯</button>';
-      cab.querySelector(".g-nombre").textContent = g.nombre || "Entreno 1";
+      cab.innerHTML = varios
+        ? '<button type="button" class="g-nombre g-toggle"><span class="flecha-dia" aria-hidden="true">▸</span><span class="gn-txt"></span><span class="g-res"></span></button><span class="g-prog"></span><button type="button" class="menu-btn">⋯</button>'
+        : '<span class="g-nombre"><span class="gn-txt"></span></span><span class="g-prog"></span><button type="button" class="menu-btn">⋯</button>';
+      cab.querySelector(".gn-txt").textContent = g.nombre || "Entreno 1";
       const deG = delDia.filter(s => (s.grupo || "") === g.nombre);
+      if (varios) {
+        // Varios entrenos en el día: cada uno se pliega o despliega tocando su nombre (se recuerda en este dispositivo)
+        const clavePl = dia.id + "|" + g.nombre, tg = cab.querySelector(".g-toggle");
+        const nombres = [...new Set(g.ids.map(id => id.startsWith("b:") ? "Bloque" : nombreEj(id)).filter(Boolean))];
+        cab.querySelector(".g-res").textContent = nombres.slice(0, 3).join(", ") + (nombres.length > 3 ? "…" : "");
+        const ponerPl = pl => { caja.classList.toggle("g-plegado", pl); tg.setAttribute("aria-expanded", String(!pl)); };
+        ponerPl(!!gruposPlegados[clavePl]);
+        tg.addEventListener("click", () => {
+          const pl = !caja.classList.contains("g-plegado");
+          if (pl) gruposPlegados[clavePl] = 1; else delete gruposPlegados[clavePl];
+          escribir("grupos-plegados-v1", gruposPlegados);
+          ponerPl(pl);
+        });
+      }
       cab.querySelector(".g-prog").textContent = deG.filter(hecha).length + "/" + deG.length;
       cab.querySelector(".menu-btn").setAttribute("aria-label", "Opciones del entreno " + (g.nombre || "1"));
       cab.querySelector(".menu-btn").addEventListener("click", () => menuGrupo(dia, g.nombre));
@@ -1144,7 +1170,12 @@ function pintarDia(dia) {
     });
     // Ejercicios (también los que aún no tienen series) y bloques se mueven dentro de la sesión, en un único orden
     const movibles = () => [...caja.querySelectorAll(":scope > .bloque[data-clave]")];
-    const soltar = n => {
+    const soltar = (n, movido) => {
+      // Si al arrastrar queda entre los ejercicios de otra parte, pasa a esa parte (la del de encima o, si es el primero, la del de debajo)
+      if (movido && caja.querySelector(":scope > .parte-cab")) {
+        const i = n.indexOf(movido), ref = n[i - 1] || n[i + 1], dest = ref ? ref.dataset.parte || "" : movido.dataset.parte || "";
+        if (dest !== (movido.dataset.parte || "")) ponerParte(dia, g.nombre, movido.dataset.clave, !!movido.dataset.espera, dest);
+      }
       // Los que aún no tienen series recuerdan delante de qué quedan; los demás reparten su «orden»
       n.forEach((x, k) => {
         if (!x.dataset.espera) return;
@@ -1164,7 +1195,16 @@ function pintarDia(dia) {
     const otrasSesiones = [...new Set(grupos.map(x => x.nombre))].filter(x => x !== g.nombre);
     movibles().forEach(el => {
       const clave = el.dataset.clave, nombre = clave.startsWith("b:") ? "Bloque" : nombreEj(clave), espera = !!el.dataset.espera;
-      if (movibles().length > 1) el.querySelector(".bloque-cab").appendChild(asaArrastre(el, movibles, soltar, nombre));
+      // Arrastrar encima de la cabecera de una parte lo mete en ella, al final
+      const zonasParte = { lista: () => [...caja.querySelectorAll(":scope > .parte-cab")].filter(z => z.dataset.parte !== (el.dataset.parte || "")), alSoltar: z => {
+        const dest = z.dataset.parte, l = movibles().filter(x => x !== el);
+        let k = -1; l.forEach((x, j) => { if ((x.dataset.parte || "") === dest) k = j; });
+        l.splice(k < 0 ? l.length : k + 1, 0, el);   // parte vacía: da igual dónde, se pinta dentro de ella
+        ponerParte(dia, g.nombre, clave, espera, dest);
+        soltar(l);
+        setEstado((clave.startsWith("b:") ? "Bloque" : nombre) + " movido a «" + dest + "»");
+      } };
+      if (movibles().length > 1 || zonasParte.lista().length) el.querySelector(".bloque-cab").appendChild(asaArrastre(el, movibles, soltar, nombre, zonasParte));
       if (clave.startsWith("b:")) return;
       const m = document.createElement("button");
       m.type = "button"; m.className = "menu-btn"; m.textContent = "⋯";
@@ -1254,7 +1294,24 @@ function bloque(dia, id, series, grupo, parte) {
   const nom = b.querySelector(".ej-nombre");
   nom.textContent = ej.nombre || "Sin nombre";
   nom.appendChild(etiquetaTipo(tipo));
-  if (ej.video_url) { const v = document.createElement("span"); v.className = "ico"; v.textContent = "▶ vídeo"; nom.appendChild(v); }
+  if (ej.video_url) {
+    // «▶ vídeo» despliega el vídeo debajo del nombre, sin salir del día
+    const v = document.createElement("span");
+    v.className = "ico ver-video"; v.textContent = "▶ vídeo";
+    v.setAttribute("role", "button");
+    v.setAttribute("aria-label", "Ver el vídeo de " + (ej.nombre || "este ejercicio"));
+    v.addEventListener("click", ev => {
+      ev.stopPropagation();
+      const abierto = b.querySelector(":scope > .video-dia");
+      if (abierto) { abierto.remove(); v.textContent = "▶ vídeo"; return; }
+      const caja = document.createElement("div");
+      caja.className = "video-dia";
+      ponerVideo(caja, ej);
+      b.querySelector(".bloque-cab").after(caja);
+      v.textContent = "✕ vídeo";
+    });
+    nom.appendChild(v);
+  }
   const dolor = molestiasDe(id);
   if (dolor.length) { const m = document.createElement("span"); m.className = "molestia-tag"; m.textContent = "⚠ " + dolor.map(x => x.zona).join(", "); m.title = dolor.map(x => x.zona + (x.descripcion ? ": " + x.descripcion : "")).join(" · "); nom.appendChild(m); }
   nom.setAttribute("aria-label", series.length ? "Editar " + (ej.nombre || "ejercicio") + ": valores, número de series o ejercicio" : "Ver " + (ej.nombre || "ejercicio") + ": vídeo, récords e historial");
@@ -2065,6 +2122,11 @@ function idYoutube(u) {
 function pintarVideo(e) {
   const cont = $("detEmbed");
   cont.textContent = "";
+  ponerVideo(cont, e);
+  $("detBuscar").href = "https://www.youtube.com/results?search_query=" + encodeURIComponent((e.nombre || "") + " técnica");
+}
+// El vídeo del ejercicio: YouTube se ve dentro de la app; otros enlaces (Instagram…) se abren aparte
+function ponerVideo(cont, e) {
   const yt = idYoutube(e.video_url);
   if (yt) {
     const w = document.createElement("div"); w.className = "video";
@@ -2085,7 +2147,6 @@ function pintarVideo(e) {
     a.textContent = "▶ Abrir vídeo";
     cont.appendChild(a);
   }
-  $("detBuscar").href = "https://www.youtube.com/results?search_query=" + encodeURIComponent((e.nombre || "") + " técnica");
 }
 function recuadro(etiqueta, valor, sub, oro) {
   const d = document.createElement("div");
@@ -2111,9 +2172,9 @@ function grafica(puntos, etiqueta) {
   svg += '<line class="g-rejilla" x1="' + pl + '" x2="' + (W - pr) + '" y1="' + (H - pb) + '" y2="' + (H - pb) + '"/>';
   svg += '<path class="g-area" d="' + area + '"/><polyline class="g-linea" points="' + linea + '"/>';
   puntos.forEach((p, i) => { svg += '<circle class="' + (i === puntos.length - 1 ? "g-fin" : "g-punto") + '" cx="' + x(i).toFixed(1) + '" cy="' + y(p.v).toFixed(1) + '" r="' + (i === puntos.length - 1 ? 4.5 : 3) + '"/>'; });
-  svg += '<text class="g-txt" x="' + pl + '" y="' + (y(max) - 5) + '">' + etiqueta(Math.max.apply(null, vals)) + "</text>";
-  svg += '<text class="g-txt" x="' + pl + '" y="' + (H - 6) + '">' + fechaCorta(puntos[0].f) + "</text>";
-  svg += '<text class="g-txt" x="' + (W - pr) + '" y="' + (H - 6) + '" text-anchor="end">' + fechaCorta(puntos[puntos.length - 1].f) + "</text>";
+  svg += '<text class="gn-txt" x="' + pl + '" y="' + (y(max) - 5) + '">' + etiqueta(Math.max.apply(null, vals)) + "</text>";
+  svg += '<text class="gn-txt" x="' + pl + '" y="' + (H - 6) + '">' + fechaCorta(puntos[0].f) + "</text>";
+  svg += '<text class="gn-txt" x="' + (W - pr) + '" y="' + (H - 6) + '" text-anchor="end">' + fechaCorta(puntos[puntos.length - 1].f) + "</text>";
   return svg + "</svg>";
 }
 function refrescarDetalle() {
@@ -4193,6 +4254,16 @@ function pintarAjustes() {
   setEstado("Ajuste guardado en este dispositivo");
 }));
 pintarAjustes();
+// Tamaño en el ordenador (en el móvil no cambia nada): automático según la pantalla o elegido
+const ponerTam = () => { const t = ajustes().tam || ""; if (t) document.documentElement.dataset.tam = t; else delete document.documentElement.dataset.tam; $("ajTam").value = t; };
+$("ajTam").addEventListener("change", () => {
+  const a = leer("ajustes-v1") || {};
+  if ($("ajTam").value) a.tam = $("ajTam").value; else delete a.tam;
+  escribir("ajustes-v1", a);
+  ponerTam();
+  setEstado("Tamaño guardado en este dispositivo");
+});
+ponerTam();
 // Discos por lado con los discos habituales (sin límite de pares)
 const DISCOS = [25, 20, 15, 10, 5, 2.5, 1.25];
 function textoDiscos(kg) {
@@ -4456,7 +4527,9 @@ function moverGrupo(fecha, nombre, paso) {
   reordenar(lista.map(g => g.items.flatMap(x => x.series)), "Sesión movida");
 }
 // Asa ≡: se arrastra (dedo o ratón) con vista en vivo, o se mueve con las flechas del teclado
-function asaArrastre(el, hermanos, alSoltar, nombre) {
+// zonas (opcional): { lista: () => [elementos], alSoltar: zona => … } — soltar encima de una (p. ej. la cabecera
+// de «Calentamiento») mete el elemento dentro, como una app en una carpeta
+function asaArrastre(el, hermanos, alSoltar, nombre, zonas) {
   const asa = document.createElement("button");
   asa.type = "button";
   asa.className = "asa";
@@ -4480,8 +4553,9 @@ function asaArrastre(el, hermanos, alSoltar, nombre) {
     if (e.button > 0) return;
     e.preventDefault();
     e.stopPropagation();
-    const lista = hermanos(), idx = lista.indexOf(el);
-    if (lista.length < 2 || idx < 0) return;
+    const lista = hermanos(), idx = lista.indexOf(el), zl = zonas ? zonas.lista() : [];
+    if ((lista.length < 2 && !zl.length) || idx < 0) return;
+    let zona = null;
     try { asa.setPointerCapture(e.pointerId); } catch {}
     arrastreActivo = true;
     const y0 = scrollY, cajas = lista.map(x => { const r = x.getBoundingClientRect(); return { top: r.top + y0, alto: r.height }; });
@@ -4509,8 +4583,12 @@ function asaArrastre(el, hermanos, alSoltar, nombre) {
       else if (dedoY > abajo - 48) scrollBy(0, Math.min(14, dedoY - (abajo - 48)));
       const dy = dedoY + scrollY - inicioY, centro = cajas[idx].top + cajas[idx].alto / 2 + dy;
       destino = idx;
+      // ¿El dedo está encima de una zona? Entonces se resalta y los demás no se apartan
+      const z = zl.find(x => { const r = x.getBoundingClientRect(); return dedoY >= r.top - 6 && dedoY <= r.bottom + 6; }) || null;
+      if (z !== zona) { if (zona) zona.classList.remove("zona-destino"); zona = z; if (zona) zona.classList.add("zona-destino"); el.classList.toggle("sobre-zona", !!zona); }
       lista.forEach((x, k) => {
         if (k === idx) return;
+        if (zona) { x.style.transform = ""; return; }
         const medio = cajas[k].top + cajas[k].alto / 2;
         let mueve = 0;
         if (k < idx && centro < medio) { mueve = paso; destino--; }
@@ -4529,12 +4607,14 @@ function asaArrastre(el, hermanos, alSoltar, nombre) {
       asa.removeEventListener("pointerup", fin);
       asa.removeEventListener("pointercancel", fin);
       lista.forEach(x => { x.style.transform = ""; x.classList.remove("apartandose"); });
-      el.classList.remove("arrastrando");
+      el.classList.remove("arrastrando", "sobre-zona");
+      if (zona) zona.classList.remove("zona-destino");
+      if (ev.type !== "pointercancel" && zona) { el.style.transform = ""; zonas.alSoltar(zona); return; }
       if (ev.type === "pointercancel" || destino === idx) { if (repintarLuego) pintarBloques(true); return; }
       const nuevo = lista.slice();
       nuevo.splice(idx, 1);
       nuevo.splice(destino, 0, el);
-      alSoltar(nuevo);
+      alSoltar(nuevo, el);
     };
     asa.addEventListener("pointermove", mover);
     asa.addEventListener("pointerup", fin);
@@ -4958,7 +5038,7 @@ $("enSalir").addEventListener("click", salirEntreno);
 $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); abrirRpe(d); });
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
-const VERSION_APP = "v60" + (BETA ? " beta" : "");
+const VERSION_APP = "v61" + (BETA ? " beta" : "");
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";
