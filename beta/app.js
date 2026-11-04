@@ -1073,7 +1073,9 @@ function menuGrupo(dia, grupo) {
       series.forEach(s => cambiar("series", { ...s, borrado: true }, true));
       sesionesVacias[dia.id] = (sesionesVacias[dia.id] || []).filter(x => x !== grupo);
       if (!sesionesVacias[dia.id].length) delete sesionesVacias[dia.id];
-      (enEspera[dia.id] || []).filter(id => (esperaGrupo[dia.id + "|" + id] || "") === grupo).forEach(id => { quitarEspera(dia.id, id); delete esperaGrupo[dia.id + "|" + id]; });
+      (enEspera[dia.id] || []).filter(id => (esperaGrupo[dia.id + "|" + id] || "") === grupo).forEach(id => { quitarEspera(dia.id, id); delete esperaGrupo[dia.id + "|" + id]; delete esperaParte[dia.id + "|" + id]; });
+      // Sus partes vacías también (si no, el entreno seguía apareciendo vacío, «0/0»)
+      delete partesVacias[dia.id + "|" + grupo];
       guardarEspera(); guardarSesiones(); persistir(); pintarDia(dia);
     } }
   ]);
@@ -5678,7 +5680,7 @@ $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); 
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
 // VERSION_APP es interna (sube en cada publicación para que los móviles se actualicen); la que se ve es siempre la 26
-const VERSION_APP = "v85" + (BETA ? " beta" : "");
+const VERSION_APP = "v86" + (BETA ? " beta" : "");
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";
@@ -6460,7 +6462,7 @@ if (window.visualViewport) {
 const VERSION_NOV = VERSION_APP.split(" ")[0];
 const novedadesVistas = () => [(perfil && perfil.novedades_vistas) || "", leer("novedades-vistas-v1") || ""].includes(VERSION_NOV);
 // Versiones con novedades que merece la pena avisar; en las demás (o para quien entra por primera vez) no hay aviso
-const AVISAR_NOVEDADES = true;
+const AVISAR_NOVEDADES = false;   // v86: solo un arreglo (quitar un entreno vacío); las novedades son las mismas
 function pintarAvisoNovedades() {
   // Quien nunca ha visto ninguna versión entra por primera vez: para él todo es nuevo, así que se da por vista
   if (sesion && perfil && !perfil.novedades_vistas && !leer("novedades-vistas-v1")) { marcarNovedadesVistas(); return; }
