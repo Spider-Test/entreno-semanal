@@ -1759,11 +1759,21 @@ function bloque(dia, id, series, grupo, parte) {
   const valoresForm = () => [fa.value, fb.value, fc.value, vecesEl.value, otroEj.value, ...[...formEl.querySelectorAll("input[type=checkbox]")].map(x => x.checked), ...[...formEl.querySelectorAll(".filas-extra input")].map(x => x.value)].join("|");
   const hayDatoForm = () => mov || dist ? !!(fa.value.trim() || fb.value.trim()) : !!(fb.value.trim() || (b.querySelector(".es-max") || {}).checked || (b.querySelector(".es-bilbo") || {}).checked);
   function tomarFoto() { foto = valoresForm(); }
+  const dentroForm = el => !!el && (formEl.contains(el) || !!(el.closest && el.closest(".veces-cab") && b.contains(el)));
+  // Tocar un botón del formulario (kg/%, Reps ▾, −/+…) le quita el foco al campo en Safari y el móvil: no es salir
+  // del formulario. Se espera al siguiente toque fuera de él para guardar o cerrar
+  let toqueDentro = 0;
+  b.addEventListener("pointerdown", ev => { if (dentroForm(ev.target)) toqueDentro = Date.now(); }, true);
   formEl.addEventListener("focusout", ev => {
-    const dentro = el => !!el && (formEl.contains(el) || !!(el.closest && el.closest(".veces-cab") && b.contains(el)));
+    const dentro = dentroForm;
     if (dentro(ev.relatedTarget)) return;
     setTimeout(() => {
       if (formEl.hidden || dentro(document.activeElement) || !b.isConnected) return;
+      if (Date.now() - toqueDentro < 700) {
+        const fuera = e => { if (dentro(e.target)) return; document.removeEventListener("pointerdown", fuera, true); toqueDentro = 0; if (!formEl.hidden && b.isConnected) formEl.dispatchEvent(new FocusEvent("focusout")); };
+        document.addEventListener("pointerdown", fuera, true);
+        return;
+      }
       // Te vas a otro sitio sin pulsar OK: si has escrito algo válido se guarda solo; si no has cambiado nada, se cierra
       const cambiado = foto !== null && valoresForm() !== foto;
       const hayDato = hayDatoForm();
@@ -2408,6 +2418,7 @@ function tarjetaBloque(dia, bloqueId, series) {
     else { fa.value = pesoMostrado(s) > 0 ? num(pesoMostrado(s)) : ""; if (n0(s.pct) > 0 && !s.ciclo_id) fa.value = num(s.pct); fb.value = maxSin ? "" : isoT ? (n0(s.tiempo) > 0 ? (n0(s.tiempo) < 60 ? String(n0(s.tiempo)) : fmtTiempo(s.tiempo)) : "máx") : n0(s.reps) || "máx"; if (maxSin) fb.placeholder = isoT ? "¿cuántos segundos?" : "¿cuántas reps?"; }
     fc.value = recTexto(s);
     const fuerza = !dist && !mov;
+    form.classList.toggle("br-fuerza", fuerza);
     brModo.hidden = !fuerza || medidaDe(s.ejercicio_id) !== "peso" && !(n0(s.peso) > 0) && !(n0(s.pct) > 0);
     if (fuerza) ponerBrModo(n0(s.pct) > 0 && !s.ciclo_id); else { brPct = false; brCalc.hidden = true; }
     if (fuerza && medidaDe(s.ejercicio_id) !== "peso" && !fa.value) fa.placeholder = "kg (opcional)";
@@ -2419,15 +2430,22 @@ function tarjetaBloque(dia, bloqueId, series) {
     c.querySelectorAll("li").forEach(x => x.classList.remove("editando"));
     li.classList.add("editando");
     form.hidden = false;
-    (dist && n0(s.distancia) > 0 ? fb : fa).focus();
+    (dist && n0(s.distancia) > 0 || !dist && !mov ? fb : fa).focus();
     fotoR = [fa.value, fb.value, fc.value, brPct, false].join("|");
   };
   // Guardado automático al salir de la edición de una ronda, si algo ha cambiado
   let fotoR = null;
+  let toqueDentroR = 0;
+  form.addEventListener("pointerdown", () => { toqueDentroR = Date.now(); }, true);
   form.addEventListener("focusout", ev => {
     if (form.contains(ev.relatedTarget)) return;
     setTimeout(() => {
       if (form.hidden || form.contains(document.activeElement) || !c.isConnected || fotoR === null) return;
+      if (Date.now() - toqueDentroR < 700) {
+        const fuera = e => { if (form.contains(e.target)) return; document.removeEventListener("pointerdown", fuera, true); toqueDentroR = 0; if (!form.hidden && c.isConnected) form.dispatchEvent(new FocusEvent("focusout")); };
+        document.addEventListener("pointerdown", fuera, true);
+        return;
+      }
       if ([fa.value, fb.value, fc.value, brPct, brTodas.querySelector("input").checked].join("|") === fotoR) return;
       fotoR = null;
       form.requestSubmit();
@@ -2498,7 +2516,7 @@ function tarjetaBloque(dia, bloqueId, series) {
     cont.appendChild(fila);
   });
 
-  [fa, fb].forEach((inp, k) => inp.addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); (k ? fc : fb).focus(); } }));
+  [fa, fb].forEach((inp, k) => inp.addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); (form.classList.contains("br-fuerza") ? (k ? fa : fc) : (k ? fc : fb)).focus(); } }));
   form.addEventListener("submit", e => {
     e.preventDefault();
     if (!editando) return;
@@ -2564,17 +2582,37 @@ function pintarTramos() {
     const fila = document.createElement("div");
     fila.className = "tramo";
     fila.innerHTML = '<div class="tr-cab"><span class="tr-n"></span><button type="button" class="quitar">✕</button></div>' +
-      '<div class="ns-fila"><input class="in-a" autocomplete="off"><span class="por"></span><input class="in-b" autocomplete="off"></div>' +
+      '<div class="ns-fila"><input class="in-a" autocomplete="off"><span class="por"></span><input class="in-b" autocomplete="off"><button type="button" class="modo tr-modo" hidden aria-label="Cambiar entre kg y % del 1RM">kg</button></div>' +
+      '<p class="calc tr-calc" hidden></p>' +
       '<input class="in-c" inputmode="decimal" autocomplete="off" placeholder="⏱ descanso después: 1,30 o 300 m" aria-label="Descanso después de este tramo (tiempo o metros); en el último, es el descanso entre rondas">';
     fila.querySelector(".tr-n").textContent = (k + 1) + ". " + nombreEj(t.ejercicio_id);
     fila.querySelector(".tr-n").appendChild(etiquetaTipo(tipoDe(t.ejercicio_id)));
     const [a, b, cc] = [".in-a", ".in-b", ".in-c"].map(x => fila.querySelector(x));
     const mov = tipoDe(t.ejercicio_id) === "movilidad";
-    a.placeholder = dist ? UD() : mov ? "reps" : "kg o 75%"; a.inputMode = dist || mov ? (mov ? "numeric" : "decimal") : "text"; a.setAttribute("aria-label", dist ? "Distancia en " + UD() : mov ? "Repeticiones" : "Peso en kg, o % del 1RM (75%)");
-    b.placeholder = dist ? "tiempo" : mov ? "tiempo 45 s" : "reps o máx"; b.inputMode = dist || mov ? "decimal" : "text"; b.setAttribute("aria-label", dist ? "Tiempo (puedes dejar los metros vacíos)" : mov ? "Tiempo: 45 son segundos" : "Repeticiones");
+    const fza = !dist && !mov, med = fza ? medidaDe(t.ejercicio_id) : "";
+    a.placeholder = dist ? UD() : mov ? "reps" : med !== "peso" ? "kg (opcional)" : "kg"; a.inputMode = "decimal"; a.setAttribute("aria-label", dist ? "Distancia en " + UD() : mov ? "Repeticiones" : "Peso en kg");
+    b.placeholder = dist ? "tiempo" : mov ? "tiempo 45 s" : med === "tiempo" ? "seg o máx" : "reps o máx"; b.inputMode = dist || mov ? "decimal" : "text"; b.setAttribute("aria-label", dist ? "Tiempo (puedes dejar los metros vacíos)" : mov ? "Tiempo: 45 son segundos" : med === "tiempo" ? "Segundos (o «máx»)" : "Repeticiones (o «máx»)");
     fila.querySelector(".por").textContent = dist ? "" : mov ? "o" : "×";
+    if (fza) fila.classList.add("tr-fuerza");
+    // kg o % del 1RM, como en los ejercicios
+    const tm = fila.querySelector(".tr-modo"), tc = fila.querySelector(".tr-calc");
+    const pintarTc = () => {
+      tm.textContent = t.p ? "%" : "kg"; tm.classList.toggle("activo", !!t.p);
+      if (fza) a.placeholder = t.p ? "% 1RM" : med !== "peso" ? "kg (opcional)" : "kg";
+      const v = parseFloat(String(a.value).replace(",", ".")), ref = rmReferencia(t.ejercicio_id);
+      tc.hidden = !t.p;
+      tc.textContent = !ref ? "Pon tu 1RM en la ficha del ejercicio" : v > 0 ? "= " + num(kgDePct(t.ejercicio_id, v)) + " kg (1RM " + num(ref) + ")" : "1RM de referencia: " + num(ref) + " kg";
+    };
+    tm.hidden = !fza || med !== "peso";
+    tm.addEventListener("click", () => {
+      const v = parseFloat(String(a.value).replace(",", ".")), ref = rmReferencia(t.ejercicio_id);
+      if (!t.p) { t.p = true; a.value = v > 0 && ref ? num(Math.round(v / ref * 100)) : ""; }
+      else { const kg = v > 0 ? kgDePct(t.ejercicio_id, v) : 0; t.p = false; a.value = kg ? num(kg) : ""; }
+      t.a = a.value; pintarTc();
+    });
     a.value = t.a; b.value = t.b; cc.value = t.c;
-    a.addEventListener("input", () => { t.a = a.value; });
+    if (fza) pintarTc();
+    a.addEventListener("input", () => { if (fza && /%\s*$/.test(a.value) && !tm.hidden) { a.value = a.value.replace(/\s*%\s*$/, ""); t.p = true; } t.a = a.value; if (fza) pintarTc(); });
     b.addEventListener("input", () => { t.b = b.value; });
     cc.addEventListener("input", () => { t.c = cc.value; });
     const q = fila.querySelector(".quitar");
@@ -2611,13 +2649,20 @@ $("blqCrear").addEventListener("click", () => {
       v.tiempo = leerSegs(t.b);
       if (isNaN(v.tiempo) || (!(v.reps > 0) && !(v.tiempo > 0))) { aviso.textContent = "Pon las repeticiones o el tiempo del tramo " + (k + 1) + "."; return; }
     } else {
-      const conPct = /%\s*$/.test(String(t.a));
+      const conPct = t.p || /%\s*$/.test(String(t.a));
       v.peso = parseFloat((String(t.a).trim().replace(/\s*%\s*$/, "") || "0").replace(",", "."));
-      if (conPct) { v.pct = v.peso; v.peso = kgDePct(t.ejercicio_id, v.pct); if (!v.peso) { aviso.textContent = "Para usar % en el tramo " + (k + 1) + ", pon su 1RM en la ficha del ejercicio."; return; } }
+      if (conPct && v.peso > 0) { v.pct = v.peso; v.peso = kgDePct(t.ejercicio_id, v.pct); if (!v.peso) { aviso.textContent = "Para usar % en el tramo " + (k + 1) + ", pon su 1RM en la ficha del ejercicio."; return; } }
       if (ladoDe(t.ejercicio_id)) v.por_lado = true;
-      v.reps = /^\s*(m[aá]x|amrap|fallo)/i.test(t.b) ? 0 : parseInt(t.b, 10);
       if (!(v.peso >= 0)) { aviso.textContent = "Revisa el peso del tramo " + (k + 1) + "."; return; }
-      if (!(v.reps > 0) && !/^\s*(m[aá]x|amrap|fallo)/i.test(t.b)) { aviso.textContent = "Pon las repeticiones del tramo " + (k + 1) + " (o «máx»)."; return; }
+      const esMx = /^\s*(m[aá]x|amrap|fallo)/i.test(t.b);
+      if (medidaDe(t.ejercicio_id) === "tiempo") {
+        if (esMx) v.max_tiempo = true;
+        else { v.tiempo = leerSegs(t.b); if (!(v.tiempo > 0)) { aviso.textContent = "Pon los segundos del tramo " + (k + 1) + " (o «máx»)."; return; } }
+      } else {
+        v.reps = esMx ? 0 : parseInt(t.b, 10);
+        if (esMx) v.max_reps = true;
+        if (!(v.reps > 0) && !esMx) { aviso.textContent = "Pon las repeticiones del tramo " + (k + 1) + " (o «máx»)."; return; }
+      }
     }
     lista.push({ ejercicio_id: t.ejercicio_id, series: Array.from({ length: rondas }, () => ({ ...v })) });
   }
@@ -6117,7 +6162,7 @@ $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); 
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
 // VERSION_APP es interna (sube en cada publicación para que los móviles se actualicen); la que se ve es siempre la 26
-const VERSION_APP = "v118" + (BETA ? " beta" : "");
+const VERSION_APP = "v119" + (BETA ? " beta" : "");
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";
