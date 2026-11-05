@@ -873,10 +873,10 @@ const dias = DIAS.map((_, i) => {
   dia.empezarEl.addEventListener("click", () => empezarEntreno(dia));
   ed.addEventListener("focus", () => col.classList.add("escribiendo"));
   ed.addEventListener("blur", () => col.classList.remove("escribiendo"));
-  col.querySelector(".add-ej").addEventListener("click", () => abrirSelector(dia));
-  col.querySelector(".add-bloque").addEventListener("click", () => abrirBloque(dia));
+  col.querySelector(".add-ej").addEventListener("click", () => enQueEntreno(dia, "Añadir ejercicio", g => abrirSelector(dia, null, g)));
+  col.querySelector(".add-bloque").addEventListener("click", () => enQueEntreno(dia, "Añadir bloque", g => abrirBloque(dia, g)));
   col.querySelector(".add-entreno").addEventListener("click", () => elegirNuevoEntreno(dia));
-  col.querySelector(".add-parte-btn").addEventListener("click", () => nuevaParte(dia, ""));
+  col.querySelector(".add-parte-btn").addEventListener("click", () => enQueEntreno(dia, "Nueva parte", g => nuevaParte(dia, g)));
   col.querySelector(".menu-btn").addEventListener("click", () => menuDia(dia));
   return dia;
 });
@@ -1123,6 +1123,8 @@ function cabeceraParte(dia, grupo, p, color, nNombradas, partes, seriesItem) {
     };
     abrirMenu(p.nombre, ss.length ? ss.length + (ss.length === 1 ? " serie" : " series") : "Parte vacía", [
       { texto: "+ Ejercicio en esta parte", accion: () => abrirSelector(dia, null, grupo, p.nombre) },
+      ...(() => { const otros = [...dia.bloquesEl.querySelectorAll(":scope > .grupo")].map(x => x.dataset.grupo || "").filter(x => x !== grupo);
+        return otros.length ? [{ texto: "Mover la parte a otro entreno…", accion: () => abrirMenu("¿A qué entreno?", "La parte «" + p.nombre + "» pasa entera, con sus ejercicios y bloques", otros.map(x => ({ texto: x || "Entreno 1", accion: () => moverParteAEntreno(dia, grupo, p.nombre, x, ss) }))) }] : []; })(),
       { texto: "+ Bloque en esta parte", accion: () => abrirBloque(dia, grupo, p.nombre) },
       partes.slice(0, k).some(x => x.nombre) && { texto: "Subir parte", accion: () => mover(-1) },
       partes.slice(k + 1).some(x => x.nombre) && { texto: "Bajar parte", accion: () => mover(1) },
@@ -1156,6 +1158,73 @@ function renombrarParteLocal(fecha, grupo, viejo, n) {
   if (l.length) partesVacias[k] = [...new Set(l)]; else delete partesVacias[k];
   Object.keys(esperaParte).forEach(e => { if (e.startsWith(fecha + "|") && esperaParte[e] === viejo) { if (n) esperaParte[e] = n; else delete esperaParte[e]; } });
   guardarSesiones();
+}
+// Con varios entrenos en el día, los botones de abajo del día preguntan a cuál (antes iba siempre al primero)
+function enQueEntreno(dia, titulo, hacer) {
+  const gs = [...dia.bloquesEl.querySelectorAll(":scope > .grupo")].map(x => x.dataset.grupo || "");
+  if (gs.length <= 1) { hacer(gs[0] || ""); return; }
+  abrirMenu(titulo, "¿En qué entreno?", gs.map(x => ({ texto: x || "Entreno 1", accion: () => hacer(x) })));
+}
+// Pasar un ejercicio o bloque a otro entreno del mismo día, a la parte y el sitio donde se ha soltado
+function moverEntreEntrenos(dia, origen, clave, espera, destino, destParte, orden) {
+  const k = dia.id + "|" + clave;
+  let ids = [], nuevaClave = clave;
+  const antes = [];
+  if (espera) {
+    if (destino) esperaGrupo[k] = destino; else delete esperaGrupo[k];
+    if (destParte) esperaParte[k] = destParte; else delete esperaParte[k];
+    delete esperaAntes[k];
+  } else {
+    const mias = seriesDeItem(dia.id, origen, clave);
+    ids = mias.map(sr => sr.id);
+    const parteOrig = (mias[0] || {}).seccion || "";
+    // La parte de la que sale no desaparece aunque se quede vacía
+    if (parteOrig) { const kv = dia.id + "|" + origen; if (!(partesVacias[kv] || []).includes(parteOrig)) (partesVacias[kv] = partesVacias[kv] || []).push(parteOrig); }
+    // El mismo ejercicio ya en esa parte del otro entreno: va como otra tarjeta (copia), sin juntarse
+    let copia = 0;
+    if (!clave.startsWith("b:") && mias.length) {
+      const ej = mias[0].ejercicio_id, mia = n0(mias[0].copia) > 1 ? n0(mias[0].copia) : 1;
+      const usadas = seriesDelDia(dia.id).filter(sr => !ids.includes(sr.id) && sr.ejercicio_id === ej && !sr.bloque_id && (sr.grupo || "") === destino && (sr.seccion || "") === destParte).map(sr => n0(sr.copia) > 1 ? n0(sr.copia) : 1);
+      if (usadas.includes(mia)) copia = Math.max(...usadas) + 1;
+    }
+    mias.forEach(sr => { antes.push(["series", { ...sr }]); cambiar("series", { ...sr, grupo: destino, seccion: destParte, ...(copia ? { copia } : {}) }, true); });
+    if (ids.length) nuevaClave = claveSerie(db.series[ids[0]]);
+  }
+  guardarSesiones();
+  // El orden en el entreno de destino, tal como ha quedado al soltar
+  orden.forEach((x, j) => {
+    if (!x.espera || x.propio && !espera) return;
+    const ck = x.propio ? clave : x.clave, sig = orden.slice(j + 1).find(y => !y.espera || (y.propio && !espera));
+    if (sig) esperaAntes[dia.id + "|" + ck] = sig.propio ? nuevaClave : sig.clave; else delete esperaAntes[dia.id + "|" + ck];
+  });
+  escribir("espera-antes-v1", esperaAntes);
+  const listas = orden.filter(x => x.propio ? !espera : !x.espera).map(x => x.propio ? ids.map(i => db.series[i]).filter(Boolean) : seriesDeItem(dia.id, destino, x.clave));
+  sinHistorial = false;
+  reordenar(listas, "");
+  persistir();
+  pintarDia(dia);
+  avisoDeshacer("Movido al entreno «" + (destino || "Entreno 1") + "»", antes.length ? antes : null);
+}
+// Pasar una parte entera (con sus ejercicios, bloques y bloques vacíos) a otro entreno del día
+function moverParteAEntreno(dia, origen, parte, destino, seriesParte) {
+  const antes = seriesParte.map(sr => ["series", { ...sr }]);
+  seriesParte.forEach(sr => {
+    let extra = {};
+    if (!sr.bloque_id) {
+      const mia = n0(sr.copia) > 1 ? n0(sr.copia) : 1;
+      const usadas = seriesDelDia(dia.id).filter(x => !seriesParte.includes(x) && x.ejercicio_id === sr.ejercicio_id && !x.bloque_id && (x.grupo || "") === destino && (x.seccion || "") === parte).map(x => n0(x.copia) > 1 ? n0(x.copia) : 1);
+      if (usadas.includes(mia)) extra = { copia: Math.max(...usadas) + 1 };
+    }
+    cambiar("series", { ...sr, grupo: destino, ...extra }, true);
+  });
+  Object.keys(esperaParte).forEach(k => { if (k.startsWith(dia.id + "|") && esperaParte[k] === parte && (esperaGrupo[k] || "") === origen) { if (destino) esperaGrupo[k] = destino; else delete esperaGrupo[k]; } });
+  Object.keys(bloquesVacios).forEach(k => { if (k.startsWith(dia.id + "|") && (bloquesVacios[k].p || "") === parte && (bloquesVacios[k].g || "") === origen) bloquesVacios[k] = { ...bloquesVacios[k], g: destino }; });
+  const ko = dia.id + "|" + origen, kd = dia.id + "|" + destino;
+  if ((partesVacias[ko] || []).includes(parte)) { partesVacias[ko] = partesVacias[ko].filter(x => x !== parte); if (!partesVacias[ko].length) delete partesVacias[ko]; }
+  if (!seriesParte.length && !(partesVacias[kd] || []).includes(parte)) (partesVacias[kd] = partesVacias[kd] || []).push(parte);
+  guardarSesiones(); guardarVacios(); persistir();
+  pintarDia(dia);
+  avisoDeshacer("Parte «" + parte + "» movida al entreno «" + (destino || "Entreno 1") + "»", antes.length ? antes : null);
 }
 // «+ Parte»: Calentamiento, Parte principal, Vuelta a la calma… (o el nombre que quieras)
 async function nuevaParte(dia, grupo) {
@@ -1582,7 +1651,11 @@ function pintarDiaSinAncla(dia) {
     });
     // Ejercicios (también los que aún no tienen series) y bloques se mueven dentro de la sesión, en un único orden
     const movibles = () => [...caja.querySelectorAll(":scope > .bloque[data-clave], :scope > .parte-caja > .bloque[data-clave], :scope > .parte-caja > .letra-caja > .bloque[data-clave]")];
-    const soltar = (n, movido, destParte) => {
+    const soltar = (n, movido, destParte, destGrupo) => {
+      if (movido && destGrupo !== undefined && destGrupo !== g.nombre) {
+        moverEntreEntrenos(dia, g.nombre, movido.dataset.clave, !!movido.dataset.espera, destGrupo, destParte || "", n.map(x => ({ clave: x.dataset.clave, espera: !!x.dataset.espera, propio: x === movido })));
+        return;
+      }
       // Las series de cada elemento se toman antes de cambiar de parte (su clave cambia) y se releen al final
       const idsDe = n.filter(x => !x.dataset.espera).map(x => seriesDeItem(dia.id, g.nombre, x.dataset.clave).map(sr => sr.id));
       // Si al arrastrar queda entre los ejercicios de otra parte, pasa a esa parte (la del de encima o, si es el primero, la del de debajo)
@@ -1643,7 +1716,7 @@ function pintarDiaSinAncla(dia) {
         soltar(l);
         setEstado((clave.startsWith("b:") ? "Bloque" : nombre) + " movido a «" + dest + "»");
       } };
-      if (movibles().length > 1 || zonasParte.lista().length) el.querySelector(".bloque-cab").appendChild(asaArrastreDia(el, caja, movibles, soltar, nombre, zonasParte));
+      if (movibles().length > 1 || zonasParte.lista().length || otrasSesiones.length) el.querySelector(".bloque-cab").appendChild(asaArrastreDia(el, caja, movibles, soltar, nombre, zonasParte));
       if (clave.startsWith("b:")) return;
       const m = document.createElement("button");
       m.type = "button"; m.className = "menu-btn"; m.textContent = "⋯";
@@ -5384,19 +5457,31 @@ NOTA: Nivel intermedio, RPE 7-8. Si te sobran repeticiones, sube 2,5 kg la próx
 ## Pierna
 ### Calentamiento
 - Bicicleta estática [fuerza]: 1x5min
+- Movilidad de cadera 90/90 [movilidad]: 2x8 por lado
+- Movilidad de tobillo en pared [movilidad]: 2x10 por lado
+- Puente de glúteo [fuerza]: 2x12
 ### Parte principal
 - Sentadilla [fuerza]: 4x6 @RPE8 desc 2:30
-- Peso muerto rumano [fuerza]: 3x8 @RPE7 desc 2:00
-- Zancadas [fuerza]: 3x10 @RPE7 desc 1:30`;
+- Peso muerto rumano [fuerza]: 3x8-10 @RPE7 desc 2:00
+- Zancadas [fuerza]: 3x10 por lado @RPE7 desc 1:30
+### Vuelta a la calma
+- Estiramiento de cuádriceps [movilidad]: 1x30s por lado`;
 const EJEMPLO_IA = `RUTINA: Fuerza y carrera 3 días
 SEMANAS: 6
 NOTA: Para nivel intermedio. Sube 2,5 kg cuando completes todas las series.
 ## Fuerza @ Lunes, Jueves
+### Calentamiento
+- Movilidad torácica en cuadrupedia [movilidad]: 2x8 por lado
+- Movilidad de cadera 90/90 [movilidad]: 2x8 por lado
+### Parte principal
 - Sentadilla [fuerza]: 4x6 @RPE8 desc 2:30
-- Press banca [fuerza]: 4x8 @75% desc 2:00
+- Press banca [fuerza]: 4x8-10 @75% desc 2:00
 - Dominadas [fuerza]: 3xmáx desc 2:00
 ## Series @ Miércoles
+### Calentamiento
 - Calentamiento carrera [carrera]: 1x15min
+- Movilidad dinámica de cadera [movilidad]: 1x10 por lado
+### Parte principal
 - Series 1000 m [carrera]: 5x1000m @4:10/km rec 2:00
 - BLOQUE x4: Series 200 m [carrera] 200m | Trote de recuperación [carrera] 200m
 ## Rodaje @ Sábado
@@ -5434,12 +5519,13 @@ function textoPrompt() {
     "- Si todas las semanas son iguales, pon «SEMANAS: número» y escribe las sesiones una sola vez. Si el plan cambia cada semana, escribe «SEMANA 1», «SEMANA 2»… y debajo las sesiones de esa semana.",
     "- Cada sesión empieza por «## Nombre @ Día» (Lunes, Martes, Miércoles, Jueves, Viernes, Sábado o Domingo; varios días separados por comas).",
     "- Un ejercicio por línea: «- Nombre [tipo]: series». El tipo es fuerza, carrera, natacion o movilidad (estiramientos y movilidad). Usa nombres de ejercicios comunes en español.",
-    "- Series: 4x8 (repeticiones), 3xmáx, 5x1000m, 8x100m, 1x40min, 6x2min. Sin rangos: 4x10, no 4x8-12. En fuerza también por tiempo: 1x5min (bici de calentamiento), 3x45s (plancha). En movilidad: 2x10 por lado, 2x30s por lado.",
+    "- Series: 4x8 (repeticiones), 4x8-12 (ventana de repeticiones), 3xmáx, 5x1000m, 8x100m, 1x40min, 6x2min. En fuerza también por tiempo: 1x5min (bici de calentamiento), 3x45s (plancha). En movilidad: 2x10 por lado, 2x30s por lado.",
     "- Intensidad: @RPE8 o @75% (del 1RM) en fuerza, @4:30/km en carrera, @1:50/100m en natación. No pongas kilos fijos.",
     "- Descanso: «desc 2:00» o «desc 90» (segundos). En carrera y natación la recuperación también puede ir en metros: «rec 200m».",
     "- Indicaciones de un ejercicio (tempo, tipo de banda o resistencia, EEP/RIR, pausas…): al final de su línea, «nota: …». Ejemplo: «- Sentadilla [fuerza]: 4x6 @RPE8 nota: Tempo 3-1-1-0».",
     "- Tramos que se repiten seguidos: «- BLOQUE x4: Ejercicio [tipo] 400m rec 200m | Ejercicio [tipo] 200m».",
-    "- Partes opcionales dentro de una sesión (si ayudan): una línea «### Calentamiento», «### Parte principal» o «### Vuelta a la calma» antes de sus ejercicios.",
+    "- Divide cada sesión en partes con una línea «### Calentamiento», «### Parte principal» y, si encaja, «### Vuelta a la calma» antes de sus ejercicios.",
+    "- El calentamiento incluye movilidad [movilidad] de las articulaciones que se van a trabajar ese día (por ejemplo cadera y tobillo para pierna, hombro y columna torácica para torso, o movilidad dinámica antes de correr) y, si encaja, otros ejercicios: bici o trote suave, activación, técnica o series de aproximación [fuerza]. La vuelta a la calma puede llevar estiramientos [movilidad].",
     "- Tirada larga con ritmos distintos por tramos, en una línea: «- Tirada larga [carrera]: 1x8km @5:20/km + 1x6km @4:50/km + 1x2km @5:30/km».",
     carrera && "- Como el plan prepara una carrera, escribe «SEMANA 1», «SEMANA 2»… hasta la última, que es la de la carrera, con progresión, semanas de descarga y un tapering (menos volumen, algo de ritmo de carrera) en las 1–2 semanas previas. La carrera va como «## Carrera @ Día» con «- " + nombreDist(carrera) + " [carrera]: 1x" + (carrera / 1000).toString().replace(".", ",") + "km @ritmo»."].filter(Boolean).join("\n");
 }
@@ -5467,12 +5553,13 @@ function textoPromptSesion() {
     "Reglas del formato:",
     "- Empieza por «RUTINA: nombre» y «NOTA:» con una o dos frases. Después UNA sola línea «## Nombre de la sesión» (sin día).",
     "- Un ejercicio por línea: «- Nombre [tipo]: series». El tipo es fuerza, carrera, natacion o movilidad (estiramientos y movilidad). Incluye calentamiento y vuelta a la calma si encajan.",
-    "- Series: 4x8, 3xmáx, 5x1000m, 8x100m, 1x40min, 6x2min. Sin rangos. Intensidad: @RPE8 o @75% en fuerza, @4:30/km en carrera, @1:50/100m en natación.",
+    "- Series: 4x8, 4x8-12 (ventana de repeticiones), 3xmáx, 5x1000m, 8x100m, 1x40min, 6x2min. Intensidad: @RPE8 o @75% en fuerza, @4:30/km en carrera, @1:50/100m en natación.",
     "- Calentamiento o isométricos por tiempo: «- Bicicleta estática [fuerza]: 1x5min», «- Plancha [fuerza]: 3x45s».",
     "- Movilidad y estiramientos en repeticiones o tiempo, y «por lado» si se hace a cada lado: «- Movilidad de cadera 90/90 [movilidad]: 2x8 por lado», «- Estiramiento de isquios [movilidad]: 2x30s por lado».",
     "- Descanso: «desc 2:00» o «desc 90»; en carrera y natación también «rec 200m».",
     "- Indicaciones (tempo, banda, EEP/RIR, pausas…): al final de la línea del ejercicio, «nota: …». Ejemplo: «- Remo con banda [fuerza]: 3x12 nota: Banda roja, tempo 2-0-1-1».",
     "- Divide la sesión en partes con una línea «### Calentamiento», «### Parte principal» y «### Vuelta a la calma» antes de sus ejercicios.",
+    "- El calentamiento incluye movilidad [movilidad] de las articulaciones que se van a trabajar (cadera y tobillo para pierna, hombro y columna torácica para torso, movilidad dinámica antes de correr) y, si encaja, otros ejercicios: bici o trote suave, activación, técnica o series de aproximación [fuerza]. La vuelta a la calma puede llevar estiramientos [movilidad].",
     "- Tramos que se repiten: «- BLOQUE x4: Ejercicio [tipo] 400m rec 200m | Ejercicio [tipo] 200m». Tirada por tramos: «- Tirada larga [carrera]: 1x8km @5:20/km + 1x6km @4:50/km»."].filter(Boolean).join("\n");
 }
 // ---------- Importar un documento de entrenamiento (PDF, Word, Excel, CSV, texto o foto) ----------
@@ -6065,8 +6152,23 @@ function asaArrastreDia(el, caja, hermanos, alSoltar, nombre, zonas) {
       if (r.height && r.top < innerHeight / 2) bArriba = Math.max(bArriba, r.bottom); else if (r.height) bAbajo = Math.min(bAbajo, r.top);
     });
     // Posiciones (en el documento, sin transiciones) de lo que puede recibir el hueco: se miden al empezar y cada vez que se mueve el hueco
-    const objetivos = [...caja.querySelectorAll(".bloque[data-clave], :scope > .parte-caja > .parte-cab, :scope > .parte-caja > .add-fila, .letra-caja > .letra-cab, :scope > .add-fila")]
+    // Todo el día: también se puede soltar en otro entreno (su título lo pone el primero; su «+ Ejercicio», el último)
+    const zonaDia = caja.closest(".bloques") || caja;
+    const calcObjetivos = () => [...zonaDia.querySelectorAll(".grupo .bloque[data-clave], .grupo > .parte-caja > .parte-cab, .grupo > .parte-caja > .add-fila, .letra-caja > .letra-cab, .grupo > .add-fila, .grupo > .grupo-cab")]
       .filter(x => x !== el && !el.contains(x) && x.offsetParent !== null);
+    let objetivos = calcObjetivos();
+    // Partes, letras o entrenos plegados: si te quedas un momento encima de su título se despliegan para poder
+    // meter ahí el ejercicio; al soltar fuera vuelven a quedar plegados (y si lo sueltas dentro, se quedan abiertos)
+    const diaId = (dias.find(d => d.col.contains(zonaDia)) || {}).id || "";
+    const plegable = cab => {
+      const cont = cab.parentElement;
+      if (cab.classList.contains("parte-cab") && cont.classList.contains("p-plegada")) return { cont, cls: "p-plegada", key: "p|" + diaId + "|" + ((cont.closest(".grupo") || {}).dataset || {}).grupo + "|" + cont.dataset.parte };
+      if (cab.classList.contains("letra-cab") && cont.classList.contains("l-plegada")) { const pc = cont.closest(".parte-caja"); return { cont, cls: "l-plegada", key: "l|" + diaId + "|" + ((cont.closest(".grupo") || {}).dataset || {}).grupo + "|" + (pc ? pc.dataset.parte : "") + "|" + cont.dataset.letra }; }
+      if (cab.classList.contains("grupo-cab") && cont.classList.contains("g-plegado")) return { cont, cls: "g-plegado", key: diaId + "|" + (cont.dataset.grupo || "") };
+      return null;
+    };
+    const abiertasTemp = [];
+    let candPl = null, candPlDesde = 0, tPl = 0;
     let pos = [], baseEl = 0, trasEl = 0;
     const medir = () => {
       const sy = scrollY;
@@ -6110,16 +6212,28 @@ function asaArrastreDia(el, caja, hermanos, alSoltar, nombre, zonas) {
       if (!zona) {
         // Se mira con el borde de lo arrastrado: el de abajo al bajar, el de arriba al subir (igual de fácil en los dos sentidos)
         const y = dir > 0 ? topDoc + r0.height - 4 : topDoc + 4;
-        const t = pos.find(p => y >= p.top && y <= p.bottom);
+        const t = pos.find(p => y >= p.top && y <= p.bottom && !plegable(p.x));   // un título plegado no mueve el hueco: espera a desplegarse
         if (t) {
           const x = t.x, arribaMitad = y < (t.top + t.bottom) / 2;
-          if (x.classList.contains("parte-cab") || x.classList.contains("letra-cab")) arribaMitad ? colocar(x.parentElement, "antes") : colocar(x, "despues");
+          if (x.classList.contains("grupo-cab")) colocar(x, "despues");
+          else if (x.classList.contains("parte-cab") || x.classList.contains("letra-cab")) arribaMitad ? colocar(x.parentElement, "antes") : colocar(x, "despues");
           else if (x.classList.contains("add-fila")) x.parentElement.classList.contains("parte-caja") ? (arribaMitad ? colocar(x, "antes") : colocar(x.parentElement, "despues")) : colocar(x, "antes");
           else colocar(x, arribaMitad ? "antes" : "despues");
         }
       }
       // Si el hueco se ha movido, su sitio de partida ha cambiado: se recoloca en el mismo fotograma (sin saltos)
       if (topDoc - baseEl !== trasEl) { trasEl = topDoc - baseEl; el.style.transform = "translate3d(0," + trasEl / zf + "px,0)"; }
+      // Desplegar lo plegado si el dedo se queda un momento encima de su título
+      const cabPl = pos.find(p => yDedo >= p.top && yDedo <= p.bottom && plegable(p.x));
+      const cp = cabPl ? cabPl.x : null;
+      if (cp !== candPl) { candPl = cp; candPlDesde = Date.now(); }
+      if (candPl) {
+        if (Date.now() - candPlDesde >= 350) {
+          const info = plegable(candPl);
+          if (info) { info.cont.classList.remove(info.cls); abiertasTemp.push(info); objetivos = calcObjetivos(); medir(); trasEl = topDoc - baseEl; el.style.transform = "translate3d(0," + trasEl / zf + "px,0)"; }
+          candPl = null;
+        } else { clearTimeout(tPl); tPl = setTimeout(pedir, 370 - (Date.now() - candPlDesde)); }
+      }
       ph.classList.toggle("oculto", !!zona);
       if (dedoY < bArriba + 48 || dedoY > bAbajo - 48) pedir();
     };
@@ -6127,8 +6241,15 @@ function asaArrastreDia(el, caja, hermanos, alSoltar, nombre, zonas) {
     const mover = ev => { dedoY = ev.clientY; if (Math.abs(dedoY - ultY) > 2) { dir = dedoY > ultY ? 1 : -1; ultY = dedoY; } pedir(); };
     const fin = ev => {
       vivo = false;
-      clearTimeout(tZona);
+      clearTimeout(tZona); clearTimeout(tPl);
       arrastreActivo = false;
+      // Lo desplegado al pasar: donde ha caído se queda abierto; lo demás vuelve a plegarse
+      let cambioPl = false;
+      abiertasTemp.forEach(info => {
+        if (!zona && ev.type !== "pointercancel" && info.cont.contains(ph)) { delete gruposPlegados[info.key]; cambioPl = true; }
+        else info.cont.classList.add(info.cls);
+      });
+      if (cambioPl) escribir("grupos-plegados-v1", gruposPlegados);
       nuevo.removeEventListener("pointermove", mover);
       nuevo.removeEventListener("pointerup", fin);
       nuevo.removeEventListener("pointercancel", fin);
@@ -6138,11 +6259,14 @@ function asaArrastreDia(el, caja, hermanos, alSoltar, nombre, zonas) {
       if (zona) zona.classList.remove("zona-destino");
       if (ev.type !== "pointercancel" && zona) { ph.remove(); zonas.alSoltar(zona); return; }
       const destParte = ph.closest(".parte-caja") ? ph.closest(".parte-caja").dataset.parte || "" : "";
-      const orden = [...caja.querySelectorAll(".bloque[data-clave], .hueco-arrastre")].filter(x => x !== el).map(x => x === ph ? el : x);
+      const cajaDest = ph.closest(".grupo") || caja;
+      const orden = [...cajaDest.querySelectorAll(".bloque[data-clave], .hueco-arrastre")].filter(x => x !== el).map(x => x === ph ? el : x);
       ph.remove();
+      if (ev.type === "pointercancel") { if (repintarLuego) pintarBloques(true); return; }
+      if (cajaDest !== caja) { alSoltar(orden, el, destParte, cajaDest.dataset.grupo || ""); return; }
       const antes = hermanos();
       const igual = antes.length === orden.length && antes.every((x, k) => x === orden[k]) && destParte === (el.dataset.parte || "");
-      if (ev.type === "pointercancel" || igual) { if (repintarLuego) pintarBloques(true); return; }
+      if (igual) { if (repintarLuego) pintarBloques(true); return; }
       alSoltar(orden, el, destParte);
     };
     nuevo.addEventListener("pointermove", mover);
@@ -6573,7 +6697,7 @@ $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); 
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
 // VERSION_APP es interna (sube en cada publicación para que los móviles se actualicen); la que se ve es siempre la 26
-const VERSION_APP = "v126" + (BETA ? " beta" : "");
+const VERSION_APP = "v129" + (BETA ? " beta" : "");
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";
