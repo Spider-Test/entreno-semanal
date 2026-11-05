@@ -91,6 +91,11 @@
   </div>
 
   <div id="vistaPlan" hidden>
+    <nav class="plan-nav" aria-label="Secciones de Plan">
+      <button type="button" class="plan-nav-btn activa" data-plan="crear">Crear o importar</button>
+      <button type="button" class="plan-nav-btn" data-plan="entrenos">Mis entrenamientos</button>
+      <button type="button" class="plan-nav-btn" data-plan="cuenta">Ajustes y datos</button>
+    </nav>
     <section class="plan-sec" data-sec="plantillas">
       <h3>Plantillas</h3>
       <div class="barra plant-barra"><input id="buscarPlantilla" type="search" placeholder="Buscar plantilla" aria-label="Buscar plantilla por nombre o ejercicio" autocomplete="off"><button type="button" class="nav-btn" id="selPlantEntrar">Seleccionar</button></div>
@@ -103,8 +108,8 @@
     </section>
     <section class="plan-sec" data-sec="importar">
       <h3>Importar carreras</h3>
-      <p class="vacio-lista">Trae tus carreras del reloj (archivo GPX o TCX) o de Strava y Garmin (CSV de actividades). Con vueltas, cada serie se guarda por separado y sus recuperaciones como descanso.</p>
-      <div class="botonera"><button type="button" class="anadir" id="impAbrir">Importar archivo…</button></div>
+      <p class="vacio-lista">Importa una actividad del reloj (FIT, GPX o TCX), COROS o un CSV de Strava/Garmin. Las vueltas se guardan como series y sus recuperaciones como descanso.</p>
+      <div class="botonera"><button type="button" class="anadir" id="impAbrir">Elegir archivo de carrera…</button></div>
     </section>
     <section class="plan-sec" data-sec="molestias">
       <div class="sec-cab"><h3>Molestias y lesiones</h3><button type="button" class="nav-btn" id="nuevaMolestia">+ Nueva</button></div>
@@ -168,6 +173,15 @@
 
   <div id="vistaMarcas" hidden>
     <p class="aviso-estim">Tus récords de fuerza (por zonas del cuerpo), carrera y piscina. Las estimaciones de carrera son orientativas, calculadas con tus entrenamientos completos (fórmulas de Daniels y Riegel). No sustituyen a una prueba real ni a un entrenador.</p>
+    <section class="plan-sec informe-sec">
+      <h3>Resumen descargable</h3>
+      <div class="fila informe-controles">
+        <label class="campo">Periodo <select id="periodoInforme"><option value="semana">Semana</option><option value="mes">Mes</option><option value="ano">Año</option></select></label>
+        <label class="campo">Fecha de referencia <input id="fechaInforme" type="date"></label>
+        <button type="button" class="anadir" id="descargarInforme">Descargar resumen</button>
+      </div>
+      <p class="menu-det nota">Incluye sesiones, días activos, distancia y tiempo registrados, desnivel y mejores resultados del periodo. Se descarga como HTML imprimible; desde el navegador puedes guardarlo como PDF.</p>
+    </section>
     <div id="marcasCont"></div>
   </div>
 
@@ -216,6 +230,16 @@
       <div class="md-chips" id="detZonas"></div>
       <p class="menu-det nota" id="detZonasNota"></p>
     </section>
+    <section id="detMedidaSec" hidden>
+      <h3>Cómo se hace y cómo mides tu progreso</h3>
+      <div class="tabs seg" id="detMedida" role="group" aria-label="Cómo se mide el progreso">
+        <button type="button" data-m="peso" aria-pressed="false">Peso (1RM)</button>
+        <button type="button" data-m="reps" aria-pressed="false">Reps máx.</button>
+        <button type="button" data-m="tiempo" aria-pressed="false">Isométrico (tiempo)</button>
+      </div>
+      <p class="menu-det" id="detMedidaInfo"></p>
+      <label class="permiso"><input type="checkbox" id="detLado"> Se hace por lado (izquierda y derecha): todas sus series salen «por lado»</label>
+    </section>
     <section id="detRmSec">
       <h3>1RM de referencia</h3>
       <div class="fila rm-fila"><input id="detRm" inputmode="decimal" placeholder="kg" aria-label="1RM de referencia en kg"><span id="detRmEst" class="menu-det"></span></div>
@@ -229,7 +253,7 @@
       <h3>Vídeo de la técnica</h3>
       <div id="detEmbed"></div>
       <div class="fila">
-        <input id="detVideo" type="url" inputmode="url" placeholder="Pega un enlace de YouTube, Instagram…" aria-label="Enlace del vídeo" autocomplete="off">
+        <input id="detVideo" type="url" inputmode="url" placeholder="Enlace de YouTube… (detrás puedes poner 1:30-2:15)" aria-label="Enlace del vídeo" autocomplete="off">
         <a id="detBuscar" class="nav-btn" target="_blank" rel="noopener">Buscar en YouTube</a>
       </div>
       <textarea id="detNotas" placeholder="Notas de técnica: agarre, respiración, lo que no debes olvidar…" aria-label="Notas de técnica"></textarea>
@@ -267,9 +291,9 @@
     <textarea id="txtInput" rows="3" maxlength="300" aria-label="Descripción" placeholder="Tempo 3-2-1-2 · banda roja · EEP 2"></textarea>
     <p id="txtAyuda" class="menu-det"></p>
     <div class="d-botones">
-      <button value="quitar" class="nav-btn peligro-txt" formnovalidate>Quitar</button>
-      <button value="" class="nav-btn" formnovalidate>Cancelar</button>
-      <button value="ok" class="anadir">Guardar</button>
+      <button type="button" class="nav-btn peligro-txt" data-cerrar="quitar">Quitar</button>
+      <button type="button" class="nav-btn" data-cerrar="">Cancelar</button>
+      <button value="ok" class="anadir" data-enter>Guardar</button>
     </div>
   </form>
 </dialog>
@@ -279,8 +303,8 @@
     <input id="nomInput" aria-label="Nombre" autocomplete="off" enterkeyhint="done">
     <p id="nomAyuda" class="menu-det"></p>
     <div class="d-botones">
-      <button value="" class="nav-btn" formnovalidate>Cancelar</button>
-      <button value="ok" class="anadir">Guardar</button>
+      <button type="button" class="nav-btn" data-cerrar="">Cancelar</button>
+      <button value="ok" class="anadir" data-enter>Guardar</button>
     </div>
   </form>
 </dialog>
@@ -297,6 +321,7 @@
     <label class="campo">Rondas (veces que se repite) <input id="blqRondas" type="number" min="1" max="50" inputmode="numeric"></label>
     <p id="blqAviso" class="aviso" role="status"></p>
     <div class="d-botones">
+      <button type="button" class="nav-btn" id="blqVacio" title="Un bloque sin ejercicios: luego arrastras ejercicios del entreno dentro con ≡">Crear vacío</button>
       <button type="button" class="anadir" id="blqCrear">Crear bloque</button>
     </div>
   </div>
@@ -339,6 +364,7 @@
       <button type="button" class="anadir" id="mesoAplicar">Guardar y rellenar calendario</button>
     </div>
     <div class="d-botones">
+      <button type="button" class="nav-btn" id="mesoALista">Añadir a una lista…</button>
       <button type="button" class="nav-btn" id="mesoCompartir">Compartir con un amigo…</button>
       <button type="button" class="enlace" id="mesoQuitar">Quitar sus series planificadas del calendario</button>
       <button type="button" class="peligro" id="mesoBorrar">Eliminar mesociclo</button>
@@ -380,6 +406,16 @@
       <label class="campo">¿Qué quieres?
         <select id="iaModo"><option value="plan">Plan de varias semanas o mesociclo</option><option value="sesion">Entrenamiento suelto (una sesión)</option></select>
       </label>
+      <div class="fila" id="iaRefCaja">
+        <label class="campo">Basado en (opcional) <select id="iaRef"><option value="">Nada: desde cero</option></select></label>
+        <label class="campo" id="iaRefModoL" hidden>¿Cómo?
+          <select id="iaRefModo">
+            <option value="variantes">Mismo esquema, con variantes de ejercicios</option>
+            <option value="progresar">Seguir progresando con los mismos ejercicios</option>
+            <option value="nuevo">Otro enfoque, sin repetir los principales</option>
+          </select>
+        </label>
+      </div>
       <div id="iaCamposPlan">
         <div class="fila">
           <label class="campo">Objetivo
@@ -447,6 +483,7 @@
       <p class="menu-det nota" id="iaAvisoDias" role="status"></p>
       <div class="d-botones">
         <button type="button" class="nav-btn" id="iaPlantillas">Usar como plantillas</button>
+        <button type="button" class="nav-btn" id="iaLista">Guardar en una lista</button>
         <button type="button" class="anadir" id="iaMeso" hidden>Crear mesociclo</button>
       </div>
       <div id="iaDiaOp" hidden>
@@ -467,15 +504,6 @@
   </form>
   <div class="d-cuerpo ayuda">
     <p>Toca cada apartado para verlo. Puedes volver aquí cuando quieras con el botón <b>?</b> de arriba. ¿Echas algo en falta o algo no va bien? Envíanos una sugerencia:</p>
-    <details class="novedades" open><summary>Novedades · versión 26</summary>
-      <p><b>Lo mismo en todos tus dispositivos:</b> los ejercicios que añades a un día y aún no tienen series, los entrenos y partes vacíos, su descripción y su orden ya se guardan en tu cuenta. Antes se quedaban solo en el móvil o el ordenador donde los pusiste.</p>
-      <p><b>⋯ en los ejercicios de un bloque:</b> en un bloque ×N, cada ejercicio tiene su ⋯ (en la primera ronda) para ver su ficha, ponerle o editar su descripción o quitarlo del bloque.</p>
-      <p><b>Listas de entrenamientos</b> (nueva pestaña <b>Listas</b>, junto a Ejercicios): crea listas como «Fuerza 3 días» o «Torso / Pierna», guarda en ellas tus entrenamientos y ordénalos con ≡. Toca uno para ver sus ejercicios y pulsa <b>+ Día</b> para ponerlo en el día que elijas.</p>
-      <p>Para guardar un entrenamiento en una lista: ⋯ del día (o de un entreno) → «Guardar en una lista de entrenamientos…». También puedes añadir tus plantillas con «+ Añadir entrenamiento».</p>
-      <p><b>Bloques dentro de la lista</b> (como un mesociclo): «+ Bloque» crea una caja («Semana 1», «Bloque de fuerza»…) con sus entrenamientos dentro. Se pliega tocando su nombre, se mueve entera con su ≡ y tiene su «+ Entrenamiento en este bloque». Arrastra entrenamientos de un bloque a otro con su ≡. En el ⋯ del bloque puedes duplicarlo («Semana 2»…).</p>
-      <p><b>+ Entreno</b> en un día ahora deja elegir un entreno vacío o uno de tus listas.</p>
-      <p>La lista recuerda cuál toca <b>siguiente</b>: al poner uno en un día, el siguiente pasa al de después (ideal para rotar A, B, C…).</p>
-    </details>
     <button type="button" class="nav-btn sug-btn" id="sugAyuda">💬 Enviar una sugerencia o avisar de un fallo</button>
     <details><summary>La semana y el texto del día</summary>
       <p>En el móvil, las secciones están abajo: <b>Semana</b>, <b>Ejercicios</b>, <b>Marcas</b> y <b>Plan</b>. En el ordenador van arriba, centradas, y la semana se ve en 7 columnas. En pantallas grandes todo se amplía un poco para aprovechar el ancho; en <b>Plan → Ajustes → Tamaño en el ordenador</b> eliges otro tamaño si lo prefieres.</p>
@@ -506,13 +534,20 @@
     </details>
     <details><summary>Añadir ejercicios y series</summary>
       <p>Pulsa <b>+ Ejercicio</b> en un día, busca el ejercicio o escribe uno nuevo. Arriba puedes filtrar por Fuerza, Carrera, Natación o Movilidad.</p>
-      <p><b>Cómo se mide (fuerza):</b> debajo de kg × reps elige <b>Reps</b>, <b>⏱ Tiempo</b> (isométricos: «45» = 45 s, también «1,30»), <b>Máx. reps</b> o <b>Máx. tiempo</b> (la serie queda «máx» sin número). Al hacer una serie «máx», tócala (o usa el modo entreno) y apunta las repeticiones o los segundos que salieron. En texto: «3xmáx» o «3xmáx tiempo». Marca <b>Por lado</b> si se hace a cada lado («30 s por lado»).</p>
+      <p><b>Progreso por peso, reps o tiempo, y por lado:</b> en la ficha de cada ejercicio eliges si se hace <b>por lado</b> (todas sus series lo llevan) y, en fuerza, cómo se mide: Peso (1RM), Reps máx. o Isométrico (tiempo): en los isométricos el selector solo ofrece Tiempo y Máx. tiempo. Por defecto lo deduce del nombre («lastradas» → peso; dominadas, fondos → reps; plancha, false grip → tiempo). En los de peso corporal no sale la casilla de kg; para el lastre usa el ejercicio «… lastradas».</p>
+      <p><b>Cómo se mide (fuerza):</b> debajo de la fila de series, el botón <b>Reps ▾</b> deja elegir <b>Reps</b>, <b>⏱ Tiempo</b> (isométricos: «45» = 45 s, también «1,30»), <b>Máx. reps</b> o <b>Máx. tiempo</b> (la serie queda «máx» sin número). Al hacer una serie «máx», tócala (o usa el modo entreno) y apunta las repeticiones o los segundos que salieron. En texto: «3xmáx» o «3xmáx tiempo». Marca <b>Por lado</b> si se hace a cada lado («30 s por lado»).</p>
       <p><b>Fuerza:</b> kg × repeticiones. El botón <b>kg</b> cambia a <b>%</b> del 1RM (pon tu 1RM en la ficha del ejercicio).</p>
       <p><b>Movilidad:</b> repeticiones o tiempo (un número solo son segundos: «45»; también «2 min» o «1,30»). Marca <b>Por lado</b> si se hace a cada lado. No cuenta récords; el resumen de la semana suma sus minutos (por lado cuenta los dos).</p>
       <p><b>Carrera y natación:</b> metros y tiempo. El botón <b>m</b> cambia a <b>min</b> si prefieres apuntar solo el tiempo.</p>
       <p>Los botones <b>−</b> y <b>+</b> suben o bajan el peso, las repeticiones, los metros (100 m) o el tiempo (5 s). En <b>Plan → Ajustes</b> eliges cuántos kilos sube cada toque (2,5 por defecto) y el peso de la barra; se guardan en cada dispositivo.</p>
-      <p><b>Series y OK:</b> arriba eliges cuántas <b>Series</b> iguales quieres (− y +, 1 por defecto); debajo, el peso y las repeticiones (o metros, tiempo y descanso) y pulsa <b>OK</b>. Se crean todas de golpe y el ejercicio se pliega, limpio: «Press banca · 60 kg × 8 · ×4» con su progreso. Hoy y en días futuros quedan pendientes para marcarlas una a una; en días pasados se apuntan como hechas.</p>
+      <p><b>Series y OK:</b> en fuerza, el número de <b>series</b> va junto al nombre del ejercicio; debajo, las <b>repeticiones</b> con su selector (Reps ▾: tiempo, máx…) y el <b>peso</b> con kg/%; y abajo, Por lado, el descanso y OK. Se guarda como «3 × 10 (100 kg)» y pulsa <b>OK</b>. Se crean todas de golpe y el ejercicio se pliega, limpio: «Press banca · 60 kg × 8 · ×4» con su progreso. Hoy y en días futuros quedan pendientes para marcarlas una a una; en días pasados se apuntan como hechas.</p>
+      <p><b>Ventana de reps:</b> «10-12» en las repeticiones (en el móvil, «10,12») planifica una ventana; al marcar la serie te pide las que hiciste.</p>
+      <p><b>Deshacer (ordenador):</b> Ctrl+Z / ⌘Z deshace y Ctrl+Y / ⌘⇧Z rehace.</p>
+      <p><b>Bloque vacío:</b> «+ Bloque» → «Crear vacío», y luego arrastra ejercicios encima de su título.</p>
+      <p><b>Bloques (superseries, circuitos):</b> toca una serie de una ronda para cambiarla; con <b>kg/%</b> eliges kilos o % del 1RM y con «Igual en las otras rondas pendientes» se aplica a todas. Los descansos van en la serie de antes: en el ⋯ del bloque, «⏱ Descansos del bloque…» pone de una vez el de entre ejercicios, entre rondas o al terminar el bloque.</p>
+      <p><b>Una fila por serie:</b> con 2 o más series sale una fila por cada una (2, 3, 4…) con sus reps y sus kilos, para pirámides o series descendentes. La 1 es la de arriba; las demás la copian hasta que las cambias. Las series ya hechas se ven en gris y se editan tocándolas.</p>
       <p><b>Editar el ejercicio entero:</b> toca su nombre (o <b>⋯ → Editar</b>). Puedes cambiar los valores de todas las series pendientes a la vez, el número <b>×N</b> (añade o quita series pendientes; si hubiera que quitar series hechas, te lo pregunta) o <b>cambiar el ejercicio</b> por otro del mismo tipo (por ejemplo, sentadilla → prensa) manteniendo las series. <b>OK</b> lo vuelve a plegar; tocar el nombre otra vez lo cierra sin guardar. Todo se puede deshacer.</p>
+      <p><b>El mismo ejercicio dos veces:</b> «+ Ejercicio» con uno que ya está crea otra tarjeta, «Press banca (2)», con sus propias series.</p>
       <p>Para quitar un ejercicio entero de un día, <b>⋯ → Eliminar ejercicio y sus series</b>: pide pulsar otra vez para confirmar y se puede deshacer.</p>
       <p>Si una serie sale distinta, tócala y edítala sola. <b>+ Serie</b> añade una suelta diferente (por ejemplo, una extra con otro peso). El vídeo, los récords y el historial están en la ficha: <b>⋯ → Ver ficha del ejercicio</b>.</p>
     </details>
@@ -557,6 +592,7 @@
       <p><b>Usarlos:</b> toca el nombre para ver sus ejercicios; <b>+ Día</b> lo pone en el día que elijas (con ‹ › cambias de semana). Ordénalos con el asa ≡. Con <b>+ Bloque</b> creas cajas (semanas, fases…) con sus entrenamientos dentro, como un mesociclo: se pliegan tocando su nombre, se mueven enteras con su ≡ y se pueden duplicar desde su ⋯; un entrenamiento puede repetirse en varias semanas («Repetir debajo» o «Duplicar» la semana). También desde un día: <b>+ Entreno</b> → «Desde la lista…». La lista marca cuál toca <b>siguiente</b> y avanza sola cada vez que pones uno; en su ⋯ puedes elegir otro como siguiente o quitarlo de la lista (sigue en tus plantillas).</p>
     </details>
     <details><summary>Plantillas, copiar y pegar</summary>
+      <p><b>Mover a otro día:</b> ⋯ de un entreno → «📅 Mover a otro día…», o ⋯ del día → «📅 Mover el entrenamiento a otro día…». Se lleva sus series, los ejercicios aún sin series y sus partes; con Deshacer.</p>
       <p><b>Copiar y pegar un entrenamiento:</b> en el ⋯ del día, «Copiar día» (o en el ⋯ de un entreno, «Copiar entreno»). Después, en el ⋯ del día donde lo quieras, «📋 Pegar … en este día». Lo pegado entra pendiente y se puede deshacer.</p>
       <p>En el menú <b>⋯</b> de cada día puedes copiar el día, pegar lo último copiado, añadir una plantilla, guardar los ejercicios como plantilla o compartirlos con un amigo.</p>
       <p>Si los ejercicios tienen nombre de sesión (por ejemplo «Pierna»), su menú ⋯ copia, guarda o comparte solo esa sesión. Puedes tener varias sesiones el mismo día.</p>
@@ -578,7 +614,7 @@
     </details>
     <details><summary>Crear con IA y rutinas tipo</summary>
       <p>En <b>Plan → Crear con IA</b> eliges objetivo, días, nivel, material y limitaciones. Copia el prompt, pégalo en ChatGPT, Claude u otra IA y pega su respuesta en el paso 2.</p>
-      <p>La app te muestra una vista previa y lo guarda como plantillas o como mesociclo. Crea los ejercicios que falten. Si algo no encaja, te dice qué línea falla.</p>
+      <p>La app te muestra una vista previa y lo guarda como plantillas, en una <b>lista de entrenamientos</b> (si cambia cada semana, cada semana va en su bloque) o como mesociclo. Crea los ejercicios que falten. Si algo no encaja, te dice qué línea falla.</p>
       <p><b>Entrenamiento suelto:</b> en «¿Qué quieres?» elige «Entrenamiento suelto», el tipo de sesión (pierna, torso, series, umbral, tirada larga, natación, «Otro»…), la duración y la intensidad. Tus molestias activas y tus ritmos van en el prompt. Al pegar la respuesta, elige el día y pulsa <b>Añadir al día</b> (y, si quieres, guárdala también como plantilla).</p>
       <p><b>Importar un documento:</b> en Plan → Crear con IA, «Importar documento…» admite PDF, Word (.docx), Excel (.xlsx), CSV, texto o una foto. La app saca el texto (los lectores se descargan solo al importar) y te prepara un prompt que pide a la IA convertirlo sin inventar nada; lo pegas en tu IA y pegas su respuesta en el paso 2, con vista previa antes de guardar. Si el documento ya está en el formato de la app, se lee directamente. Un PDF escaneado o una foto no tienen texto que leer: la app te lo dice y te prepara el prompt para que adjuntes el archivo a la IA.</p>
       <p><b>Media maratón y maratón:</b> además de 5 y 10 km. Puedes poner tu marca objetivo y la fecha de la carrera (las semanas se cuentan hasta ella). El prompt incluye tus marcas previstas de Marcas (VDOT y Riegel) y pide descarga y tapering antes de la carrera. Las tiradas largas pueden llevar ritmos distintos por tramos.</p>
@@ -679,6 +715,14 @@
   </div>
 </dialog>
 
+<dialog id="dlgBilboReg" class="dlg-ancho" aria-label="Registro de Bilbo">
+  <form method="dialog" class="d-cab">
+    <h3 class="d-tit" id="bregTit">Bilbo</h3>
+    <button class="cerrar" aria-label="Cerrar">✕</button>
+  </form>
+  <div class="d-cuerpo" id="bregCuerpo"></div>
+</dialog>
+
 <dialog id="dlgCal" aria-label="Calendario">
   <form method="dialog" class="d-cab">
     <h3 class="d-tit">Calendario</h3>
@@ -689,6 +733,28 @@
     <div class="cal-grid" id="calDias"></div>
     <p class="menu-det nota">● entrenamiento hecho · ◐ a medias · ○ planificado. Toca un día para ir a él.</p>
     <div class="d-botones"><button type="button" class="nav-btn" id="calHoy">Ir a hoy</button></div>
+  </div>
+</dialog>
+
+<dialog id="dlgMarca" aria-label="Marca">
+  <form method="dialog" class="d-cab">
+    <h3 class="d-tit">Marca</h3>
+    <button class="cerrar" aria-label="Cerrar">✕</button>
+  </form>
+  <div class="d-cuerpo">
+    <p class="menu-det" style="padding:0">Un tiempo suelto que no es una carrera: un test de 2 km, un 100 m en pista… Cuenta en tus mejores marcas.</p>
+    <label class="campo">Distancia <input id="mmDist" placeholder="2 km, 100 m, 400…" autocomplete="off" inputmode="decimal"></label>
+    <div class="fila">
+      <label class="campo">Minutos <input id="mmMin" inputmode="numeric" placeholder="6" autocomplete="off"></label>
+      <label class="campo">Segundos <input id="mmSeg" inputmode="decimal" placeholder="45 o 13,2" autocomplete="off"></label>
+    </div>
+    <label class="campo">Fecha <input id="mmFecha" type="date"></label>
+    <label class="campo">Nota (opcional) <input id="mmNota" placeholder="Pista, test, con viento…" autocomplete="off"></label>
+    <p id="mmAviso" class="aviso" role="status"></p>
+    <div class="d-botones">
+      <button type="button" class="peligro" id="mmBorrar" hidden>Borrar</button>
+      <button type="button" class="anadir" id="mmGuardar">Guardar marca</button>
+    </div>
   </div>
 </dialog>
 

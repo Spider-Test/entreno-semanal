@@ -37,24 +37,24 @@ const escribir = (k, v) => {
 };
 // Datos de cada día que no son series (ejercicios añadidos aún sin series, entrenos y partes vacíos, su descripción,
 // su letra y su posición): se guardan en el día (tabla entrenos, columna extra) para verlos igual en todos los dispositivos
-const CLAVES_EXTRA = new Set(["bloques-v1", "sesiones-v1", "espera-grupo-v1", "partes-v1", "espera-parte-v1", "espera-nota-v1", "espera-letra-v1", "espera-antes-v1"]);
+const CLAVES_EXTRA = new Set(["bloques-vacios-v1", "bloques-v1", "sesiones-v1", "espera-grupo-v1", "partes-v1", "espera-parte-v1", "espera-nota-v1", "espera-letra-v1", "espera-antes-v1"]);
 if (BETA) { document.documentElement.classList.add("beta"); document.title = "Fuerza y Ritmo β"; document.querySelector('meta[name="apple-mobile-web-app-title"]').content = "Fuerza y Ritmo β"; }
 
 // Cada tabla se sincroniza igual: gana la edición más reciente de cada fila.
 // El orden importa al subir: primero ejercicios y plantillas, después las series que los usan.
 const TABLAS = {
   ejercicios: { clave: "id", conflicto: "id", campos: ["id", "user_id", "nombre", "tipo", "video_url", "notas", "rm", "compartido", "zonas", "borrado", "actualizado"] },
-  personales: { clave: "ejercicio_id", conflicto: "user_id,ejercicio_id", campos: ["ejercicio_id", "rm", "actualizado"] },
+  personales: { clave: "ejercicio_id", conflicto: "user_id,ejercicio_id", campos: ["ejercicio_id", "rm", "medida", "lado", "actualizado"] },
   ciclos: { clave: "id", conflicto: "id", campos: ["id", "ejercicio_id", "numero", "rm_inicio", "peso_inicial", "incremento", "reps_reset", "importadas", "cerrado", "borrado", "actualizado"] },
   plantillas: { clave: "id", conflicto: "id", campos: ["id", "nombre", "items", "borrado", "actualizado"] },
   mesociclos: { clave: "id", conflicto: "id", campos: ["id", "nombre", "inicio", "semanas", "dias", "progresion", "descarga", "notas", "borrado", "actualizado"] },
-  series: { clave: "id", conflicto: "id", campos: ["id", "fecha", "ejercicio_id", "orden", "peso", "reps", "distancia", "tiempo", "descanso", "hecha", "grupo", "meso_id", "bloque_id", "ronda", "rec_dist", "pct", "ciclo_id", "calentamiento", "desnivel_pos", "desnivel_neg", "ritmo_ajustado", "fc_media", "fc_max", "cadencia", "fc_pico", "fc_hist", "seccion", "por_lado", "nota", "letra_nueva", "max_tiempo", "borrado", "actualizado"] },
+  series: { clave: "id", conflicto: "id", campos: ["id", "fecha", "ejercicio_id", "orden", "peso", "reps", "distancia", "tiempo", "descanso", "hecha", "grupo", "meso_id", "bloque_id", "ronda", "rec_dist", "pct", "ciclo_id", "calentamiento", "desnivel_pos", "desnivel_neg", "ritmo_ajustado", "fc_media", "fc_max", "cadencia", "fc_pico", "fc_hist", "seccion", "por_lado", "nota", "letra_nueva", "max_tiempo", "max_reps", "copia", "rango_min", "rango_max", "borrado", "actualizado"] },
   entrenos: { clave: "fecha", conflicto: "user_id,fecha", campos: ["fecha", "html", "texto", "rpe", "sensacion", "extra", "actualizado"] },
   molestias: { clave: "id", conflicto: "id", campos: ["id", "zona", "descripcion", "inicio", "estado", "borrado", "actualizado"] },
   listas: { clave: "id", conflicto: "id", campos: ["id", "nombre", "items", "siguiente", "borrado", "actualizado"], opcional: true },
   carreras: { clave: "id", conflicto: "id", campos: ["id", "nombre", "fecha", "lugar", "distancia", "tiempo", "chip", "pos_general", "total_general", "categoria", "pos_categoria", "total_categoria", "desnivel_pos", "fc_media", "notas", "enlace", "previsto", "borrado", "actualizado"] }
 };
-const DEFECTOS = { extra: {}, seccion: "", por_lado: false, nota: "", letra_nueva: false, max_tiempo: false, fecha: null, lugar: "", categoria: "", enlace: "", fc_hist: [], tipo: "fuerza", hecha: true, grupo: "", meso_id: "", bloque_id: "", ciclo_id: "", importadas: [], cerrado: false, compartido: false, items: [], dias: {}, descarga: {}, zonas: [], calentamiento: false, inicio: null, zona: "", descripcion: "", estado: "activa", nombre: "", video_url: "", notas: "", html: "", texto: "", sensacion: "", borrado: false };
+const DEFECTOS = { medida: "", lado: false, extra: {}, seccion: "", por_lado: false, nota: "", letra_nueva: false, max_tiempo: false, max_reps: false, rango_min: 0, rango_max: 0, fecha: null, lugar: "", categoria: "", enlace: "", fc_hist: [], tipo: "fuerza", hecha: true, grupo: "", meso_id: "", bloque_id: "", ciclo_id: "", importadas: [], cerrado: false, compartido: false, items: [], dias: {}, descarga: {}, zonas: [], calentamiento: false, inicio: null, zona: "", descripcion: "", estado: "activa", nombre: "", video_url: "", notas: "", html: "", texto: "", sensacion: "", borrado: false };
 let sesion = leer("sesion-v1");                 // {access_token, refresh_token, expires_at, user_id, email}
 let perfil = leer("perfil-v1");                 // {aprobado, es_admin, email}
 let usuarios = leer("usuarios-v1") || [];        // solo para el administrador (se guarda para no verla vacía al abrir)
@@ -67,6 +67,9 @@ let gruposPlegados = leer("grupos-plegados-v1") || {};   // entrenos plegados de
 let sesionesVacias = leer("sesiones-v1") || {}, esperaGrupo = leer("espera-grupo-v1") || {};
 // Partes de cada entreno aún sin series (fecha|entreno -> nombres) y la parte de cada ejercicio añadido sin series (fecha|id -> parte)
 let partesVacias = leer("partes-v1") || {}, esperaParte = leer("espera-parte-v1") || {};
+// Bloques vacíos (aún sin ejercicios): «fecha|id» → { g: entreno, p: parte, r: rondas }. Se suben con el día como lo demás
+let bloquesVacios = leer("bloques-vacios-v1") || {};
+const guardarVacios = () => escribir("bloques-vacios-v1", bloquesVacios);
 const guardarSesiones = () => { escribir("sesiones-v1", sesionesVacias); escribir("espera-grupo-v1", esperaGrupo); escribir("partes-v1", partesVacias); escribir("espera-parte-v1", esperaParte); };
 // Nombres de las partes de un entreno: las que tienen series y las creadas vacías
 const nombresPartes = (fecha, grupo) => [...new Set(seriesDelDia(fecha).filter(s => (s.grupo || "") === grupo).map(s => s.seccion || "").concat(partesVacias[fecha + "|" + grupo] || []))];        // fecha -> ejercicios añadidos que aún no tienen series
@@ -191,11 +194,39 @@ function adivinarTipo(nombre) {
   if (/(carrera|correr|rodaje|tirada|sprint|series de|fartlek|cuesta|trote|running|\d+ ?m\b|\d+ ?km\b)/.test(n) || /^\d+$/.test(n)) return "carrera";
   return "fuerza";
 }
-const hecha = s => s.hecha !== false;   // las series planificadas tienen hecha = false
+const hecha = s => s.hecha !== false;
+// Serie «al máximo» sin apuntar todavía (máx reps o máx tiempo): al hacerla hay que escribir lo que salió
+const esMaxSinDato = s => !s.ciclo_id && !(n0(s.reps) > 0) && !(n0(s.tiempo) > 0) && !(n0(s.distancia) > 0);
+// Ventana de repeticiones («10-12», «20-25»; en el móvil también «10,12»): se planifica así y al hacerla se apuntan las que salieron
+function leerRango(txt) {
+  const m = String(txt || "").trim().match(/^(\d{1,3})\s*(?:-|–|—|a|\/|,|\.|\s)\s*(\d{1,3})\s*(?:reps?)?$/i);
+  if (!m) return null;
+  const a = +m[1], b = +m[2];
+  return a > 0 && b > a ? { min: a, max: b } : null;
+}
+const esRango = s => n0(s.rango_max) > n0(s.rango_min) && n0(s.rango_min) > 0;
+const rangoTxt = s => n0(s.rango_min) + "-" + n0(s.rango_max);
+// Series que piden un dato al marcarlas: «máx» sin registrar o ventana de reps pendiente
+const pideDato = s => esMaxSinDato(s) || (esRango(s) && !s.hecha);   // las series planificadas tienen hecha = false
 const rm = s => n0(s.reps) <= 1 ? n0(s.peso) : n0(s.peso) * (1 + n0(s.reps) / 30);    // 1RM estimado (Epley)
 const redondear = kg => Math.round(kg / 2.5) * 2.5;
 // 1RM de referencia: el que pongas en la ficha o, si no, el mejor estimado de tus series
 // El 1RM es personal: los ejercicios del catálogo común son de todos, pero cada uno tiene el suyo
+// Cómo se mide el progreso de un ejercicio de fuerza: por el peso (1RM), por las repeticiones máximas (dominadas, fondos…)
+// o por el tiempo máximo (plancha, false grip…). Automático por el nombre y lo que apuntas; se puede cambiar en la ficha
+const MEDIDAS = { peso: "Peso (1RM)", reps: "Repeticiones máximas", tiempo: "Tiempo (isométrico)" };
+function medidaAuto(id) {
+  const n = norm(nombreEj(id));
+  if (/lastrad|con peso|con disco|con mancuerna|con kettle|con chaleco|\+\s?\d+\s?kg/.test(n)) return "peso";
+  if (/plancha|plank|hollow|l.?sit|lever|false grip|colgad|dead ?hang|isometr|wall ?sit|sentadilla en pared|aguant|superman hold|arch hold|bandera|handstand|pino/.test(n)) return "tiempo";
+  if (/dominad|chin.?up|pull.?up|fondos|dips|flexion|push.?up|muscle.?up|burpee|pistol|nordic|australian|remo invertido|toes to bar|elevaciones de piernas|abdominal|crunch/.test(n)) return "reps";
+  const h = seriesDe(id).filter(x => !x.calentamiento);
+  if (h.length >= 3 && h.filter(x => n0(x.peso) > 0).length < h.length / 3) return h.filter(x => n0(x.tiempo) > 0 && !(n0(x.reps) > 0)).length > h.length / 2 ? "tiempo" : "reps";
+  return "peso";
+}
+// «Por lado» se elige una vez en la ficha (zancadas, plancha lateral…) y se aplica solo a todas sus series
+const ladoDe = id => !!(db.personales[id] || {}).lado;
+const medidaDe = id => MEDIDAS[(db.personales[id] || {}).medida] ? db.personales[id].medida : medidaAuto(id);
 const rmPersonal = id => n0((db.personales[id] || {}).rm) || (db.ejercicios[id] && !db.ejercicios[id].compartido ? n0(db.ejercicios[id].rm) : 0);
 function rmReferencia(id) {
   if (rmPersonal(id) > 0) return rmPersonal(id);
@@ -322,9 +353,15 @@ function serieTexto(s) {
   }
   const lado = s.por_lado ? " por lado" : "";
   const kg = pesoMostrado(s), reps = n0(s.reps) > 0 ? n0(s.reps) : "máx";
-  if (s.max_tiempo && !(n0(s.tiempo) > 0) && !(n0(s.reps) > 0)) return (kg > 0 ? num(kg) + " kg · " : "") + "máx tiempo" + lado;   // aguantar el máximo
-  if (n0(s.tiempo) > 0 && !(n0(s.reps) > 0)) return (kg > 0 ? num(kg) + " kg · " : "") + fmtSegs(s.tiempo) + lado;   // por tiempo: bici, plancha, isométricos…
-  return (s.ciclo_id ? "Bilbo · " : "") + (n0(s.pct) > 0 ? num(s.pct) + " % · " : "") + (kg > 0 ? num(kg) + " kg × " + reps : reps + " reps") + lado;
+  // Como en una hoja: primero las repeticiones (o el tiempo) y el peso detrás, entre paréntesis: «10 reps (100 kg)»
+  const peso = kg > 0 || n0(s.pct) > 0 ? " (" + (n0(s.pct) > 0 ? num(s.pct) + " %" + (kg > 0 ? " · " : "") : "") + (kg > 0 ? num(kg) + " kg" : "") + ")" : "";
+  // Series «al máximo»: la marca se queda y, al registrarla, lo que salió va entre paréntesis: «máx reps (14 · 10 kg)»
+  const kgTxt = kg > 0 ? " · " + num(kg) + " kg" : "";
+  if (s.max_tiempo) return "máx tiempo" + lado + (n0(s.tiempo) > 0 ? " (" + fmtSegs(s.tiempo) + kgTxt + ")" : peso);
+  if (s.max_reps || (!s.ciclo_id && !(n0(s.reps) > 0) && !(n0(s.tiempo) > 0))) return "máx reps" + lado + (n0(s.reps) > 0 ? " (" + n0(s.reps) + kgTxt + ")" : peso);
+  if (n0(s.tiempo) > 0 && !(n0(s.reps) > 0)) return fmtSegs(s.tiempo) + lado + peso;   // por tiempo: bici, plancha, isométricos…
+  if (esRango(s)) return hecha(s) ? reps + " reps" + lado + peso.replace(/^ \(/, " (de " + rangoTxt(s) + " · ").replace(/^$/, " (de " + rangoTxt(s) + ")") : rangoTxt(s) + " reps" + lado + peso;
+  return (s.ciclo_id ? "Bilbo · " : "") + (reps === "máx" ? "máx reps" : reps + " reps") + lado + peso;
 }
 const descTexto = s => n0(s.rec_dist) > 0 ? "rec. " + fmtDist(s.rec_dist) : n0(s.descanso) > 0 ? "desc. " + fmtTiempo(s.descanso) : "";
 const recTexto = s => n0(s.rec_dist) > 0 ? num(s.rec_dist) + " m" : n0(s.descanso) > 0 ? fmtTiempo(s.descanso) : "";
@@ -346,11 +383,18 @@ function indiceSeries() {
 const seriesVivas = () => indiceSeries().vivas.slice();
 const seriesDe = id => (indiceSeries().porEj[id] || []).slice();   // solo lo hecho (sin calentamiento) cuenta para récords
 // Récords de un ejercicio, calculados una vez por versión de los datos
-const prsEj = id => { const ix = indiceSeries(); return ix.prs[id] || (ix.prs[id] = prsDe(ix.porEj[id] || [], tipoDe(id))); };
+const prsEj = id => { const ix = indiceSeries(); return ix.prs[id] || (ix.prs[id] = prsDe(ix.porEj[id] || [], tipoDe(id), tipoDe(id) === "fuerza" ? medidaDe(id) : "")); };
 // PR: más peso (o más reps sin peso) en fuerza; menos tiempo para la misma distancia en carrera y natación
-function prsDe(lista, tipo) {
+function prsDe(lista, tipo, medida) {
   const prs = new Set();
   if (tipo === "movilidad") return prs;
+  // Peso corporal: récord = más repeticiones (o más tiempo aguantado), sin mirar el lastre
+  if (medida === "reps" || medida === "tiempo") {
+    const campo = medida === "reps" ? "reps" : "tiempo";
+    let max = null;
+    lista.filter(s => hecha(s) && !s.calentamiento).forEach(s => { const v = n0(s[campo]); if (!(v > 0)) return; if (max !== null && v > max) prs.add(s.id); max = Math.max(max ?? 0, v); });
+    return prs;
+  }
   if (esDistancia(tipo)) {
     const mejor = {};
     lista.filter(s => conMarca(s) && !fueraDeMarcas(s)).forEach(s => {
@@ -371,6 +415,13 @@ function ejerciciosOrdenados() {
   const ultimo = {};
   seriesVivas().forEach(s => { if (!ultimo[s.ejercicio_id] || s.fecha > ultimo[s.ejercicio_id]) ultimo[s.ejercicio_id] = s.fecha; });
   return vivos("ejercicios").sort((a, b) => (ultimo[b.id] || "").localeCompare(ultimo[a.id] || "") || a.nombre.localeCompare(b.nombre, "es"));
+}
+// Para elegir ejercicio: del más usado al menos (en cuántos días lo has hecho o planificado); a igualdad, el más reciente
+function usoEjercicios() {
+  const dias = {}, ultimo = {};
+  seriesVivas().forEach(s => { (dias[s.ejercicio_id] = dias[s.ejercicio_id] || new Set()).add(s.fecha); if (!ultimo[s.ejercicio_id] || s.fecha > ultimo[s.ejercicio_id]) ultimo[s.ejercicio_id] = s.fecha; });
+  const n = id => dias[id] ? dias[id].size : 0;
+  return { n, lista: vivos("ejercicios").sort((a, b) => n(b.id) - n(a.id) || (ultimo[b.id] || "").localeCompare(ultimo[a.id] || "") || a.nombre.localeCompare(b.nombre, "es")) };
 }
 function porSesion(lista) {
   const ses = {};
@@ -397,6 +448,14 @@ function estadisticas(id) {
   if (tipo === "movilidad") {
     st.tiempoTotal = lista.reduce((a, s) => a + n0(s.tiempo) * (s.por_lado ? 2 : 1), 0);
     st.resumen = st.sesiones.length + (st.sesiones.length === 1 ? " sesión" : " sesiones") + (st.tiempoTotal > 0 ? " · " + fmtSegs(st.tiempoTotal) + " en total" : "");
+    return st;
+  }
+  const med = tipo === "fuerza" && lista[0] ? medidaDe(lista[0].ejercicio_id) : "peso";
+  if (med === "reps" || med === "tiempo") {
+    const campo = med === "reps" ? "reps" : "tiempo", m = Math.max.apply(null, lista.map(x => n0(x[campo])).concat(0));
+    st.medida = med;
+    st.mejorReps = lista.reduce((a, x) => n0(x[campo]) > n0(a[campo]) ? x : a, lista[0]);
+    st.resumen = m > 0 ? "Récord: " + (med === "reps" ? m + " reps" : fmtSegs(m)) : st.sesiones.length + (st.sesiones.length === 1 ? " sesión" : " sesiones");
     return st;
   }
   const pesadas = lista.filter(s => n0(s.peso) > 0);
@@ -478,13 +537,57 @@ function persistir() {
   clearTimeout(timerSync);
   timerSync = setTimeout(sincronizar, 1000);
 }
+// Historial para deshacer y rehacer (Ctrl/Cmd+Z, Ctrl/Cmd+Mayús+Z o Ctrl+Y): cada acción del usuario es un paso con
+// cómo estaban antes las filas que tocó. Solo cuenta lo que pasa justo después de tocar o teclear (no la sincronización)
+let historial = [], rehechos = [], pasoHist = null, sinHistorial = false, ultimoGesto = 0;
+["pointerdown", "keydown", "input", "change", "submit"].forEach(t => addEventListener(t, () => { ultimoGesto = Date.now(); }, true));
 function cambiar(tabla, fila, enLote) {
+  if (!sinHistorial && Date.now() - ultimoGesto < 3000) {
+    const k = fila[TABLAS[tabla].clave], antes = db[tabla][k];
+    if (!pasoHist) { pasoHist = []; historial.push(pasoHist); if (historial.length > 80) historial.shift(); rehechos = []; setTimeout(() => { pasoHist = null; }, 0); }
+    if (!pasoHist.some(x => x.t === tabla && x.k === k)) pasoHist.push({ t: tabla, k, antes: antes ? { ...antes } : null });
+  }
   fila.actualizado = new Date().toISOString();
   fila.sucio = true;
   versionDatos++;
   db[tabla][fila[TABLAS[tabla].clave]] = fila;
   if (!enLote) persistir();
 }
+// Aplica un paso del historial y devuelve el paso contrario (para rehacer o volver a deshacer)
+function aplicarPaso(paso) {
+  const contrario = paso.map(x => ({ t: x.t, k: x.k, antes: db[x.t][x.k] ? { ...db[x.t][x.k] } : null }));
+  sinHistorial = true;
+  paso.slice().reverse().forEach(x => {
+    const actual = db[x.t][x.k];
+    if (x.antes) { const c = { ...x.antes }; delete c.sucio; cambiar(x.t, c, true); }
+    else if (actual) cambiar(x.t, { ...actual, borrado: true }, true);
+  });
+  sinHistorial = false;
+  persistir();
+  pintarTodo();
+  if (ent) pintarEntreno();
+  return contrario;
+}
+function deshacerPaso(rehacer) {
+  const de = rehacer ? rehechos : historial, a = rehacer ? historial : rehechos;
+  const paso = de.pop();
+  if (!paso) { avisoDeshacer(rehacer ? "Nada que rehacer" : "Nada que deshacer", null); return; }
+  a.push(aplicarPaso(paso));
+  const mac = /Mac|iP/.test(navigator.platform);
+  avisoDeshacer(rehacer ? "↷ Rehecho" + (rehechos.length ? " · quedan " + rehechos.length + " por rehacer" : "") + " · " + (mac ? "⌘Z" : "Ctrl+Z") + " para deshacer"
+    : "↶ Deshecho" + (historial.length ? " · " + historial.length + " más por deshacer" : "") + " · " + (mac ? "⌘⇧Z" : "Ctrl+Y") + " para rehacer", null);
+}
+addEventListener("keydown", e => {
+  if (!(e.metaKey || e.ctrlKey) || e.altKey) return;
+  const k = e.key.toLowerCase();
+  if (k !== "z" && k !== "y") return;
+  // Escribiendo en un campo, el deshacer es el del propio texto
+  const t = e.target;
+  if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+  if ($("login") && !$("login").hidden) return;
+  e.preventDefault();
+  deshacerPaso(k === "y" || e.shiftKey);
+});
 function mezclar(tabla, f) {
   const k = f[TABLAS[tabla].clave], local = db[tabla][k];
   const tr = Date.parse(f.actualizado), tl = local ? Date.parse(local.actualizado) : 0;
@@ -504,7 +607,7 @@ function mezclar(tabla, f) {
 function extraDe(f) {
   const pre = f + "|";
   const sub = o => { const r = {}; Object.keys(o || {}).filter(k => k.startsWith(pre)).sort().forEach(k => { r[k.slice(pre.length)] = o[k]; }); return r; };
-  const e = { e: enEspera[f] || [], s: sesionesVacias[f] || [], g: sub(esperaGrupo), p: sub(partesVacias), pa: sub(esperaParte), n: sub(esperaNota), l: sub(esperaLetra), a: sub(esperaAntes) };
+  const e = { e: enEspera[f] || [], s: sesionesVacias[f] || [], g: sub(esperaGrupo), p: sub(partesVacias), pa: sub(esperaParte), n: sub(esperaNota), l: sub(esperaLetra), a: sub(esperaAntes), bv: sub(bloquesVacios) };
   Object.keys(e).forEach(k => { if (Array.isArray(e[k]) ? !e[k].length : !Object.keys(e[k]).length) delete e[k]; });
   return e;
 }
@@ -515,7 +618,8 @@ function aplicarExtra(f, e) {
   const poner = (o, datos) => { Object.keys(o).forEach(k => { if (k.startsWith(pre)) delete o[k]; }); Object.keys(datos || {}).forEach(k => { o[pre + k] = datos[k]; }); };
   if ((e.e || []).length) enEspera[f] = e.e.slice(); else delete enEspera[f];
   if ((e.s || []).length) sesionesVacias[f] = e.s.slice(); else delete sesionesVacias[f];
-  poner(esperaGrupo, e.g); poner(partesVacias, e.p); poner(esperaParte, e.pa); poner(esperaNota, e.n); poner(esperaLetra, e.l); poner(esperaAntes, e.a);
+  poner(esperaGrupo, e.g); poner(partesVacias, e.p); poner(esperaParte, e.pa); poner(esperaNota, e.n); poner(esperaLetra, e.l); poner(esperaAntes, e.a); poner(bloquesVacios, e.bv);
+  guardarVacios();
   escribir("bloques-v1", enEspera); guardarSesiones(); escribir("espera-nota-v1", esperaNota); escribir("espera-letra-v1", esperaLetra); escribir("espera-antes-v1", esperaAntes);
   aplicandoExtra = false;
 }
@@ -527,9 +631,11 @@ function marcarExtra() {
   timerExtra = setTimeout(() => {
     if (!sesion) return;
     const fechas = new Set([...Object.keys(enEspera), ...Object.keys(sesionesVacias)]);
-    [esperaGrupo, partesVacias, esperaParte, esperaNota, esperaLetra, esperaAntes].forEach(o => Object.keys(o || {}).forEach(k => fechas.add(k.split("|")[0])));
+    [esperaGrupo, partesVacias, esperaParte, esperaNota, esperaLetra, esperaAntes, bloquesVacios].forEach(o => Object.keys(o || {}).forEach(k => fechas.add(k.split("|")[0])));
     Object.values(db.entrenos).forEach(x => { if (x.extra && Object.keys(x.extra).length) fechas.add(x.fecha); });
     let hay = false;
+    // Guardado interno y automático: no es un paso que deshacer (si no, Ctrl+Z se «gastaba» en él y se perdía el rehacer)
+    const sinH = sinHistorial; sinHistorial = true;
     fechas.forEach(f => {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(f)) return;
       const e = extraDe(f), actual = (db.entrenos[f] || {}).extra || {};
@@ -538,6 +644,7 @@ function marcarExtra() {
       cambiar("entrenos", { ...previo, fecha: f, extra: e }, true);
       hay = true;
     });
+    sinHistorial = sinH;
     if (hay) persistir();
   }, 400);
 }
@@ -678,6 +785,7 @@ function abrirMenu(titulo, detalle, opciones, extra) {
         return;
       }
       if (!o.mantener) $("menu").close();
+      ultimoTocado = null;   // mover, borrar, pegar…: que la pantalla no salte para «sujetar» el ejercicio
       o.accion();
     });
     cont.appendChild(b);
@@ -730,6 +838,28 @@ function lineaNota(texto, alTocar) {
   n.addEventListener("click", ev => { ev.stopPropagation(); alTocar(); });
   return n;
 }
+// Enter en un campo de una ventana guarda (su botón principal, marcado con data-enter); si la ventana no tiene, el campo
+// se confirma (como al salir de él). Antes, en las ventanas de nombre, Enter pulsaba «Cancelar» y se perdía lo escrito
+["rpeGuardar", "molGuardar", "claveGuardar", "mmGuardar", "carGuardar", "mesoGuardar"].forEach(id => { if ($(id)) $(id).dataset.enter = ""; });
+document.addEventListener("click", e => { const b = e.target.closest("[data-cerrar]"); if (b) { const d = b.closest("dialog"); if (d) d.close(b.dataset.cerrar); } });
+document.addEventListener("keydown", e => {
+  if (e.key !== "Enter" || e.shiftKey || e.defaultPrevented || e.isComposing) return;
+  const t = e.target;
+  if (!t || t.tagName !== "INPUT" || /^(checkbox|radio|button|submit|file|range|color)$/.test(t.type)) return;
+  const d = t.closest("dialog[open]");
+  if (!d) return;
+  const b = [...d.querySelectorAll("[data-enter]")].find(x => !x.disabled && x.offsetParent !== null);
+  e.preventDefault();
+  if (b) b.click(); else t.blur();
+});
+// Fondo quieto mientras haya una ventana abierta (se mira cada vez que se abre o se cierra una)
+(() => {
+  const mirar = () => document.documentElement.classList.toggle("con-ventana", !!document.querySelector("dialog[open]"));
+  const obs = new MutationObserver(mirar);
+  document.querySelectorAll("dialog").forEach(d => { obs.observe(d, { attributes: true, attributeFilter: ["open"] }); d.addEventListener("close", mirar); });
+  // Las ventanas que se crean después (por si acaso) también
+  new MutationObserver(ms => ms.forEach(m => m.addedNodes.forEach(n => { if (n.tagName === "DIALOG") { obs.observe(n, { attributes: true, attributeFilter: ["open"] }); n.addEventListener("close", mirar); } }))).observe(document.body, { childList: true });
+})();
 function pedirNombre(titulo, valor, ayuda) {
   return new Promise(resolver => {
     const d = $("dlgNombre");
@@ -778,11 +908,12 @@ const dias = DIAS.map((_, i) => {
   dia.empezarEl.addEventListener("click", () => empezarEntreno(dia));
   ed.addEventListener("focus", () => col.classList.add("escribiendo"));
   ed.addEventListener("blur", () => col.classList.remove("escribiendo"));
-  col.querySelector(".add-ej").addEventListener("click", () => abrirSelector(dia));
-  col.querySelector(".add-bloque").addEventListener("click", () => abrirBloque(dia));
+  col.querySelector(".add-ej").addEventListener("click", () => enQueEntreno(dia, "Añadir ejercicio", g => abrirSelector(dia, null, g)));
+  col.querySelector(".add-bloque").addEventListener("click", () => enQueEntreno(dia, "Añadir bloque", g => abrirBloque(dia, g)));
   col.querySelector(".add-entreno").addEventListener("click", () => elegirNuevoEntreno(dia));
-  col.querySelector(".add-parte-btn").addEventListener("click", () => nuevaParte(dia, ""));
+  col.querySelector(".add-parte-btn").addEventListener("click", () => enQueEntreno(dia, "Nueva parte", g => nuevaParte(dia, g)));
   col.querySelector(".menu-btn").addEventListener("click", () => menuDia(dia));
+  plegarAdd(col.querySelector(".dia-cuerpo-in > .add-fila"), true);
   return dia;
 });
 
@@ -876,7 +1007,7 @@ document.addEventListener("selectionchange", () => {
 const seriesDelDia = fecha => (indiceSeries().porFecha[fecha] || []).slice();
 // Convierte series en una lista de ejercicios con sus series (para copiar o guardar como plantilla)
 // Los bloques se guardan como tramos con una serie por ronda: { bloque: true, tramos: [{ ejercicio_id, series: [ronda 1, ronda 2…] }] }
-const valores = s => ({ peso: n0(s.peso), reps: s.ciclo_id ? 0 : n0(s.reps), distancia: n0(s.distancia), tiempo: n0(s.tiempo), descanso: n0(s.descanso), rec_dist: n0(s.rec_dist), pct: n0(s.pct), bilbo: !!s.ciclo_id, calentamiento: !!s.calentamiento, por_lado: !!s.por_lado, nota: s.nota || "", letra_nueva: !!s.letra_nueva, max_tiempo: !!s.max_tiempo });
+const valores = s => ({ peso: n0(s.peso), reps: s.ciclo_id ? 0 : n0(s.reps), distancia: n0(s.distancia), tiempo: n0(s.tiempo), descanso: n0(s.descanso), rec_dist: n0(s.rec_dist), pct: n0(s.pct), bilbo: !!s.ciclo_id, calentamiento: !!s.calentamiento, por_lado: !!s.por_lado, nota: s.nota || "", letra_nueva: !!s.letra_nueva, max_tiempo: !!s.max_tiempo, max_reps: !!s.max_reps, rango_min: n0(s.rango_min), rango_max: n0(s.rango_max) });
 function itemsDe(series) {
   const items = [], bloques = {};
   series.forEach(s => {
@@ -885,8 +1016,9 @@ function itemsDe(series) {
       bloques[s.bloque_id].lista.push(s);
       return;
     }
-    let it = items.find(x => !x.bloque && x.ejercicio_id === s.ejercicio_id && x.grupo === (s.grupo || "") && x.seccion === (s.seccion || ""));
-    if (!it) { it = { ejercicio_id: s.ejercicio_id, grupo: s.grupo || "", seccion: s.seccion || "", series: [] }; items.push(it); }
+    const cp = n0(s.copia) > 1 ? n0(s.copia) : 0;
+    let it = items.find(x => !x.bloque && x.ejercicio_id === s.ejercicio_id && x.grupo === (s.grupo || "") && x.seccion === (s.seccion || "") && n0(x.copia) === cp);
+    if (!it) { it = { ejercicio_id: s.ejercicio_id, grupo: s.grupo || "", seccion: s.seccion || "", series: [] }; if (cp) it.copia = cp; items.push(it); }
     it.series.push(valores(s));
   });
   items.filter(it => it.bloque).forEach(it => {
@@ -903,7 +1035,7 @@ function pegarItems(fecha, items, grupo, mesoId, masKg) {
   const nueva = (ejercicio_id, v, extra) => cambiar("series", Object.assign({
     id: nuevoId(), fecha, ejercicio_id, orden: orden++,
     peso: n0(v.peso) > 0 ? Math.max(0, n0(v.peso) + n0(masKg)) : 0, reps: n0(v.reps), distancia: n0(v.distancia), tiempo: n0(v.tiempo),
-    descanso: n0(v.descanso), rec_dist: n0(v.rec_dist), pct: n0(v.pct), ciclo_id: v.bilbo ? "auto" : "", calentamiento: !!v.calentamiento, por_lado: !!v.por_lado, nota: v.nota || "", letra_nueva: !!v.letra_nueva, max_tiempo: !!v.max_tiempo, hecha: false, meso_id: mesoId || "", bloque_id: "", ronda: 0, borrado: false
+    descanso: n0(v.descanso), rec_dist: n0(v.rec_dist), pct: n0(v.pct), ciclo_id: v.bilbo ? "auto" : "", calentamiento: !!v.calentamiento, por_lado: !!v.por_lado, nota: v.nota || "", letra_nueva: !!v.letra_nueva, max_tiempo: !!v.max_tiempo, max_reps: !!v.max_reps, rango_min: n0(v.rango_min), rango_max: n0(v.rango_max), hecha: false, meso_id: mesoId || "", bloque_id: "", ronda: 0, borrado: false
   }, extra), true);
   items.forEach(it => {
     const g = grupo !== undefined ? grupo : (it.grupo || "");
@@ -916,7 +1048,7 @@ function pegarItems(fecha, items, grupo, mesoId, masKg) {
       return;
     }
     if (!ejercicioVivo(it.ejercicio_id)) return;
-    it.series.forEach(v => nueva(it.ejercicio_id, v, { grupo: g, seccion: it.seccion || "" }));
+    it.series.forEach(v => nueva(it.ejercicio_id, v, { grupo: g, seccion: it.seccion || "", copia: n0(it.copia) }));
   });
 }
 const contarSeries = items => items.reduce((a, it) => a + (it.bloque ? (it.tramos || []).reduce((b, t) => b + t.series.length, 0) : it.series.length), 0);
@@ -987,6 +1119,7 @@ function menuDia(dia) {
   const series = seriesDelDia(dia.id), html = db.entrenos[dia.id]?.html || "";
   const titulo = NOMBRES[dia.i] + " " + fmt(deIso(dia.id));
   abrirMenu(titulo, "", [
+    (series.length || (enEspera[dia.id] || []).length) && { texto: "📅 Mover el entrenamiento a otro día…", accion: () => elegirDiaDestino(lunesDe(deIso(dia.id)), "¿A qué día muevo el entrenamiento del " + titulo.toLowerCase() + "?", f => moverADia(dia, null, f)) },
     (series.length || aTexto(html).trim()) && { texto: "Copiar día", accion: () => copiar(titulo, html, series, "dia") },
     hayItemsCopiados() && { texto: "📋 Pegar «" + porta.nombre + "» en este día", accion: () => pegar(dia) },
     { texto: "Añadir plantilla…", accion: () => elegirPlantilla("Añadir plantilla al " + titulo, p => aplicarPlantilla(dia, p)) },
@@ -1013,8 +1146,10 @@ function cabeceraParte(dia, grupo, p, color, nNombradas, partes, seriesItem) {
     const k = partes.indexOf(p);
     const mover = paso => {
       // Reordena las partes repartiendo los «orden» existentes en el nuevo orden de partes
-      const orden = partes.slice(), j = k + paso;
-      if (j < 1 || j >= orden.length) return;   // la parte sin nombre va siempre primero
+      const orden = partes.slice();
+      let j = k + paso;
+      while (j >= 0 && j < orden.length && !orden[j].nombre) j += paso;   // los ejercicios sueltos se quedan en su sitio
+      if (j < 0 || j >= orden.length) return;
       [orden[k], orden[j]] = [orden[j], orden[k]];
       const vacias = partesVacias[dia.id + "|" + grupo] || [];
       if (vacias.length) partesVacias[dia.id + "|" + grupo] = orden.map(x => x.nombre).filter(n => vacias.includes(n));
@@ -1024,9 +1159,11 @@ function cabeceraParte(dia, grupo, p, color, nNombradas, partes, seriesItem) {
     };
     abrirMenu(p.nombre, ss.length ? ss.length + (ss.length === 1 ? " serie" : " series") : "Parte vacía", [
       { texto: "+ Ejercicio en esta parte", accion: () => abrirSelector(dia, null, grupo, p.nombre) },
+      ...(() => { const otros = [...dia.bloquesEl.querySelectorAll(":scope > .grupo")].map(x => x.dataset.grupo || "").filter(x => x !== grupo);
+        return otros.length ? [{ texto: "Mover la parte a otro entreno…", accion: () => abrirMenu("¿A qué entreno?", "La parte «" + p.nombre + "» pasa entera, con sus ejercicios y bloques", otros.map(x => ({ texto: x || "Entreno 1", accion: () => moverParteAEntreno(dia, grupo, p.nombre, x, ss) }))) }] : []; })(),
       { texto: "+ Bloque en esta parte", accion: () => abrirBloque(dia, grupo, p.nombre) },
-      nNombradas > 1 && k > 1 && { texto: "Subir parte", accion: () => mover(-1) },
-      nNombradas > 1 && k < partes.length - 1 && { texto: "Bajar parte", accion: () => mover(1) },
+      partes.slice(0, k).some(x => x.nombre) && { texto: "Subir parte", accion: () => mover(-1) },
+      partes.slice(k + 1).some(x => x.nombre) && { texto: "Bajar parte", accion: () => mover(1) },
       { texto: "Cambiar nombre…", accion: async () => {
         const n = await pedirNombre("Nombre de la parte", p.nombre);
         if (!n || n === p.nombre) return;
@@ -1058,6 +1195,73 @@ function renombrarParteLocal(fecha, grupo, viejo, n) {
   Object.keys(esperaParte).forEach(e => { if (e.startsWith(fecha + "|") && esperaParte[e] === viejo) { if (n) esperaParte[e] = n; else delete esperaParte[e]; } });
   guardarSesiones();
 }
+// Con varios entrenos en el día, los botones de abajo del día preguntan a cuál (antes iba siempre al primero)
+function enQueEntreno(dia, titulo, hacer) {
+  const gs = [...dia.bloquesEl.querySelectorAll(":scope > .grupo")].map(x => x.dataset.grupo || "");
+  if (gs.length <= 1) { hacer(gs[0] || ""); return; }
+  abrirMenu(titulo, "¿En qué entreno?", gs.map(x => ({ texto: x || "Entreno 1", accion: () => hacer(x) })));
+}
+// Pasar un ejercicio o bloque a otro entreno del mismo día, a la parte y el sitio donde se ha soltado
+function moverEntreEntrenos(dia, origen, clave, espera, destino, destParte, orden) {
+  const k = dia.id + "|" + clave;
+  let ids = [], nuevaClave = clave;
+  const antes = [];
+  if (espera) {
+    if (destino) esperaGrupo[k] = destino; else delete esperaGrupo[k];
+    if (destParte) esperaParte[k] = destParte; else delete esperaParte[k];
+    delete esperaAntes[k];
+  } else {
+    const mias = seriesDeItem(dia.id, origen, clave);
+    ids = mias.map(sr => sr.id);
+    const parteOrig = (mias[0] || {}).seccion || "";
+    // La parte de la que sale no desaparece aunque se quede vacía
+    if (parteOrig) { const kv = dia.id + "|" + origen; if (!(partesVacias[kv] || []).includes(parteOrig)) (partesVacias[kv] = partesVacias[kv] || []).push(parteOrig); }
+    // El mismo ejercicio ya en esa parte del otro entreno: va como otra tarjeta (copia), sin juntarse
+    let copia = 0;
+    if (!clave.startsWith("b:") && mias.length) {
+      const ej = mias[0].ejercicio_id, mia = n0(mias[0].copia) > 1 ? n0(mias[0].copia) : 1;
+      const usadas = seriesDelDia(dia.id).filter(sr => !ids.includes(sr.id) && sr.ejercicio_id === ej && !sr.bloque_id && (sr.grupo || "") === destino && (sr.seccion || "") === destParte).map(sr => n0(sr.copia) > 1 ? n0(sr.copia) : 1);
+      if (usadas.includes(mia)) copia = Math.max(...usadas) + 1;
+    }
+    mias.forEach(sr => { antes.push(["series", { ...sr }]); cambiar("series", { ...sr, grupo: destino, seccion: destParte, ...(copia ? { copia } : {}) }, true); });
+    if (ids.length) nuevaClave = claveSerie(db.series[ids[0]]);
+  }
+  guardarSesiones();
+  // El orden en el entreno de destino, tal como ha quedado al soltar
+  orden.forEach((x, j) => {
+    if (!x.espera || x.propio && !espera) return;
+    const ck = x.propio ? clave : x.clave, sig = orden.slice(j + 1).find(y => !y.espera || (y.propio && !espera));
+    if (sig) esperaAntes[dia.id + "|" + ck] = sig.propio ? nuevaClave : sig.clave; else delete esperaAntes[dia.id + "|" + ck];
+  });
+  escribir("espera-antes-v1", esperaAntes);
+  const listas = orden.filter(x => x.propio ? !espera : !x.espera).map(x => x.propio ? ids.map(i => db.series[i]).filter(Boolean) : seriesDeItem(dia.id, destino, x.clave));
+  sinHistorial = false;
+  reordenar(listas, "");
+  persistir();
+  pintarDia(dia);
+  avisoDeshacer("Movido al entreno «" + (destino || "Entreno 1") + "»", antes.length ? antes : null);
+}
+// Pasar una parte entera (con sus ejercicios, bloques y bloques vacíos) a otro entreno del día
+function moverParteAEntreno(dia, origen, parte, destino, seriesParte) {
+  const antes = seriesParte.map(sr => ["series", { ...sr }]);
+  seriesParte.forEach(sr => {
+    let extra = {};
+    if (!sr.bloque_id) {
+      const mia = n0(sr.copia) > 1 ? n0(sr.copia) : 1;
+      const usadas = seriesDelDia(dia.id).filter(x => !seriesParte.includes(x) && x.ejercicio_id === sr.ejercicio_id && !x.bloque_id && (x.grupo || "") === destino && (x.seccion || "") === parte).map(x => n0(x.copia) > 1 ? n0(x.copia) : 1);
+      if (usadas.includes(mia)) extra = { copia: Math.max(...usadas) + 1 };
+    }
+    cambiar("series", { ...sr, grupo: destino, ...extra }, true);
+  });
+  Object.keys(esperaParte).forEach(k => { if (k.startsWith(dia.id + "|") && esperaParte[k] === parte && (esperaGrupo[k] || "") === origen) { if (destino) esperaGrupo[k] = destino; else delete esperaGrupo[k]; } });
+  Object.keys(bloquesVacios).forEach(k => { if (k.startsWith(dia.id + "|") && (bloquesVacios[k].p || "") === parte && (bloquesVacios[k].g || "") === origen) bloquesVacios[k] = { ...bloquesVacios[k], g: destino }; });
+  const ko = dia.id + "|" + origen, kd = dia.id + "|" + destino;
+  if ((partesVacias[ko] || []).includes(parte)) { partesVacias[ko] = partesVacias[ko].filter(x => x !== parte); if (!partesVacias[ko].length) delete partesVacias[ko]; }
+  if (!seriesParte.length && !(partesVacias[kd] || []).includes(parte)) (partesVacias[kd] = partesVacias[kd] || []).push(parte);
+  guardarSesiones(); guardarVacios(); persistir();
+  pintarDia(dia);
+  avisoDeshacer("Parte «" + parte + "» movida al entreno «" + (destino || "Entreno 1") + "»", antes.length ? antes : null);
+}
 // «+ Parte»: Calentamiento, Parte principal, Vuelta a la calma… (o el nombre que quieras)
 async function nuevaParte(dia, grupo) {
   const hay = nombresPartes(dia.id, grupo).filter(Boolean);
@@ -1074,15 +1278,24 @@ function ponerParte(dia, grupo, clave, espera, x) {
   // La parte que se queda sin nada no desaparece: queda vacía para poder volver a llenarla
   if (antes && antes !== x) { const k = dia.id + "|" + grupo; if (!(partesVacias[k] || []).includes(antes)) (partesVacias[k] = partesVacias[k] || []).push(antes); guardarSesiones(); }
   if (espera) { if (x) esperaParte[dia.id + "|" + clave] = x; else delete esperaParte[dia.id + "|" + clave]; guardarSesiones(); }
-  else { seriesDeItem(dia.id, grupo, clave).forEach(sr => cambiar("series", { ...sr, seccion: x }, true)); persistir(); }
+  else {
+    // Si en esa parte ya está el mismo ejercicio, este pasa como otra tarjeta (copia) en vez de juntarse con él
+    let copia;
+    if (!clave.startsWith("b:")) {
+      const ej = ejDeClave(clave), mias = seriesDeItem(dia.id, grupo, clave);
+      const usadas = seriesDelDia(dia.id).filter(sr => !mias.includes(sr) && sr.ejercicio_id === ej && !sr.bloque_id && (sr.grupo || "") === grupo && (sr.seccion || "") === x).map(sr => n0(sr.copia) > 1 ? n0(sr.copia) : 1);
+      const mia = mias.length && n0(mias[0].copia) > 1 ? n0(mias[0].copia) : 1;
+      if (usadas.includes(mia)) copia = Math.max(...usadas) + 1;
+    }
+    seriesDeItem(dia.id, grupo, clave).forEach(sr => cambiar("series", { ...sr, seccion: x, ...(copia ? { copia } : {}) }, true)); persistir();
+  }
 }
 // Pasar un ejercicio o bloque a otra parte del mismo entreno
 function moverAParte(dia, grupo, clave, espera) {
   const actual = espera ? esperaParte[dia.id + "|" + clave] || "" : (seriesDeItem(dia.id, grupo, clave)[0] || {}).seccion || "";
   const destinos = nombresPartes(dia.id, grupo).concat(actual ? [""] : []).filter((x, i, a) => x !== actual && a.indexOf(x) === i);
   abrirMenu("¿A qué parte?", "", destinos.map(x => ({ texto: x || "Sin parte", accion: () => {
-    if (espera) { if (x) esperaParte[dia.id + "|" + clave] = x; else delete esperaParte[dia.id + "|" + clave]; guardarSesiones(); }
-    else { seriesDeItem(dia.id, grupo, clave).forEach(sr => cambiar("series", { ...sr, seccion: x }, true)); persistir(); }
+    ponerParte(dia, grupo, clave, espera, x);
     pintarDia(dia);
   } })));
 }
@@ -1106,10 +1319,77 @@ async function nuevoEntreno(dia) {
   const caja = dia.bloquesEl.querySelector('.grupo[data-grupo="' + CSS.escape(n) + '"]');
   if (caja) caja.scrollIntoView({ block: "center", behavior: "smooth" });
 }
+// Pasar un entreno (o todo el día si grupo es null) a otro día: sus series, los ejercicios aún sin series y sus partes vacías
+function moverADia(dia, grupo, f) {
+  if (f === dia.id) return;
+  const ss = seriesDelDia(dia.id).filter(x => grupo === null || (x.grupo || "") === grupo);
+  const antes = ss.map(x => ["series", { ...x }]);
+  ss.forEach(x => cambiar("series", { ...x, fecha: f }, true));
+  const vale = g => grupo === null || g === grupo;
+  // Lo que vive fuera de las series: ejercicios sin series, entrenos y partes vacías, descripciones, letras y posiciones
+  (enEspera[dia.id] || []).filter(id => vale(esperaGrupo[dia.id + "|" + id] || "")).forEach(id => {
+    (enEspera[f] = enEspera[f] || []).includes(id) || enEspera[f].push(id);
+    ["esperaGrupo", "esperaParte", "esperaNota", "esperaLetra", "esperaAntes"].forEach(n => {
+      const o = { esperaGrupo, esperaParte, esperaNota, esperaLetra, esperaAntes }[n], k = dia.id + "|" + id;
+      if (o[k] !== undefined) { o[f + "|" + id] = o[k]; delete o[k]; }
+    });
+    quitarEspera(dia.id, id);
+  });
+  (sesionesVacias[dia.id] || []).filter(vale).forEach(n => { (sesionesVacias[f] = sesionesVacias[f] || []).includes(n) || sesionesVacias[f].push(n); });
+  if (sesionesVacias[dia.id]) { sesionesVacias[dia.id] = sesionesVacias[dia.id].filter(n => !vale(n)); if (!sesionesVacias[dia.id].length) delete sesionesVacias[dia.id]; }
+  Object.keys(partesVacias).filter(k => k.startsWith(dia.id + "|") && vale(k.slice(dia.id.length + 1))).forEach(k => {
+    const nk = f + k.slice(dia.id.length); partesVacias[nk] = [...new Set((partesVacias[nk] || []).concat(partesVacias[k]))]; delete partesVacias[k];
+  });
+  guardarEspera(); guardarSesiones(); escribir("espera-nota-v1", esperaNota); escribir("espera-letra-v1", esperaLetra); escribir("espera-antes-v1", esperaAntes);
+  persistir();
+  irADia(f);
+  avisoDeshacer((grupo === null ? "Entrenamiento" : "«" + (grupo || "Entreno 1") + "»") + " movido al " + NOMBRES[(deIso(f).getDay() + 6) % 7].toLowerCase() + " " + fmt(deIso(f)), antes.length ? antes : null);
+}
+// Juntar dos entrenos del mismo día en uno («Pecho + Pierna»): primero los del primero y detrás los del segundo.
+// Partes con el mismo nombre se juntan; el mismo ejercicio en la misma parte queda como otra tarjeta (no se mezcla)
+function fusionarEntrenos(dia, primero, segundo, nombre) {
+  const delDia = seriesDelDia(dia.id), s1 = delDia.filter(s => (s.grupo || "") === primero), s2 = delDia.filter(s => (s.grupo || "") === segundo);
+  const antes = s1.concat(s2).map(s => ["series", { ...s }]);
+  const maxOrden = s1.length ? Math.max(...s1.map(s => n0(s.orden))) : 0;
+  s1.forEach(s => cambiar("series", { ...s, grupo: nombre }, true));
+  const usadas = {};
+  s1.filter(s => !s.bloque_id).forEach(s => { const k = s.ejercicio_id + "|" + (s.seccion || ""); (usadas[k] = usadas[k] || new Set()).add(n0(s.copia) > 1 ? n0(s.copia) : 1); });
+  const nuevaCopia = {};
+  s2.slice().sort((a, b) => n0(a.orden) - n0(b.orden)).forEach((s, i) => {
+    let extra = {};
+    if (!s.bloque_id) {
+      const k = s.ejercicio_id + "|" + (s.seccion || ""), mia = n0(s.copia) > 1 ? n0(s.copia) : 1, kc = k + "|" + mia;
+      if (nuevaCopia[kc] === undefined) nuevaCopia[kc] = usadas[k] && usadas[k].has(mia) ? Math.max(...usadas[k]) + 1 : 0;
+      if (nuevaCopia[kc]) { extra = { copia: nuevaCopia[kc] }; usadas[k].add(nuevaCopia[kc]); }
+    }
+    cambiar("series", { ...s, grupo: nombre, orden: maxOrden + 1 + i, ...extra }, true);
+  });
+  // Lo que vive fuera de las series: ejercicios sin series, entrenos y partes vacíos, bloques vacíos, plegados
+  const deUno = g => g === primero || g === segundo;
+  (enEspera[dia.id] || []).forEach(k => { if (deUno(esperaGrupo[dia.id + "|" + k] || "")) esperaGrupo[dia.id + "|" + k] = nombre; });
+  const pv = [...new Set((partesVacias[dia.id + "|" + primero] || []).concat(partesVacias[dia.id + "|" + segundo] || []))];
+  delete partesVacias[dia.id + "|" + primero]; delete partesVacias[dia.id + "|" + segundo];
+  if (pv.length) partesVacias[dia.id + "|" + nombre] = pv;
+  const sv = (sesionesVacias[dia.id] || []).filter(x => !deUno(x));
+  if (!s1.length && !s2.length && !pv.length) sv.push(nombre);
+  if (sv.length) sesionesVacias[dia.id] = sv; else delete sesionesVacias[dia.id];
+  Object.keys(bloquesVacios).forEach(k => { if (k.startsWith(dia.id + "|") && deUno(bloquesVacios[k].g || "")) bloquesVacios[k] = { ...bloquesVacios[k], g: nombre }; });
+  delete gruposPlegados[dia.id + "|" + primero]; delete gruposPlegados[dia.id + "|" + segundo]; delete gruposPlegados[dia.id + "|" + nombre];
+  escribir("grupos-plegados-v1", gruposPlegados);
+  guardarEspera(); guardarSesiones(); guardarVacios(); persistir();
+  pintarDia(dia);
+  avisoDeshacer("Entrenos juntados en «" + nombre + "»", antes.length ? antes : null);
+}
 function menuGrupo(dia, grupo) {
   const series = seriesDelDia(dia.id).filter(s => (s.grupo || "") === grupo);
   const nGrupos = new Set(seriesDelDia(dia.id).map(s => s.grupo || "")).size;
   abrirMenu(grupo, resumenItems(itemsDe(series)), [
+    { texto: "📅 Mover a otro día…", accion: () => elegirDiaDestino(lunesDe(deIso(dia.id)), "¿A qué día muevo «" + (grupo || "Entreno 1") + "»?", f => moverADia(dia, grupo, f)) },
+    ...(() => { const otros = [...dia.bloquesEl.querySelectorAll(":scope > .grupo")].map(x => x.dataset.grupo || "").filter(x => x !== grupo);
+      return otros.length ? [{ texto: "🔗 Fusionar con otro entreno del día…", accion: () => abrirMenu("¿Con qué entreno lo junto?", "«" + (grupo || "Entreno 1") + "» va primero y el otro detrás, en un solo entreno", otros.map(x => ({ texto: x || "Entreno 1", accion: async () => {
+        const n = await pedirNombre("Nombre del entreno fusionado", (grupo || "Entreno 1") + " + " + (x || "Entreno 1"), "Por ejemplo «Pecho + Pierna». Sus ejercicios, bloques y partes pasan a ser un solo entreno.");
+        if (n) fusionarEntrenos(dia, grupo, x, n);
+      } }))) }] : []; })(),
     nGrupos > 1 && { texto: "Subir sesión", accion: () => moverGrupo(dia.id, grupo, -1) },
     nGrupos > 1 && { texto: "Bajar sesión", accion: () => moverGrupo(dia.id, grupo, 1) },
     series.filter(s => !s.bloque_id).length > 1 && { texto: "Seleccionar series para agrupar en bloque", accion: () => empezarSelSeries(dia) },
@@ -1243,6 +1523,27 @@ function pintarBloques(forzar) {
   dias.forEach(pintarDia);
   pintarProgresoSemana();
 }
+// Último ejercicio o bloque tocado (para mantenerlo quieto en pantalla al repintar)
+let ultimoTocado = null;
+document.addEventListener("pointerdown", ev => { const b = ev.target.closest && ev.target.closest(".bloque[data-clave]"); const d = b && b.closest(".dia"); if (b && d) ultimoTocado = { clave: b.dataset.clave, dia: d.dataset.fecha || [...document.querySelectorAll(".dia")].indexOf(d) }; }, true);
+function anclaVista() {
+  if (!ultimoTocado || $("vistaSemana").hidden) return null;
+  const el = buscarTocado();
+  if (!el || !el.querySelector("form.nueva-serie:not([hidden])")) return null;
+  const top = el.getBoundingClientRect().top;
+  return top > -200 && top < innerHeight ? { top } : null;
+}
+function buscarTocado() {
+  const ds = [...document.querySelectorAll(".dia")];
+  const d = typeof ultimoTocado.dia === "number" ? ds[ultimoTocado.dia] : ds.find(x => x.dataset.fecha === ultimoTocado.dia);
+  return d ? d.querySelector('.bloque[data-clave="' + CSS.escape(ultimoTocado.clave) + '"]') : null;
+}
+function recolocar(ancla) {
+  const el = buscarTocado();
+  if (!el) return;
+  const dif = el.getBoundingClientRect().top - ancla.top;
+  if (Math.abs(dif) > 2) scrollBy(0, dif);
+}
 $("semana").addEventListener("focusout", () => setTimeout(() => { if (repintarLuego && !escribiendoSerie()) pintarBloques(); }, 0));
 
 function quitarEspera(fecha, id) {
@@ -1253,7 +1554,35 @@ function quitarEspera(fecha, id) {
 }
 
 // Agrupa los ejercicios del día por sesión («Pierna», «Pecho»…); los sueltos van sin título
+// Que la pantalla no salte al repintar un día: el ejercicio que estabas tocando se queda donde estaba
 function pintarDia(dia) {
+  const ancla = anclaVista();
+  pintarDiaSinAncla(dia);
+  if (ancla) recolocar(ancla);
+}
+// «＋ Añadir»: los botones de añadir (ejercicio, bloque, parte, entreno) se pliegan en uno solo y se despliegan al
+// tocarlo; se vuelven a plegar al elegir o al tocar fuera. Donde aún no hay nada salen ya desplegados
+function plegarAdd(fila, abierta) {
+  if (!fila) return;
+  if (!fila.querySelector(":scope > .add-toggle")) {
+    const t = document.createElement("button");
+    t.type = "button"; t.className = "add-toggle"; t.textContent = "＋ Añadir";
+    t.addEventListener("click", e => { e.stopPropagation(); ponerAdd(fila, true); const b = fila.querySelector(".add-ej"); if (b) b.focus({ preventScroll: true }); });
+    fila.prepend(t);
+    fila.addEventListener("click", e => { if (e.target.closest(".add-ej") && !fila.dataset.fija) setTimeout(() => ponerAdd(fila, false), 0); });
+  }
+  fila.dataset.fija = abierta ? "1" : "";
+  ponerAdd(fila, !!abierta);
+}
+function ponerAdd(fila, abierta) {
+  fila.classList.toggle("plegada", !abierta);
+  const t = fila.querySelector(":scope > .add-toggle");
+  if (t) { t.setAttribute("aria-expanded", String(abierta)); t.hidden = abierta; }
+}
+document.addEventListener("pointerdown", e => {
+  document.querySelectorAll(".add-fila:not(.plegada)").forEach(f => { if (!f.dataset.fija && f.querySelector(":scope > .add-toggle") && !f.contains(e.target)) ponerAdd(f, false); });
+}, true);
+function pintarDiaSinAncla(dia) {
   const cont = dia.bloquesEl;
   cont.textContent = "";
   const delDia = seriesDelDia(dia.id);
@@ -1268,9 +1597,15 @@ function pintarDia(dia) {
   // Los ejercicios aún sin series van a su entreno, donde se dejaron (antes de otro elemento) o, si no, al final
   (enEspera[dia.id] || []).forEach(id => {
     const gn = esperaGrupo[dia.id + "|" + id] || "";
-    if (!ejercicioVivo(id) || grupos.some(g => g.nombre === gn && g.ids.includes(id))) return;
+    if (!ejercicioVivo(ejDeClave(id)) || grupos.some(g => g.nombre === gn && g.ids.includes(id))) return;
     const g = grupo(gn), antes = esperaAntes[dia.id + "|" + id], i = antes ? g.ids.indexOf(antes) : -1;
     if (i >= 0) g.ids.splice(i, 0, id); else g.ids.push(id);
+  });
+  plegarAdd(dia.col.querySelector(".dia-cuerpo-in > .add-fila"), !grupos.length && !Object.keys(bloquesVacios).some(k => k.startsWith(dia.id + "|")));
+  Object.keys(bloquesVacios).forEach(k => {
+    if (!k.startsWith(dia.id + "|")) return;
+    const bv = bloquesVacios[k], g = grupo(bv.g || "");
+    g.ids.push("v:" + k.slice(dia.id.length + 1));
   });
   // Cada sesión va en su propio contenedor para poder moverla entera
   const conAsa = grupos.filter(g => g.nombre).length > 1 && grupos.length > 1;
@@ -1283,15 +1618,15 @@ function pintarDia(dia) {
     if (g.nombre || varios) {
       const cab = document.createElement("div");
       cab.className = "grupo-cab";
-      cab.innerHTML = varios
+      cab.innerHTML = true   // cualquier entreno con cabecera se puede plegar (también si es el único del día)
         ? '<button type="button" class="g-nombre g-toggle"><span class="flecha-dia" aria-hidden="true">▸</span><span class="gn-txt"></span><span class="g-res"></span></button><span class="g-prog"></span><button type="button" class="menu-btn">⋯</button>'
         : '<span class="g-nombre"><span class="gn-txt"></span></span><span class="g-prog"></span><button type="button" class="menu-btn">⋯</button>';
       cab.querySelector(".gn-txt").textContent = g.nombre || "Entreno 1";
       const deG = delDia.filter(s => (s.grupo || "") === g.nombre);
-      if (varios) {
+      {   // plegar o desplegar el entreno tocando su nombre
         // Varios entrenos en el día: cada uno se pliega o despliega tocando su nombre (se recuerda en este dispositivo)
         const clavePl = dia.id + "|" + g.nombre, tg = cab.querySelector(".g-toggle");
-        const nombres = [...new Set(g.ids.map(id => id.startsWith("b:") ? "Bloque" : nombreEj(id)).filter(Boolean))];
+        const nombres = [...new Set(g.ids.map(id => id.startsWith("b:") || id.startsWith("v:") ? "Bloque" : nombreEj(ejDeClave(id))).filter(Boolean))];
         cab.querySelector(".g-res").textContent = nombres.slice(0, 3).join(", ") + (nombres.length > 3 ? "…" : "");
         const ponerPl = pl => { caja.classList.toggle("g-plegado", pl); tg.setAttribute("aria-expanded", String(!pl)); };
         ponerPl(!!gruposPlegados[clavePl]);
@@ -1310,10 +1645,16 @@ function pintarDia(dia) {
     }
     // Partes opcionales del entreno (Calentamiento, Parte principal…): si no hay ninguna, todo va seguido como siempre
     const seriesItem = id => id.startsWith("b:") ? delDia.filter(s => s.bloque_id === id.slice(2)) : delDia.filter(s => claveSerie(s) === id && (s.grupo || "") === g.nombre);
-    const parteDe = id => { const ss = seriesItem(id); return ss.length ? ss[0].seccion || "" : esperaParte[dia.id + "|" + id] || ""; };
-    const partes = [], parteDeNombre = n => partes.find(p => p.nombre === n) || partes[partes.push({ nombre: n, ids: [] }) - 1];
-    parteDeNombre("");
-    g.ids.forEach(id => parteDeNombre(parteDe(id)).ids.push(id));
+    const parteDe = id => { if (id.startsWith("v:")) return (bloquesVacios[dia.id + "|" + id.slice(2)] || {}).p || ""; const ss = seriesItem(id); return ss.length ? ss[0].seccion || "" : esperaParte[dia.id + "|" + id] || ""; };
+    // Cada parte con nombre va junta donde aparece su primer ejercicio; los sueltos (sin parte) se quedan en su sitio:
+    // arriba, entre partes o debajo de la última
+    const partes = [], parteDeNombre = n => partes.find(p => p.nombre && p.nombre === n) || partes[partes.push({ nombre: n, ids: [] }) - 1];
+    g.ids.forEach(id => {
+      const n = parteDe(id), u = partes[partes.length - 1];
+      if (n) parteDeNombre(n).ids.push(id);
+      else if (u && !u.nombre) u.ids.push(id);
+      else partes.push({ nombre: "", ids: [id] });
+    });
     (partesVacias[dia.id + "|" + g.nombre] || []).forEach(n => parteDeNombre(n));
     const conNombre = partes.filter(p => p.nombre);
     // Letras como en las hojas de entrenamiento: cada parte empieza una letra nueva (A, B…) y dentro de ella
@@ -1344,8 +1685,8 @@ function pintarDia(dia) {
       if (p.nombre) { letraN++; numN = 0; }
       const porLetra = [];   // [{ letra, els: [...] }] para agrupar B1, B2… en su desplegable
       p.ids.forEach((id, k) => {
-        const el = id.startsWith("b:") ? tarjetaBloque(dia, id.slice(2), seriesItem(id)) : bloque(dia, ejDeClave(id), seriesItem(id), g.nombre, p.nombre);
-        el.dataset.clave = id;
+        const el = id.startsWith("v:") ? tarjetaBloqueVacio(dia, id.slice(2)) : id.startsWith("b:") ? tarjetaBloque(dia, id.slice(2), seriesItem(id)) : bloque(dia, ejDeClave(id), seriesItem(id), g.nombre, p.nombre, copiaDeClave(id));
+        if (!id.startsWith("v:")) el.dataset.clave = id;   // el vacío no se arrastra: se le arrastran ejercicios encima
         if (p.nombre) {
           const nueva = k > 0 && letraNuevaDe(id);
           if (nueva) { letraN++; numN = 0; }
@@ -1376,7 +1717,7 @@ function pintarDia(dia) {
         lc.className = "letra-caja";
         lc.dataset.letra = letra;
         const ss = items.flatMap(x => seriesItem(x.id));
-        const nombres = items.map(x => x.id.startsWith("b:") ? "Bloque" : nombreEj(x.id));
+        const nombres = items.map(x => x.id.startsWith("b:") || x.id.startsWith("v:") ? "Bloque" : nombreEj(ejDeClave(x.id)));
         const cabL = document.createElement("button");
         cabL.type = "button"; cabL.className = "letra-cab";
         cabL.innerHTML = '<span class="flecha-dia" aria-hidden="true">▸</span><span class="etq-orden"></span><span class="l-nombres"></span><span class="g-prog"></span>';
@@ -1404,16 +1745,30 @@ function pintarDia(dia) {
         add.children[1].setAttribute("aria-label", "Añadir un bloque a " + p.nombre);
         add.children[0].addEventListener("click", () => abrirSelector(dia, null, g.nombre, p.nombre));
         add.children[1].addEventListener("click", () => abrirBloque(dia, g.nombre, p.nombre));
+        plegarAdd(add, !p.ids.length);   // parte vacía: las opciones ya a la vista
         dest.appendChild(add);
       }
     });
     // Ejercicios (también los que aún no tienen series) y bloques se mueven dentro de la sesión, en un único orden
     const movibles = () => [...caja.querySelectorAll(":scope > .bloque[data-clave], :scope > .parte-caja > .bloque[data-clave], :scope > .parte-caja > .letra-caja > .bloque[data-clave]")];
-    const soltar = (n, movido) => {
+    const soltar = (n, movido, destParte, destGrupo) => {
+      if (movido && destGrupo !== undefined && destGrupo !== g.nombre) {
+        moverEntreEntrenos(dia, g.nombre, movido.dataset.clave, !!movido.dataset.espera, destGrupo, destParte || "", n.map(x => ({ clave: x.dataset.clave, espera: !!x.dataset.espera, propio: x === movido })));
+        return;
+      }
+      // Las series de cada elemento se toman antes de cambiar de parte (su clave cambia) y se releen al final
+      const idsDe = n.filter(x => !x.dataset.espera).map(x => seriesDeItem(dia.id, g.nombre, x.dataset.clave).map(sr => sr.id));
       // Si al arrastrar queda entre los ejercicios de otra parte, pasa a esa parte (la del de encima o, si es el primero, la del de debajo)
-      if (movido && caja.querySelector(":scope > .parte-caja")) {
-        const i = n.indexOf(movido), ref = n[i - 1] || n[i + 1], dest = ref ? ref.dataset.parte || "" : movido.dataset.parte || "";
-        if (dest !== (movido.dataset.parte || "")) ponerParte(dia, g.nombre, movido.dataset.clave, !!movido.dataset.espera, dest);
+      // Solo cambia de parte si queda rodeado por otra (entre dos ejercicios de ella); en un borde conserva la suya,
+      // así un ejercicio suelto puede quedar debajo de la última parte
+      if (movido && destParte !== undefined) {
+        // Arrastre con hueco: la parte es la del sitio donde se ha soltado (o suelto, entre partes)
+        if (destParte !== (movido.dataset.parte || "")) ponerParte(dia, g.nombre, movido.dataset.clave, !!movido.dataset.espera, destParte);
+      } else if (movido && caja.querySelector(":scope > .parte-caja")) {
+        const i = n.indexOf(movido), propia = movido.dataset.parte || "";
+        const pa = n[i - 1] ? n[i - 1].dataset.parte || "" : null, pb = n[i + 1] ? n[i + 1].dataset.parte || "" : null;
+        const dest = pa !== null && pb !== null && pa !== propia && pb !== propia ? pa : propia;
+        if (dest !== propia) ponerParte(dia, g.nombre, movido.dataset.clave, !!movido.dataset.espera, dest);
       }
       // Los que aún no tienen series recuerdan delante de qué quedan; los demás reparten su «orden»
       n.forEach((x, k) => {
@@ -1425,7 +1780,7 @@ function pintarDia(dia) {
       // El orden entre los que aún no tienen series sale de su lista: se guarda tal como han quedado
       const ordenEsp = n.filter(x => x.dataset.espera).map(x => x.dataset.clave);
       if (ordenEsp.length > 1 && enEspera[dia.id]) { enEspera[dia.id] = ordenEsp.concat(enEspera[dia.id].filter(x => !ordenEsp.includes(x))); guardarEspera(); }
-      reordenar(n.filter(x => !x.dataset.espera).map(x => seriesDeItem(dia.id, g.nombre, x.dataset.clave)), "Ejercicio movido");
+      reordenar(idsDe.map(l => l.map(i => db.series[i]).filter(Boolean)), "Ejercicio movido");
       pintarBloques(true);
     };
     const mover = (el, paso) => {
@@ -1441,6 +1796,12 @@ function pintarDia(dia) {
       const zonasParte = { lista: () => [...caja.querySelectorAll(":scope > .parte-caja > .parte-cab")].filter(z => z.dataset.parte !== (el.dataset.parte || ""))
           .concat(clave.startsWith("b:") ? [] : [...caja.querySelectorAll(".bloque-rep > .bloque-cab")]), alSoltar: z => {
         // Soltado encima del título de un bloque: el ejercicio entra en él (una serie suya por ronda)
+        if (z.closest(".bloque-vacio")) {
+          const sueltas = espera ? [] : seriesDeItem(dia.id, g.nombre, clave).slice().sort((a, b) => a.orden - b.orden);
+          if (espera) quitarEspera(dia.id, clave);
+          meterEnVacio(dia, z.closest(".bloque-vacio").dataset.vacio, ej, sueltas);
+          return;
+        }
         if (z.closest(".bloque-rep")) {
           const bs = seriesDelDia(dia.id).filter(s => s.bloque_id === z.closest(".bloque-rep").dataset.clave.slice(2));
           const sueltas = espera ? [] : seriesDeItem(dia.id, g.nombre, clave).slice().sort((a, b) => a.orden - b.orden);
@@ -1455,7 +1816,7 @@ function pintarDia(dia) {
         soltar(l);
         setEstado((clave.startsWith("b:") ? "Bloque" : nombre) + " movido a «" + dest + "»");
       } };
-      if (movibles().length > 1 || zonasParte.lista().length) el.querySelector(".bloque-cab").appendChild(asaArrastre(el, movibles, soltar, nombre, zonasParte));
+      if (movibles().length > 1 || zonasParte.lista().length || otrasSesiones.length) el.querySelector(".bloque-cab").appendChild(asaArrastreDia(el, caja, movibles, soltar, nombre, zonasParte));
       if (clave.startsWith("b:")) return;
       const m = document.createElement("button");
       m.type = "button"; m.className = "menu-btn"; m.textContent = "⋯";
@@ -1494,6 +1855,7 @@ function pintarDia(dia) {
       add.children[1].setAttribute("aria-label", "Añadir un bloque a " + (g.nombre || "Entreno 1"));
       add.children[0].addEventListener("click", () => abrirSelector(dia, null, g.nombre));
       add.children[1].addEventListener("click", () => abrirBloque(dia, g.nombre));
+      plegarAdd(add, !g.ids.length);
       caja.appendChild(add);
     }
     cont.appendChild(caja);
@@ -1514,36 +1876,36 @@ function etiquetaTipo(tipo) {
   return t;
 }
 
-function bloque(dia, id, series, grupo, parte) {
+function bloque(dia, id, series, grupo, parte, copia) {
+  const idK = copia > 1 ? id + "#" + copia : id;   // clave de esta tarjeta (el mismo ejercicio puede ir dos veces)
   const ej = db.ejercicios[id], tipo = tipoDe(id), dist = esDistancia(tipo), mov = tipo === "movilidad";
   const historia = seriesDe(id);
   const prs = prsEj(id);
   let editando = null;   // serie planificada que se está completando
   const b = document.createElement("div");
   b.className = "bloque t-" + tipo;
-  b.dataset.ej = id;
-  b.dataset.clave = id;
+  b.dataset.ej = idK;
+  b.dataset.clave = idK;
   if (!series.length) b.dataset.espera = "1";
   b.dataset.grupo = grupo;
   b.innerHTML = '<div class="bloque-cab"><button type="button" class="ej-nombre"></button><button type="button" class="quitar" aria-label="Quitar ejercicio">✕</button></div>' +
     '<ol class="series"></ol>' +
     '<form class="nueva-serie">' +
-      '<div class="ns-fila ns-series"><label class="veces-l">Series <button type="button" class="v-menos" aria-label="Una serie menos">−</button><input class="veces" inputmode="numeric" pattern="[0-9]*" value="1" aria-label="Cuántas series iguales" autocomplete="off" enterkeyhint="next"><button type="button" class="v-mas" aria-label="Una serie más">+</button></label></div>' +
-      '<div class="ns-fila">' + (dist
+      '<div class="ns-fila ns-principal"><label class="veces-l veces-izq" title="Cuántas series iguales"><input class="veces" inputmode="numeric" pattern="[0-9]*" value="1" aria-label="Cuántas series iguales" autocomplete="off" enterkeyhint="next"><span class="vz-et">series</span></label><span class="x-series">×</span>' + (dist
         ? '<button type="button" class="modo-dist" aria-label="Cambiar entre metros y tiempo">m</button>' + paso('<input class="in-a" inputmode="decimal" placeholder="' + UD() + '" aria-label="Distancia en ' + UD() + '" autocomplete="off" enterkeyhint="next">') +
           paso('<input class="in-b" inputmode="decimal" placeholder="tiempo 3,40" aria-label="Tiempo (minutos y segundos)" autocomplete="off" enterkeyhint="next">')
         : mov ? paso('<input class="in-a" inputmode="numeric" pattern="[0-9]*" placeholder="reps" aria-label="Repeticiones (opcional si pones tiempo)" autocomplete="off" enterkeyhint="next">') +
           '<span class="por">o</span>' + paso('<input class="in-b" inputmode="decimal" placeholder="tiempo 45 s" aria-label="Tiempo: 45 son segundos, 2 min o 1,30" autocomplete="off" enterkeyhint="next">')
-        : '<button type="button" class="modo" aria-label="Cambiar entre kg y % del 1RM">kg</button>' + paso('<input class="in-a" inputmode="decimal" placeholder="kg" aria-label="Peso en kg" autocomplete="off" enterkeyhint="next">') +
-          '<span class="por">×</span>' + paso('<input class="in-b" inputmode="numeric" placeholder="reps" aria-label="Repeticiones (o «máx»)" autocomplete="off" enterkeyhint="next">')) +
-      '</div>' + (dist ? '<div class="ns-extra"><span class="calc"></span></div>' : mov ? '<div class="ns-extra"><label class="lado-op"><input type="checkbox" class="por-lado"> Por lado (izq. y der.)</label></div>' : '<div class="ns-extra"><span class="calc"></span><span class="ops-fuerza seg-medida" role="group" aria-label="Cómo se mide la serie"><button type="button" data-m="reps">Reps</button><button type="button" data-m="t">⏱ Tiempo</button><button type="button" data-m="maxr">Máx. reps</button><button type="button" data-m="maxt">Máx. tiempo</button><input type="checkbox" class="es-max" hidden><input type="checkbox" class="por-t" hidden></span><label class="lado-op"><input type="checkbox" class="por-lado"> Por lado (izq. y der.)</label><label class="bilbo-op" hidden><input type="checkbox" class="es-bilbo"> <span></span></label></div>') +
-      '<div class="ns-fila"><input class="in-c" inputmode="decimal" placeholder="⏱ descanso 1,30 o 300 m" aria-label="Descanso o recuperación después de la serie (tiempo o metros)" autocomplete="off" enterkeyhint="done">' +
-      '<button class="anadir ok">OK</button></div>' +
-      '<label class="cambiar-ej" hidden>Ejercicio <select class="otro-ej" aria-label="Cambiar el ejercicio (se mantienen las series)"></select></label>' +
+        : paso('<input class="in-b" inputmode="numeric" placeholder="reps" aria-label="Repeticiones (o «máx»)" autocomplete="off" enterkeyhint="next">') +
+          '<span class="kg-par">(</span>' + paso('<input class="in-a" inputmode="decimal" placeholder="peso" aria-label="Peso en kg" autocomplete="off" enterkeyhint="next">') + '<button type="button" class="modo" aria-label="Cambiar entre kg y % del 1RM">kg</button><span class="kg-par">)</span>') +
+      '</div>' + (dist ? '<div class="ns-extra"><span class="calc"></span></div>' : mov ? '<div class="ns-extra"><label class="lado-op"><input type="checkbox" class="por-lado"> Por lado (izq. y der.)</label></div>' : '<div class="ns-extra"><span class="calc"></span><span class="ops-fuerza"><button type="button" class="medida-btn" aria-label="Cómo se mide la serie">Reps ▾</button><label class="lado-op"><input type="checkbox" class="por-lado"> Por lado</label></span><span class="seg-medida" role="group" aria-label="Cómo se mide la serie" hidden><button type="button" data-m="reps">Reps</button><button type="button" data-m="t">⏱ Tiempo</button><button type="button" data-m="maxr">Máx. reps</button><button type="button" data-m="maxt">Máx. tiempo</button><input type="checkbox" class="es-max" hidden><input type="checkbox" class="por-t" hidden></span><label class="bilbo-op" hidden><input type="checkbox" class="es-bilbo"> <span></span></label></div>') +
+      '<div class="ns-fila ns-desc"><input class="in-c" inputmode="decimal" placeholder="⏱ descanso" title="Descanso tras la serie: 1,30 (minutos), 90 (segundos) o 300 m" aria-label="Descanso o recuperación después de la serie: 1,30, 90 o 300 m" autocomplete="off" enterkeyhint="done">' +
+      '<button type="button" class="cancelar-form" aria-label="Cancelar: dejarlo como estaba">Cancelar</button><button class="anadir ok">OK</button></div>' +
+      '<button type="button" class="enlace cambiar-ej-btn" hidden>⇄ Cambiar ejercicio</button><label class="cambiar-ej" hidden>Ejercicio <select class="otro-ej" aria-label="Cambiar el ejercicio (se mantienen las series)"></select></label>' +
       '<button type="button" class="enlace desmarcar" hidden>↺ Marcar como pendiente</button>' +
     '</form>';
   const nom = b.querySelector(".ej-nombre");
-  nom.textContent = ej.nombre || "Sin nombre";
+  nom.textContent = (ej.nombre || "Sin nombre") + (copia > 1 && !parte ? " (" + copia + ")" : "");
   nom.appendChild(etiquetaTipo(tipo));
   if (ej.video_url) {
     // «▶ vídeo» despliega el vídeo debajo del nombre, sin salir del día
@@ -1558,8 +1920,8 @@ function bloque(dia, id, series, grupo, parte) {
   if (dolor.length) { const m = document.createElement("span"); m.className = "molestia-tag"; m.textContent = "⚠ " + dolor.map(x => x.zona).join(", "); m.title = dolor.map(x => x.zona + (x.descripcion ? ": " + x.descripcion : "")).join(" · "); nom.appendChild(m); }
   nom.setAttribute("aria-label", series.length ? "Editar " + (ej.nombre || "ejercicio") + ": valores, número de series o ejercicio" : "Ver " + (ej.nombre || "ejercicio") + ": vídeo, récords e historial");
   // Con series: tocar el nombre abre (o cierra sin guardar) la edición del ejercicio; sin series, su ficha
-  nom.addEventListener("click", () => !series.length ? abrirDetalle(id) : formEl.hidden ? abrirGrupo() : (delete borradores[dia.id + "|" + (grupo || "") + "|" + id + "|" + (parte || "")], pintarBloques(true)));
-  const notaB = notaDe(series) || (!series.length ? esperaNota[dia.id + "|" + id] || "" : "");
+  nom.addEventListener("click", () => !series.length ? abrirDetalle(id) : formEl.hidden ? abrirGrupo() : (delete borradores[dia.id + "|" + (grupo || "") + "|" + idK + "|" + (parte || "")], pintarBloques(true)));
+  const notaB = notaDe(series) || (!series.length ? esperaNota[dia.id + "|" + idK] || "" : "");
   const pedirNotaB = () => editarNota(dia, series, "Descripción de " + (ej.nombre || "el ejercicio"), id);
   if (notaB) b.querySelector(".bloque-cab").after(lineaNota(notaB, pedirNotaB));
   else {
@@ -1571,7 +1933,7 @@ function bloque(dia, id, series, grupo, parte) {
   }
   const quitar = b.querySelector(".quitar");
   if (series.length) quitar.remove();
-  else quitar.addEventListener("click", () => { quitarEspera(dia.id, id); pintarDia(dia); });
+  else quitar.addEventListener("click", () => { quitarEspera(dia.id, idK); pintarDia(dia); });
   // Con series apuntadas, el ejercicio queda limpio como un bloque: progreso en la cabecera y el formulario plegado
   // hasta pulsar «+ Serie» o tocar una serie para editarla
   const formEl = b.querySelector("form.nueva-serie");
@@ -1584,37 +1946,113 @@ function bloque(dia, id, series, grupo, parte) {
     if (efect.length && textos.size === 1) {
       const r = document.createElement("span");
       r.className = "ej-resumen";
-      r.textContent = [...textos][0] + " · ×" + efect.length;
+      // Fuerza: «3 × 10 (100 kg)», como se suele apuntar (series × repeticiones y el peso)
+      const e0 = efect[0], kg0 = pesoMostrado(e0);
+      r.textContent = tipo === "fuerza" && n0(e0.reps) > 0 && !(n0(e0.tiempo) > 0) && !e0.pct && !e0.ciclo_id
+        ? efect.length + " × " + n0(e0.reps) + (kg0 > 0 ? " (" + num(kg0) + " kg)" : "") + (e0.por_lado ? " por lado" : "")
+        : [...textos][0] + " · ×" + efect.length;
       prog.before(r);
     }
     formEl.hidden = true;
   }
   // El formulario tiene tres usos: «grupo» (×N series iguales y OK, también para editarlas todas), «una» (+ Serie suelta) y «editar» (una serie)
   let modoForm = "grupo";
-  b.querySelector(".v-menos").addEventListener("click", () => { vecesEl.value = Math.max(1, (parseInt(vecesEl.value, 10) || 1) - 1); vecesEl.dispatchEvent(new Event("input")); });
-  b.querySelector(".v-mas").addEventListener("click", () => { vecesEl.value = Math.min(50, (parseInt(vecesEl.value, 10) || 0) + 1); vecesEl.dispatchEvent(new Event("input")); });
   const vecesEl = b.querySelector(".veces"), cambiarEl = b.querySelector(".cambiar-ej"), otroEj = b.querySelector(".otro-ej");
+  b.querySelector(".cambiar-ej-btn").addEventListener("click", ev => { ev.currentTarget.hidden = true; cambiarEl.hidden = false; otroEj.focus(); });
   const ponerModoForm = m => {
     modoForm = m;
-    b.querySelector(".ns-series").hidden = m !== "grupo";
-    cambiarEl.hidden = !(m === "grupo" && series.length);
+    b.querySelector(".veces-izq").hidden = m !== "grupo";
+    if (m !== "grupo" && extrasEl) extrasEl.textContent = "";
+    cambiarEl.hidden = true;
+    const ce = b.querySelector(".cambiar-ej-btn"); if (ce) ce.hidden = !(m === "grupo" && series.length);
     if (m !== "editar") boton.textContent = m === "grupo" ? "OK" : "+ Añadir serie";
     boton.setAttribute("aria-label", m === "grupo" ? (series.length ? "OK: guardar los cambios en las series" : "OK: crear las series") : m === "una" ? "Añadir una serie suelta" : "Guardar la serie");
     if (m !== "editar") { editando = null; b.querySelector(".desmarcar").hidden = true; ol.querySelectorAll("li").forEach(x => x.classList.remove("editando")); }
-    else delete borradores[dia.id + "|" + (grupo || "") + "|" + id + "|" + (parte || "")];   // editar una serie concreta descarta el borrador
+    else delete borradores[dia.id + "|" + (grupo || "") + "|" + idK + "|" + (parte || "")];   // editar una serie concreta descarta el borrador
   };
   const abrirForm = () => { formEl.hidden = false; const m = b.querySelector(".mas-serie"); if (m) m.hidden = true; };
   function abrirGrupo() {
     abrirForm();
     ponerModoForm("grupo");
     const efect = series.filter(x => !x.calentamiento), ref = efect.find(x => !hecha(x)) || efect[efect.length - 1] || series[0];
-    if (ref) rellenarCon(ref, true);
+    if (ref) rellenarCon(efect[0] || ref, true);
     vecesEl.value = efect.length || 1;
+    pintarFilas(efect.map(x => ({ r: enTiempo() ? segTxt(x.tiempo) : esRango(x) && !hecha(x) ? rangoTxt(x) : (n0(x.reps) || ""), kg: n0(x.pct) > 0 && !x.ciclo_id ? num(x.pct) : (pesoMostrado(x) > 0 ? num(pesoMostrado(x)) : ""), hecha: hecha(x) })));
     otroEj.textContent = "";
     vivos("ejercicios").filter(e => tipoDe(e.id) === tipo).sort((x, y) => x.nombre.localeCompare(y.nombre, "es")).forEach(e => otroEj.add(new Option(e.nombre, e.id, e.id === id, e.id === id)));
     fa.focus();
+    tomarFoto();
   }
   b.abrirEdicion = abrirGrupo;
+  // ---- Filas por serie (solo fuerza) ----
+  let extrasEl = null;
+  function pintarFilas(valores) {
+    if (!extrasEl) return;
+    const n = modoForm === "grupo" ? Math.min(50, Math.max(1, parseInt(vecesEl.value, 10) || 1)) : 1;
+    const previas = [...extrasEl.children].map(row => ({ r: row.querySelector(".r-reps").value, kg: row.querySelector(".r-kg").value, auto: row.hasAttribute("data-auto"), hecha: row.dataset.hecha }));
+    extrasEl.textContent = "";
+    b.querySelector(".ns-principal").classList.toggle("con-num", n > 1);
+    for (let k = 1; k < n; k++) {
+      const p = valores ? valores[k] : previas[k - 1];
+      const val = p || { r: fb.value, kg: fa.value, auto: true };
+      const row = document.createElement("div");
+      row.className = "fila-x";
+      row.innerHTML = '<span class="fx-n"></span><input class="r-reps" autocomplete="off"><span class="fx-u"></span><input class="r-kg" inputmode="decimal" autocomplete="off"><span class="fx-u fx-kg"></span>';
+      row.querySelector(".fx-n").textContent = k + 1;
+      const ir = row.querySelector(".r-reps"), ik = row.querySelector(".r-kg");
+      ir.value = val.r; ik.value = val.kg;
+      ir.inputMode = "decimal";
+      ir.placeholder = enMax() ? "máx" : enTiempo() ? "seg" : "reps"; ir.disabled = enMax();
+      ik.placeholder = enPct ? "%" : "kg";
+      row.querySelector(".fx-u").textContent = enTiempo() ? "s" : "reps";
+      row.querySelector(".fx-kg").textContent = enPct ? "%" : "kg";
+      if (val.auto) row.setAttribute("data-auto", "");
+      if (val.hecha) { row.dataset.hecha = "1"; ir.disabled = ik.disabled = true; row.title = "Serie hecha: se edita tocándola"; }
+      [ir, ik].forEach(x => x.addEventListener("input", () => row.removeAttribute("data-auto")));
+      extrasEl.appendChild(row);
+    }
+  }
+  // Valores de la serie k (0 = la fila de arriba)
+  function valoresFila(k, v) {
+    if (!extrasEl || k <= 0) return v;
+    const row = extrasEl.children[k - 1];
+    if (!row) return v;
+    const out = { ...v }, r = row.querySelector(".r-reps").value.trim(), kg = row.querySelector(".r-kg").value.trim();
+    if (kg !== "") { const x = parseFloat(kg.replace(",", ".")); if (x >= 0) { out.pct = enPct ? x : 0; out.peso = enPct ? kgDePct(id, x) : x; } }
+    if (!enMax() && r !== "") {
+      if (enTiempo()) { const t = leerSegs(r); if (t > 0) out.tiempo = t; }
+      else if (leerRango(r)) { const g = leerRango(r); out.reps = g.min; out.rango_min = g.min; out.rango_max = g.max; }
+      else { const n = parseInt(r, 10); if (n > 0) { out.reps = n; out.rango_min = 0; out.rango_max = 0; } }
+    }
+    return out;
+  }
+  // Guardado automático: al editar series que ya existen, si sales del formulario con algo cambiado, se guarda solo (como pulsar OK)
+  let foto = null;
+  const valoresForm = () => [fa.value, fb.value, fc.value, vecesEl.value, otroEj.value, ...[...formEl.querySelectorAll("input[type=checkbox]")].map(x => x.checked), ...[...formEl.querySelectorAll(".filas-extra input")].map(x => x.value)].join("|");
+  const hayDatoForm = () => mov || dist ? !!(fa.value.trim() || fb.value.trim()) : !!(fb.value.trim() || (b.querySelector(".es-max") || {}).checked || (b.querySelector(".es-bilbo") || {}).checked);
+  function tomarFoto() { foto = valoresForm(); }
+  const dentroForm = el => !!el && (formEl.contains(el) || !!(el.closest && el.closest(".veces-cab") && b.contains(el)));
+  // Tocar un botón del formulario (kg/%, Reps ▾, −/+…) le quita el foco al campo en Safari y el móvil: no es salir
+  // del formulario. Se espera al siguiente toque fuera de él para guardar o cerrar
+  let toqueDentro = 0;
+  b.addEventListener("pointerdown", ev => { if (dentroForm(ev.target)) toqueDentro = Date.now(); }, true);
+  formEl.addEventListener("focusout", ev => {
+    const dentro = dentroForm;
+    if (dentro(ev.relatedTarget)) return;
+    setTimeout(() => {
+      if (formEl.hidden || dentro(document.activeElement) || !b.isConnected) return;
+      if (Date.now() - toqueDentro < 700) {
+        const fuera = e => { if (dentro(e.target)) return; document.removeEventListener("pointerdown", fuera, true); toqueDentro = 0; if (!formEl.hidden && b.isConnected) formEl.dispatchEvent(new FocusEvent("focusout")); };
+        document.addEventListener("pointerdown", fuera, true);
+        return;
+      }
+      // Te vas a otro sitio sin pulsar OK: si has escrito algo válido se guarda solo; si no has cambiado nada, se cierra
+      const cambiado = foto !== null && valoresForm() !== foto;
+      const hayDato = hayDatoForm();
+      if (cambiado && hayDato) { foto = null; formEl.requestSubmit(); return; }
+      if (series.length && (modoForm === "editar" || modoForm === "grupo" || modoForm === "una") && !cambiado) { delete borradores[dia.id + "|" + (grupo || "") + "|" + idK + "|" + (parte || "")]; pintarBloques(true); }
+    }, 200);
+  });
 
   const fa = b.querySelector(".in-a"), fb = b.querySelector(".in-b"), fc = b.querySelector(".in-c"), boton = b.querySelector(".anadir");
   // Fuerza por tiempo (isométricos: plancha, sentadilla isométrica…): el segundo campo pasa a ser el tiempo
@@ -1625,8 +2063,8 @@ function bloque(dia, id, series, grupo, parte) {
     if (!chkT) return;
     chkT.checked = t;
     fb.placeholder = t ? "tiempo 45 s" : "reps";
-    fb.inputMode = t ? "decimal" : "numeric";
-    fb.setAttribute("aria-label", t ? "Tiempo: 45 son segundos, 2 min o 1,30" : "Repeticiones");
+    fb.inputMode = "decimal";   // con coma: «10,12» es una ventana de reps
+    fb.setAttribute("aria-label", t ? "Tiempo: 45 son segundos, 2 min o 1,30" : "Repeticiones (o una ventana: 10-12)");
     const por = fb.closest(".ns-fila").querySelector(".por"); if (por) por.textContent = t ? "·" : "×";
     marcarMedida();
   };
@@ -1651,7 +2089,45 @@ function bloque(dia, id, series, grupo, parte) {
     const t = !!(ct && ct.checked), mx = !!(cm && cm.checked);
     const m = mx ? (t ? "maxt" : "maxr") : t ? "t" : "reps";
     seg.querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", String(x.dataset.m === m)));
+    const mb = b.querySelector(".medida-btn");
+    if (mb) mb.textContent = { reps: "Reps", t: "⏱ Tiempo", maxr: "Máx. reps", maxt: "Máx. tiempo" }[m] + " ▾";
   }
+  // «Reps ▾»: elegir cómo se mide en un menú (más limpio que cuatro botones)
+  const medidaBtn = b.querySelector(".medida-btn");
+  // Una línea menos: en fuerza, el descanso y OK van junto a «Reps ▾ · Por lado»
+  const opsF = b.querySelector(".ops-fuerza"), filaDesc = b.querySelector(".ns-desc");
+  // Fuerza: series junto al nombre; fila «[reps] Reps ▾   [peso] kg»; abajo «Por lado · ⏱ descanso · OK»
+  { const cl = b.querySelector(".por-lado"); if (cl) { if (ladoDe(id) && !series.length) cl.checked = true; cl.closest("label").hidden = true; } }
+  if (opsF && tipo === "fuerza" && medidaDe(id) !== "peso") {
+    b.classList.add("sin-peso");   // dominadas, fondos, plancha…: sin casilla de kg (para el lastre, el ejercicio «lastrado»)
+    if (medidaDe(id) === "tiempo" && !series.length) ponerPorT(true);
+  }
+  if (opsF && medidaBtn) {
+    const fila = b.querySelector(".ns-principal");
+    fila.querySelectorAll(".x-series, .kg-par").forEach(x => x.remove());
+    fb.closest(".paso").after(medidaBtn);
+    const vz = b.querySelector(".veces-izq");
+    vz.classList.add("veces-cab");
+    const cab = b.querySelector(".bloque-cab"), antesDe = cab.querySelector(".ej-resumen, .g-prog, .menu-btn, .quitar");
+    if (antesDe) antesDe.before(vz); else cab.appendChild(vz);
+    vz.addEventListener("focusout", ev => { if (!formEl.contains(ev.relatedTarget)) formEl.dispatchEvent(new FocusEvent("focusout", { relatedTarget: ev.relatedTarget })); });
+    fila.classList.add("fila-fuerza");
+    // Una fila por serie (pirámides, series distintas): la 1.ª es la de arriba; las demás la siguen hasta que las cambias
+    extrasEl = document.createElement("div");
+    extrasEl.className = "filas-extra";
+    fila.after(extrasEl);
+    vecesEl.addEventListener("input", () => pintarFilas(null));
+    [fa, fb].forEach(x => x.addEventListener("input", () => extrasEl.querySelectorAll(".fila-x[data-auto]").forEach(row => {
+      row.querySelector(".r-reps").value = fb.value; row.querySelector(".r-kg").value = fa.value;
+    })));
+  }
+  if (opsF && filaDesc) {
+    filaDesc.classList.add("desc-en-ops"); opsF.appendChild(filaDesc);
+    // Descanso con su icono delante y un ejemplo corto que se lee entero
+    const ic = document.createElement("span"); ic.className = "desc-ic"; ic.textContent = "⏱"; ic.setAttribute("aria-hidden", "true");
+    fc.before(ic); fc.placeholder = "desc.";
+  }
+  if (medidaBtn) medidaBtn.addEventListener("click", () => menuMedida(id, m => b.querySelector('.seg-medida [data-m="' + m + '"]').click()));
   marcarMedida();
   if (segM) segM.addEventListener("click", ev => {
     const x = ev.target.closest("button[data-m]");
@@ -1714,7 +2190,7 @@ function bloque(dia, id, series, grupo, parte) {
     if (!modo) return;
     modo.textContent = pct ? "%" : "kg";
     modo.classList.toggle("activo", pct);
-    fa.placeholder = pct ? "% 1RM" : "kg";
+    fa.placeholder = pct ? "% 1RM" : "peso";
     fa.setAttribute("aria-label", pct ? "Porcentaje del 1RM" : "Peso en kg");
     pintarCalc();
   };
@@ -1726,17 +2202,18 @@ function bloque(dia, id, series, grupo, parte) {
       fa.value = t ? ti : m;
       fb.value = t ? m : ti;
     }
-    else if (mov) { fa.value = n0(s.reps) || ""; fb.value = n0(s.tiempo) > 0 ? (n0(s.tiempo) < 60 ? String(n0(s.tiempo)) : fmtTiempo(s.tiempo)) : ""; b.querySelector(".por-lado").checked = !!s.por_lado; }
+    else if (mov) { fa.value = n0(s.reps) || ""; fb.value = n0(s.tiempo) > 0 ? (n0(s.tiempo) < 60 ? String(n0(s.tiempo)) : fmtTiempo(s.tiempo)) : ""; b.querySelector(".por-lado").checked = !!s.por_lado || ladoDe(id); }
     else {
       const t = (n0(s.tiempo) > 0 || !!s.max_tiempo) && !(n0(s.reps) > 0);
       ponerPorT(t);
       if (n0(s.pct) > 0 && !s.ciclo_id) { ponerModo(true); fa.value = num(s.pct); }
       else { ponerModo(false); const kg = pesoMostrado(s); fa.value = kg > 0 ? num(kg) : ""; }
       fb.value = t ? segTxt(s.tiempo) : n0(s.reps) || "";
-      if (b.querySelector(".por-lado")) b.querySelector(".por-lado").checked = !!s.por_lado;
+      if (!t && esRango(s) && !hecha(s)) { fb.value = modoForm === "editar" ? "" : rangoTxt(s); if (modoForm === "editar") setTimeout(() => { fb.placeholder = rangoTxt(s) + ": ¿cuántas?"; }, 0); }
+      if (b.querySelector(".por-lado")) b.querySelector(".por-lado").checked = !!s.por_lado || ladoDe(id);
       const esMax = !(n0(s.reps) > 0) && !(n0(s.tiempo) > 0) && !s.ciclo_id;
       // Completar una serie «máx» pendiente: se apunta lo que salió (reps o segundos)
-      if (esMax && modoForm === "editar" && !hecha(s)) { ponerMax(false); fb.placeholder = t ? "¿cuántos segundos?" : "¿cuántas reps?"; }
+      if (esMax && modoForm === "editar") { ponerMax(false); fb.placeholder = t ? "¿cuántos segundos?" : "¿cuántas reps?"; }
       else ponerMax(esMax);
     }
     fc.value = conRec ? recTexto(s) : "";
@@ -1786,7 +2263,7 @@ function bloque(dia, id, series, grupo, parte) {
       c.type = "button"; c.className = "marcar"; c.textContent = "";
       c.setAttribute("aria-label", "Marcar como hecha la serie " + numero);
       c.addEventListener("click", () => {
-        if (s.ciclo_id === "auto") { li.querySelector(".sv").click(); return; }   // en Bilbo hay que apuntar las repeticiones
+        if (s.ciclo_id === "auto" || (tipo === "fuerza" && pideDato(s))) { li.querySelector(".sv").click(); return; }   // en Bilbo y en «máx» hay que apuntar lo que salió
         marcarHecha(s, { ...s, hecha: true, peso: pesoMostrado(s) });
       });
       marca.replaceWith(c);
@@ -1800,12 +2277,15 @@ function bloque(dia, id, series, grupo, parte) {
     li.querySelector(".sv").setAttribute("aria-label", (planificada ? "Completar" : "Editar") + " serie " + numero + ": " + serieTexto(s));
     li.querySelector(".sv").addEventListener("click", () => {
       if (li.dataset.deslizado) return;
+      // Había algo a medias (una serie nueva o un cambio): se guarda antes, para no perderlo
+      if (!formEl.hidden && foto !== null && valoresForm() !== foto && hayDatoForm() && editando !== s) { foto = null; formEl.requestSubmit(); return; }
       abrirForm();
       ponerModoForm("editar");
       editando = s;
       rellenarCon(s, true);
       if (chkBilbo) chkBilbo.checked = !!s.ciclo_id;
       if (s.ciclo_id === "auto") { fb.value = ""; fb.placeholder = "reps máx"; }
+      tomarFoto();
       boton.textContent = "✓ Guardar " + nSerie;
       b.querySelector(".desmarcar").hidden = planificada;
       b.querySelector(".desmarcar").onclick = () => desmarcar(s);
@@ -1817,7 +2297,7 @@ function bloque(dia, id, series, grupo, parte) {
     if (prs.has(s.id)) { const p = document.createElement("span"); p.className = "pr"; p.textContent = "PR"; p.title = "Récord personal"; li.querySelector(".sv").after(p); }
     li.querySelector(".borrar").addEventListener("click", () => borrarSerie(s));
     // Deslizar: a la derecha la marca hecha; a la izquierda la borra (con Deshacer)
-    deslizable(li, planificada ? (s.ciclo_id !== "auto" ? () => marcarHecha(s, { ...s, hecha: true, peso: pesoMostrado(s) }) : null) : () => desmarcar(s), () => borrarSerie(s));
+    deslizable(li, planificada ? (s.ciclo_id !== "auto" && !(tipo === "fuerza" && pideDato(s)) ? () => marcarHecha(s, { ...s, hecha: true, peso: pesoMostrado(s) }) : null) : () => desmarcar(s), () => borrarSerie(s));
     li.dataset.sid = s.id;
     mantenerPulsado(li, () => { if (!selSeries) empezarSelSeries(dia, s.id); });   // mantener pulsada una serie: elegir varias para agruparlas
     if (series.length > 1) li.appendChild(asaArrastre(li, () => [...ol.querySelectorAll(":scope > li[data-sid]")], n => reordenar(n.map(x => [db.series[x.dataset.sid]]), "Serie movida"), "Serie " + (s.calentamiento ? "de calentamiento" : numero)));
@@ -1830,7 +2310,7 @@ function bloque(dia, id, series, grupo, parte) {
     mas.className = "enlace mas-serie";
     mas.textContent = "+ Serie";
     mas.setAttribute("aria-label", "Añadir otra serie de " + (ej.nombre || "este ejercicio"));
-    mas.addEventListener("click", () => { abrirForm(); ponerModoForm("una"); fa.focus(); });
+    mas.addEventListener("click", () => { abrirForm(); ponerModoForm("una"); tomarFoto(); fa.focus(); });
     ol.after(mas);
   }
   // Calentamiento sugerido antes de la primera serie efectiva (hoy y sin haber empezado)
@@ -1851,7 +2331,7 @@ function bloque(dia, id, series, grupo, parte) {
   else if (dist && distDeNombre(ej.nombre)) fa.value = distCampo(distDeNombre(ej.nombre));
   if (chkBilbo && pendiente && pendiente.ciclo_id) { chkBilbo.checked = true; fb.value = ""; fb.placeholder = "reps máx"; }
   // Borrador: lo escrito sin pulsar OK no se pierde aunque el día se vuelva a pintar (al añadir o mover otro ejercicio)
-  const claveBor = dia.id + "|" + (grupo || "") + "|" + id + "|" + (parte || "");
+  const claveBor = dia.id + "|" + (grupo || "") + "|" + idK + "|" + (parte || "");
   const guardarBor = () => {
     if (modoForm === "editar" || formEl.hidden) { delete borradores[claveBor]; return; }
     borradores[claveBor] = { a: fa.value, b: fb.value, c: fc.value, v: vecesEl.value, modo: modoForm, t: enTiempo(), max: enMax(), lado: !!(b.querySelector(".por-lado") || {}).checked };
@@ -1864,7 +2344,17 @@ function bloque(dia, id, series, grupo, parte) {
     fa.value = bor.a; fb.value = bor.b; fc.value = bor.c; vecesEl.value = bor.v;
     if (b.querySelector(".por-lado")) b.querySelector(".por-lado").checked = bor.lado;
     b.classList.add("con-borrador");
+    foto = "";   // lo que quedó escrito se guardará al salir
   }
+  if (!series.length && foto === null) tomarFoto();
+  // Cancelar, como en otras apps: un ejercicio recién añadido (sin series) se quita; uno que ya existía se queda
+  // tal cual estaba, sin aplicar cambios, y sale del modo edición
+  b.querySelector(".cancelar-form").addEventListener("click", () => {
+    foto = null;
+    delete borradores[dia.id + "|" + (grupo || "") + "|" + idK + "|" + (parte || "")];
+    if (!series.length) { quitarEspera(dia.id, idK); avisoDeshacer((ej.nombre || "Ejercicio") + " quitado", null); }
+    pintarBloques(true);
+  });   // ejercicio recién añadido: al salir, si has escrito algo, se crean sus series
   [fa, fb, fc, vecesEl].forEach(x => x.addEventListener("input", guardarBor));
   formEl.addEventListener("change", guardarBor);
   [fa, fb, fc].forEach((inp, k, todos) => {
@@ -1887,20 +2377,26 @@ function bloque(dia, id, series, grupo, parte) {
       v.tiempo = leerSegs(fb.value);
       if (isNaN(v.tiempo)) { fb.focus(); return null; }
       if (!(v.reps > 0) && !(v.tiempo > 0)) { fa.focus(); return null; }
-      v.por_lado = b.querySelector(".por-lado").checked;
+      v.por_lado = b.querySelector(".por-lado").checked || ladoDe(id);
     } else {
       const x = parseFloat((fa.value.trim() || "0").replace(",", "."));
       v.pct = enPct ? x : 0;
       v.peso = enPct ? kgDePct(id, x) : x;
       v.ciclo_id = chkBilbo && chkBilbo.checked && ciclo ? ciclo.id : "";
-      v.por_lado = !!(b.querySelector(".por-lado") || {}).checked;
+      v.por_lado = !!(b.querySelector(".por-lado") || {}).checked || ladoDe(id);
+      v.rango_min = 0; v.rango_max = 0;
       if (!(x >= 0) || (enPct && !v.peso)) { fa.focus(); return null; }
       if (enTiempo()) {
         v.reps = 0; v.ciclo_id = "";
         if (enMax() || /^\s*m[aá]x/i.test(fb.value)) { v.tiempo = 0; v.max_tiempo = true; }   // aguantar el máximo
         else { v.tiempo = leerSegs(fb.value); if (!(v.tiempo > 0)) { fb.focus(); return null; } }
       } else if (enMax() || /^\s*(m[aá]x|amrap|fallo)/i.test(fb.value)) {
-        v.reps = 0;   // máximas repeticiones
+        v.reps = 0; v.max_reps = true;   // máximas repeticiones
+      } else if (chkBilbo && chkBilbo.checked && !fb.value.trim()) {
+        v.reps = 0;   // Bilbo: se planifica «reps máx» y al hacerla se apuntan las que salieron
+      } else if (leerRango(fb.value)) {
+        const g = leerRango(fb.value);
+        v.reps = g.min; v.rango_min = g.min; v.rango_max = g.max;   // ventana: queda pendiente hasta apuntar las que salieron
       } else {
         v.reps = parseInt(fb.value, 10);
         if (!(v.reps > 0)) { fb.focus(); return null; }
@@ -1914,33 +2410,38 @@ function bloque(dia, id, series, grupo, parte) {
     e.preventDefault();
     const v = leerValores();
     if (!v) return;
-    delete borradores[dia.id + "|" + (grupo || "") + "|" + id + "|" + (parte || "")];
+    delete borradores[dia.id + "|" + (grupo || "") + "|" + idK + "|" + (parte || "")];
     if (modoForm === "editar" && editando) {
       // Una serie concreta: se completa (o corrige) con lo escrito; hoy o antes queda hecha
-      const fila = { ...editando, ...v, hecha: dia.id <= iso(new Date()) };
+      const fila = { ...editando, ...v, hecha: dia.id <= iso(new Date()) && !(n0(v.rango_max) > 0) };
+      // Ventana pendiente: al apuntar las que salieron se conserva la ventana («11 reps de 10-12»)
+      if (esRango(editando) && !(n0(v.rango_max) > 0) && n0(v.reps) > 0) { fila.rango_min = editando.rango_min; fila.rango_max = editando.rango_max; }
+      // Si era «al máximo», sigue siéndolo aunque ahora tenga lo que salió
+      if (editando.max_tiempo && n0(fila.tiempo) > 0) fila.max_tiempo = true;
+      if ((editando.max_reps || esMaxSinDato(editando) && !editando.max_tiempo) && n0(fila.reps) > 0) fila.max_reps = true;
       cambiar("series", fila);
       terminar(fila);
       if (fila.hecha) avisarSiPR(fila);
       return;
     }
     // La descripción puesta antes de la primera serie pasa a las series (y deja de esperar en este dispositivo)
-    const notaNueva = notaDe(series) || esperaNota[dia.id + "|" + id] || "";
-    const letraNueva = series.length ? series.some(x => x.letra_nueva) : !!esperaLetra[dia.id + "|" + id];
-    if (esperaLetra[dia.id + "|" + id]) { delete esperaLetra[dia.id + "|" + id]; escribir("espera-letra-v1", esperaLetra); }
-    if (esperaNota[dia.id + "|" + id]) { delete esperaNota[dia.id + "|" + id]; escribir("espera-nota-v1", esperaNota); }
-    const nueva = k => ({ id: nuevoId(), fecha: dia.id, ejercicio_id: id, orden: Date.now() + k, grupo, seccion: parte || "", meso_id: "", bloque_id: "", ronda: 0, borrado: false, calentamiento: false, nota: notaNueva, letra_nueva: letraNueva, ...v, hecha: nuevaHecha });
+    const notaNueva = notaDe(series) || esperaNota[dia.id + "|" + idK] || "";
+    const letraNueva = series.length ? series.some(x => x.letra_nueva) : !!esperaLetra[dia.id + "|" + idK];
+    if (esperaLetra[dia.id + "|" + idK]) { delete esperaLetra[dia.id + "|" + idK]; escribir("espera-letra-v1", esperaLetra); }
+    if (esperaNota[dia.id + "|" + idK]) { delete esperaNota[dia.id + "|" + idK]; escribir("espera-nota-v1", esperaNota); }
+    const nueva = (k, vk) => ({ id: nuevoId(), fecha: dia.id, ejercicio_id: id, orden: Date.now() + k, grupo, seccion: parte || "", meso_id: "", bloque_id: "", ronda: 0, copia: copia > 1 ? copia : 0, borrado: false, calentamiento: false, nota: notaNueva, letra_nueva: letraNueva, ...(vk || v), hecha: nuevaHecha });
     if (modoForm === "una" || !series.length) {
       const n = modoForm === "una" ? 1 : Math.min(50, Math.max(1, parseInt(vecesEl.value, 10) || 1));
       if (!series.length) {
         // Delante del ejercicio que tenga detrás (el «orden» de la primera serie lo coloca colocarPrimeraSerie)
-        for (let k = 0; k < n; k++) cambiar("series", nueva(k), true);
+        for (let k = 0; k < n; k++) cambiar("series", nueva(k, valoresFila(k, v)), true);
       } else {
         const ultimo = Math.max(...series.map(x => n0(x.orden)));
         cambiar("series", { ...nueva(0), orden: ultimo + 0.5 }, true);
       }
-      colocarPrimeraSerie(dia.id, id, grupo, !series.length);
+      colocarPrimeraSerie(dia.id, idK, grupo, !series.length);
       persistir();
-      quitarEspera(dia.id, id);
+      quitarEspera(dia.id, idK);
       terminar();
       return;
     }
@@ -1950,10 +2451,10 @@ function bloque(dia, id, series, grupo, parte) {
     const aplicar = borrarHechas => {
       const deshacer = series.map(x => ["series", { ...x }]);
       const nuevas = [];
-      pend.forEach(x => cambiar("series", { ...x, ...v, hecha: false }, true));
+      pend.forEach(x => cambiar("series", { ...x, ...valoresFila(efect.indexOf(x), v), hecha: false }, true));
       if (objetivo > efect.length) {
         const ultimo = Math.max(...series.map(x => n0(x.orden)));
-        for (let k = 0; k < objetivo - efect.length; k++) { const f = { ...nueva(k), orden: ultimo + (k + 1) / 100, hecha: false }; nuevas.push(f); cambiar("series", f, true); }
+        for (let k = 0; k < objetivo - efect.length; k++) { const f = { ...nueva(k, valoresFila(efect.length + k, v)), orden: ultimo + (k + 1) / 100, hecha: false }; nuevas.push(f); cambiar("series", f, true); }
       } else if (objetivo < efect.length) {
         let sobran = efect.length - objetivo;
         const quitar = pend.slice().reverse().concat(borrarHechas ? hechas.slice().reverse() : []);
@@ -1961,7 +2462,7 @@ function bloque(dia, id, series, grupo, parte) {
       }
       // Otro ejercicio (p. ej. sentadilla → prensa): todas las series de esta tarjeta, hechas incluidas, pasan a él
       if (destino !== id) {
-        series.concat(nuevas).forEach(x => { const f = db.series[x.id]; if (f && !f.borrado) cambiar("series", { ...f, ejercicio_id: destino }, true); });
+        series.concat(nuevas).forEach(x => { const f = db.series[x.id]; if (f && !f.borrado) cambiar("series", { ...f, ejercicio_id: destino, copia: 0 }, true); });
         quitarEspera(dia.id, destino);
       }
       persistir();
@@ -2069,6 +2570,32 @@ function meterEnBloque(dia, seriesBloque, ejercicioId, sueltas) {
   pintarDia(dia);
   avisoDeshacer(nombreEj(ejercicioId) + " añadido al bloque (" + rondas.length + " rondas)", antes.concat(nuevas.map(f => ["series", { ...f, borrado: true }])));
 }
+// Bloque vacío: una caja «×N rondas» donde arrastrar (o añadir) ejercicios; con el primero pasa a ser un bloque normal
+function meterEnVacio(dia, vid, ejercicioId, sueltas) {
+  const bv = bloquesVacios[dia.id + "|" + vid];
+  if (!bv) return;
+  const rondas = Array.from({ length: Math.max(1, n0(bv.r)) }, (_, k) => ({ ronda: k + 1, grupo: bv.g || "", seccion: bv.p || "", meso_id: "", bloque_id: vid, letra_nueva: false }));
+  delete bloquesVacios[dia.id + "|" + vid];
+  guardarVacios();
+  meterEnBloque(dia, rondas, ejercicioId, sueltas);
+}
+function tarjetaBloqueVacio(dia, vid) {
+  const k = dia.id + "|" + vid, bv = bloquesVacios[k];
+  const c = document.createElement("div");
+  c.className = "bloque bloque-rep bloque-vacio";
+  c.dataset.vacio = vid;
+  c.innerHTML = '<div class="bloque-cab"><span class="br-tit"></span><span class="g-prog">vacío</span><button type="button" class="menu-btn" aria-label="Opciones del bloque vacío">⋯</button></div>' +
+    '<p class="bv-txt">Arrastra aquí ejercicios del entreno con ≡ (quédate un momento encima del título) o añádelos.</p><button type="button" class="add-ej bv-add">+ Añadir ejercicio al bloque</button>';
+  c.querySelector(".br-tit").textContent = "×" + n0(bv.r) + " rondas";
+  c.querySelector(".bv-add").addEventListener("click", () => abrirSelector(dia, id => meterEnVacio(dia, vid, id, null), bv.g || "", bv.p || ""));
+  const rondas = n => { bloquesVacios[k] = { ...bv, r: Math.max(1, Math.min(50, n)) }; guardarVacios(); pintarDia(dia); };
+  c.querySelector(".menu-btn").addEventListener("click", () => abrirMenu("Bloque vacío ×" + n0(bv.r), "", [
+    { texto: "Añadir una ronda", accion: () => rondas(n0(bv.r) + 1) },
+    n0(bv.r) > 1 && { texto: "Quitar una ronda", accion: () => rondas(n0(bv.r) - 1) },
+    { texto: "Quitar bloque vacío", peligro: true, accion: () => { delete bloquesVacios[k]; guardarVacios(); pintarDia(dia); } }
+  ]));
+  return c;
+}
 function tarjetaBloque(dia, bloqueId, series) {
   const rondas = [...new Set(series.map(s => n0(s.ronda)))].sort((a, b) => a - b);
   const primera = series.filter(s => n0(s.ronda) === rondas[0]).sort((a, b) => a.orden - b.orden);
@@ -2080,9 +2607,12 @@ function tarjetaBloque(dia, bloqueId, series) {
   c.innerHTML = '<div class="bloque-cab"><span class="br-tit"></span><span class="g-prog"></span><button type="button" class="menu-btn">⋯</button></div>' +
     '<div class="rondas"></div>' +
     '<form class="nueva-serie br-form" hidden><span class="br-que"></span>' +
-      '<div class="ns-fila"><input class="in-a" autocomplete="off" enterkeyhint="next"><span class="por"></span><input class="in-b" autocomplete="off" enterkeyhint="next"></div>' +
-      '<div class="ns-fila"><input class="in-c" inputmode="decimal" placeholder="⏱ recuperación 2,00 o 300 m" aria-label="Recuperación (tiempo o metros)" autocomplete="off" enterkeyhint="done">' +
-      '<button class="anadir">✓ Guardar</button></div><button type="button" class="enlace desmarcar" hidden>↺ Marcar como pendiente</button></form>';
+      '<div class="ns-fila"><input class="in-a" autocomplete="off" enterkeyhint="next"><button type="button" class="modo br-modo" hidden aria-label="Cambiar entre kg y % del 1RM">kg</button><span class="por"></span><input class="in-b" autocomplete="off" enterkeyhint="next"><button type="button" class="medida-btn br-medida" hidden>Reps ▾</button></div>' +
+      '<p class="calc br-calc" hidden></p>' +
+      '<div class="ns-fila"><input class="in-c" inputmode="decimal" placeholder="⏱ descanso después: 1,30 o 300 m" aria-label="Descanso o recuperación después de esta serie (tiempo o metros)" autocomplete="off" enterkeyhint="done">' +
+      '<button class="anadir">✓ Guardar</button></div>' +
+      '<label class="br-todas" hidden><input type="checkbox"> <span></span></label>' +
+      '<button type="button" class="enlace desmarcar" hidden>↺ Marcar como pendiente</button></form>';
   // El título solo dice «Bloque ×N»; los ejercicios salen en cada ronda (los de nombre con distancia, como «Series 1000 m», van en el título)
   const enTitulo = [...new Set(primera.map(s => nombreEj(s.ejercicio_id)).filter(n => distDeNombre(n)))];
   c.querySelector(".br-tit").textContent = "×" + rondas.length + " rondas" + (enTitulo.length ? " · " + enTitulo.join(" + ") : "");
@@ -2107,6 +2637,7 @@ function tarjetaBloque(dia, bloqueId, series) {
       (variosTramos || !notaDe(series)) && { texto: variosTramos ? "Descripción (del bloque o de un ejercicio)…" : "+ Descripción (tempo, banda, EEP…)", accion: () => !variosTramos ? editarNota(dia, series, "Descripción del bloque")
         : abrirMenu("¿Descripción de qué?", "", [{ texto: "De todo el bloque", accion: () => editarNota(dia, series, "Descripción del bloque") }]
           .concat(primera.map(s0 => ({ texto: nombreEj(s0.ejercicio_id), accion: () => editarNota(dia, series.filter(x => x.ejercicio_id === s0.ejercicio_id), "Descripción de " + nombreEj(s0.ejercicio_id)) })))) },
+      { texto: "⏱ Descansos del bloque…", accion: () => menuDescansos() },
       { texto: "+ Añadir un ejercicio al bloque…", accion: () => abrirSelector(dia, id => meterEnBloque(dia, series, id, null), series[0].grupo || "", series[0].seccion || "") },
       variosTramos && { texto: "Quitar un ejercicio del bloque…", accion: () => abrirMenu("¿Qué ejercicio quitas?", "Se borran sus series de todas las rondas", primera.map(s0 => ({ texto: nombreEj(s0.ejercicio_id), peligro: true, accion: () => {
         const fuera = series.filter(x => x.ejercicio_id === s0.ejercicio_id);
@@ -2123,7 +2654,70 @@ function tarjetaBloque(dia, bloqueId, series) {
     ]);
   });
 
+  // Descansos: entre ejercicios (dentro de la ronda), entre rondas (tras el último de cada ronda) y al acabar el bloque
+  // (tras la última serie: es el descanso antes de lo siguiente). Se guardan en la serie, como en los ejercicios sueltos
+  function menuDescansos() {
+    const porRonda = rondas.map(r => series.filter(s => n0(s.ronda) === r).sort((a, b) => a.orden - b.orden));
+    const entreEj = porRonda.flatMap(l => l.slice(0, -1)), entreR = porRonda.slice(0, -1).map(l => l[l.length - 1]), alFinal = [porRonda[porRonda.length - 1].slice(-1)[0]];
+    const actual = l => { const t = l.map(recTexto); return t.every(x => x === t[0]) ? t[0] : ""; };
+    const poner = async (lista, titulo) => {
+      const t = await pedirNombre(titulo, actual(lista) || "", "Tiempo («1,30» = 1 min 30 s, «3» = 3 min, «90» = 90 s) o metros trotando («300 m»). «0» lo quita.");
+      if (t === null) return;
+      const rec = /^\s*0\s*$/.test(t) ? { descanso: 0, rec_dist: 0 } : leerRecuperacion(t);
+      if (!rec) { setEstado("No entiendo «" + t + "»: prueba 1,30, 90 o 300 m"); return; }
+      const antes = lista.map(x => ["series", { ...x }]);
+      lista.forEach(x => cambiar("series", { ...x, descanso: rec.descanso, rec_dist: rec.rec_dist }, true));
+      persistir(); pintarDia(dia);
+      avisoDeshacer("Descanso puesto en " + lista.length + (lista.length === 1 ? " serie" : " series"), antes);
+    };
+    const et = l => actual(l) ? " (ahora " + actual(l) + ")" : "";
+    abrirMenu("Descansos del bloque", "Se guardan en la serie de antes del descanso, y el modo entreno los usa.", [
+      variosTramos && { texto: "Entre ejercicios" + et(entreEj), accion: () => poner(entreEj, "Descanso entre ejercicios") },
+      rondas.length > 1 && { texto: "Entre rondas" + et(entreR), accion: () => poner(entreR, "Descanso entre rondas") },
+      { texto: "Al terminar el bloque" + et(alFinal), accion: () => poner(alFinal, "Descanso al terminar el bloque") }
+    ]);
+  }
   const form = c.querySelector("form"), fa = c.querySelector(".in-a"), fb = c.querySelector(".in-b"), fc = c.querySelector(".in-c");
+  const brModo = c.querySelector(".br-modo"), brCalc = c.querySelector(".br-calc"), brTodas = c.querySelector(".br-todas");
+  let brPct = false, brM = "reps";
+  const brMedida = c.querySelector(".br-medida");
+  const ponerBrM = (m, completar) => {
+    brM = m;
+    const t = m === "t" || m === "maxt", mx = m === "maxr" || m === "maxt";
+    form.dataset.isoT = t ? "1" : "";
+    brMedida.textContent = NOMBRE_MEDIDA[m] + " ▾";
+    fb.inputMode = "decimal";
+    fb.placeholder = mx ? (completar ? (t ? "¿cuántos seg?" : "¿cuántas?") : "máx") : t ? "seg" : "reps";
+    fb.setAttribute("aria-label", mx ? (t ? "Segundos que aguantaste (opcional)" : "Repeticiones que salieron (opcional)") : t ? "Tiempo: 45 son segundos" : "Repeticiones");
+    c.querySelector(".por").textContent = t ? "·" : "×";
+  };
+  brMedida.addEventListener("click", () => menuMedida(editando.ejercicio_id, m => {
+    const antesT = form.dataset.isoT === "1";
+    ponerBrM(m, true);
+    if (antesT !== (form.dataset.isoT === "1")) fb.value = "";
+    fb.focus();
+  }));
+  const pintarBrCalc = () => {
+    if (!editando || !brPct) { brCalc.hidden = true; return; }
+    const v = parseFloat((fa.value || "").replace(",", ".")), ref = rmReferencia(editando.ejercicio_id);
+    brCalc.hidden = false;
+    brCalc.textContent = !ref ? "Pon tu 1RM en la ficha del ejercicio" : v > 0 ? "= " + num(kgDePct(editando.ejercicio_id, v)) + " kg (1RM " + num(ref) + ")" : "1RM de referencia: " + num(ref) + " kg";
+  };
+  const ponerBrModo = pct => {
+    brPct = pct;
+    brModo.textContent = pct ? "%" : "kg";
+    brModo.classList.toggle("activo", pct);
+    fa.placeholder = pct ? "% 1RM" : "kg";
+    fa.setAttribute("aria-label", pct ? "Porcentaje del 1RM" : "Peso en kg");
+    pintarBrCalc();
+  };
+  brModo.addEventListener("click", () => {
+    const id = editando.ejercicio_id, v = parseFloat((fa.value || "").replace(",", ".")), ref = rmReferencia(id);
+    if (!brPct) { ponerBrModo(true); fa.value = v > 0 && ref ? num(Math.round(v / ref * 100)) : ""; }
+    else { const kg = v > 0 ? kgDePct(id, v) : 0; ponerBrModo(false); fa.value = kg ? num(kg) : ""; }
+    fa.focus();
+  });
+  fa.addEventListener("input", () => { if (/%\s*$/.test(fa.value) && !brPct && !brModo.hidden) { fa.value = fa.value.replace(/\s*%\s*$/, ""); ponerBrModo(true); } pintarBrCalc(); });
   const prs = {};
   primera.forEach(s => { if (!prs[s.ejercicio_id]) prs[s.ejercicio_id] = prsEj(s.ejercicio_id); });
   const editar = (s, li) => {
@@ -2136,18 +2730,50 @@ function tarjetaBloque(dia, bloqueId, series) {
     fa.placeholder = dist ? UD() : mov ? "reps" : "kg"; fa.inputMode = mov ? "numeric" : "decimal"; fa.setAttribute("aria-label", dist ? "Distancia en " + UD() : mov ? "Repeticiones" : "Peso en kg");
     fb.placeholder = dist ? "tiempo 3,40" : mov ? "tiempo 45 s" : "reps o máx"; fb.inputMode = dist || mov ? "decimal" : "text"; fb.setAttribute("aria-label", dist ? "Tiempo (minutos y segundos)" : mov ? "Tiempo: 45 son segundos" : "Repeticiones (o «máx»)");
     c.querySelector(".por").textContent = dist ? "" : mov ? "o" : "×";
-    const isoT = !dist && !mov && (n0(s.tiempo) > 0 || !!s.max_tiempo) && !(n0(s.reps) > 0);
+    const isoT = !dist && !mov && (n0(s.tiempo) > 0 || !!s.max_tiempo || medidaDe(s.ejercicio_id) === "tiempo" && !s.max_reps) && !(n0(s.reps) > 0);
     form.dataset.isoT = isoT ? "1" : "";
     if (isoT) { fb.placeholder = "tiempo 45 s"; fb.inputMode = "decimal"; fb.setAttribute("aria-label", "Tiempo: 45 son segundos"); c.querySelector(".por").textContent = "·"; }
+    const maxSin = !dist && !mov && esMaxSinDato(s);
+    brMedida.hidden = dist || mov;
+    if (!dist && !mov) ponerBrM(s.max_tiempo || maxSin && isoT ? "maxt" : s.max_reps || maxSin ? "maxr" : isoT ? "t" : "reps", true);
     if (mov) { fa.value = n0(s.reps) || ""; fb.value = (n0(s.tiempo) > 0 ? (n0(s.tiempo) < 60 ? String(n0(s.tiempo)) : fmtTiempo(s.tiempo)) : ""); }
     else if (dist) { fa.value = distCampo(s.distancia); fb.value = n0(s.tiempo) > 0 ? fmtTiempo(s.tiempo) : ""; }
-    else { fa.value = pesoMostrado(s) > 0 ? num(pesoMostrado(s)) : ""; fb.value = isoT ? (n0(s.tiempo) > 0 ? (n0(s.tiempo) < 60 ? String(n0(s.tiempo)) : fmtTiempo(s.tiempo)) : "máx") : n0(s.reps) || "máx"; }
+    else { fa.value = pesoMostrado(s) > 0 ? num(pesoMostrado(s)) : ""; if (n0(s.pct) > 0 && !s.ciclo_id) fa.value = num(s.pct); fb.value = isoT ? (n0(s.tiempo) > 0 ? (n0(s.tiempo) < 60 ? String(n0(s.tiempo)) : fmtTiempo(s.tiempo)) : "") : n0(s.reps) || ""; if (!isoT && esRango(s) && !hecha(s)) { fb.value = ""; fb.placeholder = rangoTxt(s) + ": ¿cuántas?"; } }
     fc.value = recTexto(s);
+    const fuerza = !dist && !mov;
+    form.classList.toggle("br-fuerza", fuerza);
+    brModo.hidden = !fuerza || medidaDe(s.ejercicio_id) !== "peso" && !(n0(s.peso) > 0) && !(n0(s.pct) > 0);
+    if (fuerza) ponerBrModo(n0(s.pct) > 0 && !s.ciclo_id); else { brPct = false; brCalc.hidden = true; }
+    if (fuerza && medidaDe(s.ejercicio_id) !== "peso" && !fa.value) fa.placeholder = "kg (opcional)";
+    // Igual en las demás rondas pendientes de este ejercicio
+    const otras = series.filter(x => x.ejercicio_id === s.ejercicio_id && x.id !== s.id && !hecha(x));
+    brTodas.hidden = !otras.length;
+    brTodas.querySelector("input").checked = false;
+    brTodas.querySelector("span").textContent = "Igual en las otras " + otras.length + (otras.length === 1 ? " ronda pendiente" : " rondas pendientes");
     c.querySelectorAll("li").forEach(x => x.classList.remove("editando"));
     li.classList.add("editando");
     form.hidden = false;
-    (dist && n0(s.distancia) > 0 ? fb : fa).focus();
+    (dist && n0(s.distancia) > 0 || !dist && !mov ? fb : fa).focus();
+    fotoR = [fa.value, fb.value, fc.value, brPct, false, brM].join("|");
   };
+  // Guardado automático al salir de la edición de una ronda, si algo ha cambiado
+  let fotoR = null;
+  let toqueDentroR = 0;
+  form.addEventListener("pointerdown", () => { toqueDentroR = Date.now(); }, true);
+  form.addEventListener("focusout", ev => {
+    if (form.contains(ev.relatedTarget)) return;
+    setTimeout(() => {
+      if (form.hidden || form.contains(document.activeElement) || !c.isConnected || fotoR === null) return;
+      if (Date.now() - toqueDentroR < 700) {
+        const fuera = e => { if (form.contains(e.target)) return; document.removeEventListener("pointerdown", fuera, true); toqueDentroR = 0; if (!form.hidden && c.isConnected) form.dispatchEvent(new FocusEvent("focusout")); };
+        document.addEventListener("pointerdown", fuera, true);
+        return;
+      }
+      if ([fa.value, fb.value, fc.value, brPct, brTodas.querySelector("input").checked, brM].join("|") === fotoR) return;
+      fotoR = null;
+      form.requestSubmit();
+    }, 200);
+  });
   const terminar = () => pintarBloques(true);
 
   const cont = c.querySelector(".rondas");
@@ -2165,10 +2791,10 @@ function tarjetaBloque(dia, bloqueId, series) {
         const m = document.createElement("button");
         m.type = "button"; m.className = "marcar";
         m.setAttribute("aria-label", "Marcar como hecho: ronda " + r + ", " + nombreEj(s.ejercicio_id));
-        m.addEventListener("click", () => marcarHecha(s, { ...s, hecha: true, peso: pesoMostrado(s) }));
+        m.addEventListener("click", () => tipoDe(s.ejercicio_id) === "fuerza" && pideDato(s) ? editar(s, li) : marcarHecha(s, { ...s, hecha: true, peso: pesoMostrado(s) }));
         li.querySelector(".n").replaceWith(m);
       } else li.querySelector(".n").replaceWith(botonHecha(s, "✓", "ronda " + r + ", " + nombreEj(s.ejercicio_id)));
-      deslizable(li, !hecha(s) ? () => marcarHecha(s, { ...s, hecha: true, peso: pesoMostrado(s) }) : () => desmarcar(s), null);
+      deslizable(li, !hecha(s) ? (tipoDe(s.ejercicio_id) === "fuerza" && pideDato(s) ? null : () => marcarHecha(s, { ...s, hecha: true, peso: pesoMostrado(s) })) : () => desmarcar(s), null);
       // El nombre del tramo solo si aporta algo: «Series 1000 m · 1000 m» se queda en «1000 m»
       const nomTramo = !distDeNombre(nombreEj(s.ejercicio_id)) ? nombreEj(s.ejercicio_id) + " · " : "";
       li.querySelector(".sv-p").textContent = nomTramo + serieTexto(s);
@@ -2213,7 +2839,7 @@ function tarjetaBloque(dia, bloqueId, series) {
     cont.appendChild(fila);
   });
 
-  [fa, fb].forEach((inp, k) => inp.addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); (k ? fc : fb).focus(); } }));
+  [fa, fb].forEach((inp, k) => inp.addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); (form.classList.contains("br-fuerza") ? (k ? fa : fc) : (k ? fc : fb)).focus(); } }));
   form.addEventListener("submit", e => {
     e.preventDefault();
     if (!editando) return;
@@ -2231,12 +2857,34 @@ function tarjetaBloque(dia, bloqueId, series) {
       if (isNaN(fila.tiempo)) { fb.focus(); return; }
       if (!(fila.reps > 0) && !(fila.tiempo > 0)) { fa.focus(); return; }
     } else {
-      fila.peso = parseFloat((fa.value.trim() || "0").replace(",", "."));
-      if (!(fila.peso >= 0)) { fa.focus(); return; }
-      if (form.dataset.isoT && /^\s*m[aá]x/i.test(fb.value)) { fila.tiempo = 0; fila.reps = 0; fila.max_tiempo = true; }
-      else if (form.dataset.isoT) { fila.tiempo = leerSegs(fb.value); fila.reps = 0; fila.max_tiempo = false; if (!(fila.tiempo > 0)) { fb.focus(); return; } }
-      else if (/^\s*(m[aá]x|amrap|fallo)/i.test(fb.value)) fila.reps = 0;
-      else { fila.reps = parseInt(fb.value, 10); if (!(fila.reps > 0)) { fb.focus(); return; } }
+      const x = parseFloat((fa.value.trim().replace(/%\s*$/, "") || "0").replace(",", "."));
+      if (!(x >= 0)) { fa.focus(); return; }
+      fila.pct = brPct ? x : 0;
+      fila.peso = brPct ? kgDePct(fila.ejercicio_id, x) : x;
+      if (brPct && !fila.peso) { fa.focus(); setEstado("Pon tu 1RM en la ficha del ejercicio para usar %"); return; }
+      if (fila.ciclo_id && !brPct) fila.ciclo_id = "";
+      fila.max_tiempo = false; fila.max_reps = false;
+      if (ladoDe(fila.ejercicio_id)) fila.por_lado = true;
+      const escritoMax = /^\s*(m[aá]x|amrap|fallo)/i.test(fb.value), m = escritoMax && brM === "reps" ? "maxr" : escritoMax && brM === "t" ? "maxt" : brM;
+      const txt = escritoMax ? "" : fb.value;
+      if (m === "t" || m === "maxt") {
+        fila.reps = 0; fila.tiempo = txt.trim() ? leerSegs(txt) : 0;
+        if (m === "t" && !(fila.tiempo > 0)) { fb.focus(); return; }
+        if (isNaN(fila.tiempo)) { fb.focus(); return; }
+        if (m === "maxt") fila.max_tiempo = true;
+      } else {
+        const g = m === "reps" ? leerRango(txt) : null;
+        fila.tiempo = 0; fila.reps = g ? g.min : txt.trim() ? parseInt(txt, 10) : 0;
+        if (g) { fila.rango_min = g.min; fila.rango_max = g.max; fila.hecha = false; }   // escribir una ventana es planificar
+        else if (m !== "reps") { fila.rango_min = 0; fila.rango_max = 0; }
+        if (m === "reps" && !(fila.reps > 0)) { fb.focus(); return; }
+        if (isNaN(fila.reps)) { fb.focus(); return; }
+        if (m === "maxr") fila.max_reps = true;
+      }
+    }
+    if (!brTodas.hidden && brTodas.querySelector("input").checked) {
+      const copia = { peso: fila.peso, pct: fila.pct, reps: fila.reps, tiempo: fila.tiempo, distancia: fila.distancia, max_tiempo: !!fila.max_tiempo, max_reps: !!fila.max_reps, rango_min: n0(fila.rango_min), rango_max: n0(fila.rango_max), por_lado: !!fila.por_lado, descanso: fila.descanso, rec_dist: fila.rec_dist, ciclo_id: fila.ciclo_id || "" };
+      series.filter(x => x.ejercicio_id === fila.ejercicio_id && x.id !== fila.id && !hecha(x)).forEach(x => cambiar("series", { ...x, ...copia }, true));
     }
     cambiar("series", fila);
     terminar(fila);
@@ -2245,6 +2893,13 @@ function tarjetaBloque(dia, bloqueId, series) {
   return c;
 }
 
+// «Reps ▾» de los bloques: cómo se mide la serie (en los isométricos, según su ficha, solo por tiempo)
+const NOMBRE_MEDIDA = { reps: "Reps", t: "⏱ Tiempo", maxr: "Máx. reps", maxt: "Máx. tiempo" };
+function menuMedida(ejId, alElegir) {
+  const iso = medidaDe(ejId) === "tiempo";
+  abrirMenu("¿Cómo se mide la serie?", iso ? "Es isométrico (en su ficha): va por tiempo" : "", (iso ? [["t", "⏱ Tiempo"], ["maxt", "Máx. tiempo (aguantar)"]]
+    : [["reps", "Repeticiones"], ["t", "⏱ Tiempo (isométrico)"], ["maxr", "Máx. repeticiones"], ["maxt", "Máx. tiempo (aguantar)"]]).map(([m, t]) => ({ texto: t, accion: () => alElegir(m) })));
+}
 // Ventana para crear un bloque: tramos (con sus valores y recuperación) y número de rondas
 let diaBloque = null, tramos = [];
 let grupoBloque = "";
@@ -2268,17 +2923,51 @@ function pintarTramos() {
     const fila = document.createElement("div");
     fila.className = "tramo";
     fila.innerHTML = '<div class="tr-cab"><span class="tr-n"></span><button type="button" class="quitar">✕</button></div>' +
-      '<div class="ns-fila"><input class="in-a" autocomplete="off"><span class="por"></span><input class="in-b" autocomplete="off"></div>' +
-      '<input class="in-c" inputmode="decimal" autocomplete="off" placeholder="⏱ recuperación después: 2,00 o 300 m" aria-label="Recuperación después de este tramo (tiempo o metros)">';
+      '<div class="ns-fila"><input class="in-a" autocomplete="off"><span class="por"></span><input class="in-b" autocomplete="off"><button type="button" class="medida-btn tr-medida" hidden>Reps ▾</button><button type="button" class="modo tr-modo" hidden aria-label="Cambiar entre kg y % del 1RM">kg</button></div>' +
+      '<p class="calc tr-calc" hidden></p>' +
+      '<input class="in-c" inputmode="decimal" autocomplete="off" placeholder="⏱ descanso después: 1,30 o 300 m" aria-label="Descanso después de este tramo (tiempo o metros); en el último, es el descanso entre rondas">';
     fila.querySelector(".tr-n").textContent = (k + 1) + ". " + nombreEj(t.ejercicio_id);
     fila.querySelector(".tr-n").appendChild(etiquetaTipo(tipoDe(t.ejercicio_id)));
     const [a, b, cc] = [".in-a", ".in-b", ".in-c"].map(x => fila.querySelector(x));
     const mov = tipoDe(t.ejercicio_id) === "movilidad";
-    a.placeholder = dist ? UD() : mov ? "reps" : "kg"; a.inputMode = mov ? "numeric" : "decimal"; a.setAttribute("aria-label", dist ? "Distancia en " + UD() : mov ? "Repeticiones" : "Peso en kg");
-    b.placeholder = dist ? "tiempo" : mov ? "tiempo 45 s" : "reps o máx"; b.inputMode = dist || mov ? "decimal" : "text"; b.setAttribute("aria-label", dist ? "Tiempo (puedes dejar los metros vacíos)" : mov ? "Tiempo: 45 son segundos" : "Repeticiones");
+    const fza = !dist && !mov, med = fza ? medidaDe(t.ejercicio_id) : "";
+    a.placeholder = dist ? UD() : mov ? "reps" : med !== "peso" ? "kg (opcional)" : "kg"; a.inputMode = "decimal"; a.setAttribute("aria-label", dist ? "Distancia en " + UD() : mov ? "Repeticiones" : "Peso en kg");
+    b.placeholder = dist ? "tiempo" : "tiempo 45 s"; b.inputMode = "decimal"; b.setAttribute("aria-label", dist ? "Tiempo (puedes dejar los metros vacíos)" : "Tiempo: 45 son segundos");
+    const tmed = fila.querySelector(".tr-medida");
+    const pintarM = () => {
+      const tt = t.m === "t" || t.m === "maxt", mx = t.m === "maxr" || t.m === "maxt";
+      tmed.textContent = NOMBRE_MEDIDA[t.m] + " ▾";
+      b.disabled = mx; if (mx) b.value = "";
+      b.placeholder = mx ? "máx" : tt ? "seg" : "reps"; b.inputMode = tt ? "decimal" : "numeric";
+      b.setAttribute("aria-label", mx ? "Al máximo" : tt ? "Tiempo: 45 son segundos" : "Repeticiones");
+      fila.querySelector(".por").textContent = tt ? "·" : "×";
+    };
     fila.querySelector(".por").textContent = dist ? "" : mov ? "o" : "×";
+    if (fza) {
+      fila.classList.add("tr-fuerza");
+      if (!t.m) t.m = med === "tiempo" ? "t" : /^\s*m[aá]x/i.test(String(t.b)) ? "maxr" : "reps";
+      tmed.hidden = false;
+      tmed.addEventListener("click", () => menuMedida(t.ejercicio_id, m => { const antes = t.m === "t" || t.m === "maxt"; t.m = m; if (antes !== (m === "t" || m === "maxt")) { t.b = ""; b.value = ""; } pintarM(); if (!b.disabled) b.focus(); }));
+    }
+    // kg o % del 1RM, como en los ejercicios
+    const tm = fila.querySelector(".tr-modo"), tc = fila.querySelector(".tr-calc");
+    const pintarTc = () => {
+      tm.textContent = t.p ? "%" : "kg"; tm.classList.toggle("activo", !!t.p);
+      if (fza) a.placeholder = t.p ? "% 1RM" : med !== "peso" ? "kg (opcional)" : "kg";
+      const v = parseFloat(String(a.value).replace(",", ".")), ref = rmReferencia(t.ejercicio_id);
+      tc.hidden = !t.p;
+      tc.textContent = !ref ? "Pon tu 1RM en la ficha del ejercicio" : v > 0 ? "= " + num(kgDePct(t.ejercicio_id, v)) + " kg (1RM " + num(ref) + ")" : "1RM de referencia: " + num(ref) + " kg";
+    };
+    tm.hidden = !fza || med !== "peso";
+    tm.addEventListener("click", () => {
+      const v = parseFloat(String(a.value).replace(",", ".")), ref = rmReferencia(t.ejercicio_id);
+      if (!t.p) { t.p = true; a.value = v > 0 && ref ? num(Math.round(v / ref * 100)) : ""; }
+      else { const kg = v > 0 ? kgDePct(t.ejercicio_id, v) : 0; t.p = false; a.value = kg ? num(kg) : ""; }
+      t.a = a.value; pintarTc();
+    });
     a.value = t.a; b.value = t.b; cc.value = t.c;
-    a.addEventListener("input", () => { t.a = a.value; });
+    if (fza) { pintarTc(); pintarM(); t.b = b.value; }
+    a.addEventListener("input", () => { if (fza && /%\s*$/.test(a.value) && !tm.hidden) { a.value = a.value.replace(/\s*%\s*$/, ""); t.p = true; } t.a = a.value; if (fza) pintarTc(); });
     b.addEventListener("input", () => { t.b = b.value; });
     cc.addEventListener("input", () => { t.c = cc.value; });
     const q = fila.querySelector(".quitar");
@@ -2296,6 +2985,15 @@ $("blqAnadir").addEventListener("click", () => abrirSelector(diaBloque, id => {
     c: "" });   // la recuperación no se arrastra de otros días
   pintarTramos();
 }));
+$("blqVacio").addEventListener("click", () => {
+  const rondas = parseInt($("blqRondas").value, 10);
+  if (!(rondas >= 1 && rondas <= 50)) { $("blqAviso").textContent = "Las rondas deben estar entre 1 y 50."; return; }
+  bloquesVacios[diaBloque.id + "|" + nuevoId()] = { g: grupoBloque, p: parteBloque, r: rondas };
+  guardarVacios();
+  $("dlgBloque").close();
+  pintarDia(diaBloque);
+  setEstado("Bloque vacío ×" + rondas + " creado: arrastra ejercicios encima con ≡");
+});
 $("blqCrear").addEventListener("click", () => {
   const rondas = parseInt($("blqRondas").value, 10), aviso = $("blqAviso");
   if (!tramos.length) { aviso.textContent = "Añade al menos un tramo."; return; }
@@ -2315,10 +3013,22 @@ $("blqCrear").addEventListener("click", () => {
       v.tiempo = leerSegs(t.b);
       if (isNaN(v.tiempo) || (!(v.reps > 0) && !(v.tiempo > 0))) { aviso.textContent = "Pon las repeticiones o el tiempo del tramo " + (k + 1) + "."; return; }
     } else {
-      v.peso = parseFloat((String(t.a).trim() || "0").replace(",", "."));
-      v.reps = /^\s*(m[aá]x|amrap|fallo)/i.test(t.b) ? 0 : parseInt(t.b, 10);
+      const conPct = t.p || /%\s*$/.test(String(t.a));
+      v.peso = parseFloat((String(t.a).trim().replace(/\s*%\s*$/, "") || "0").replace(",", "."));
+      if (conPct && v.peso > 0) { v.pct = v.peso; v.peso = kgDePct(t.ejercicio_id, v.pct); if (!v.peso) { aviso.textContent = "Para usar % en el tramo " + (k + 1) + ", pon su 1RM en la ficha del ejercicio."; return; } }
+      if (ladoDe(t.ejercicio_id)) v.por_lado = true;
       if (!(v.peso >= 0)) { aviso.textContent = "Revisa el peso del tramo " + (k + 1) + "."; return; }
-      if (!(v.reps > 0) && !/^\s*(m[aá]x|amrap|fallo)/i.test(t.b)) { aviso.textContent = "Pon las repeticiones del tramo " + (k + 1) + " (o «máx»)."; return; }
+      const esMx = t.m === "maxr" || t.m === "maxt" || /^\s*(m[aá]x|amrap|fallo)/i.test(t.b);
+      if (t.m === "t" || t.m === "maxt" || !t.m && medidaDe(t.ejercicio_id) === "tiempo") {
+        if (esMx) v.max_tiempo = true;
+        else { v.tiempo = leerSegs(t.b); if (!(v.tiempo > 0)) { aviso.textContent = "Pon los segundos del tramo " + (k + 1) + " (o «máx»)."; return; } }
+      } else {
+        const g = esMx ? null : leerRango(t.b);
+        v.reps = esMx ? 0 : g ? g.min : parseInt(t.b, 10);
+        if (g) { v.rango_min = g.min; v.rango_max = g.max; }
+        if (esMx) v.max_reps = true;
+        if (!(v.reps > 0) && !esMx) { aviso.textContent = "Pon las repeticiones del tramo " + (k + 1) + " (o «máx»)."; return; }
+      }
     }
     lista.push({ ejercicio_id: t.ejercicio_id, series: Array.from({ length: rondas }, () => ({ ...v })) });
   }
@@ -2357,7 +3067,7 @@ function abrirSelector(dia, alElegir, grupoDestino, parteDestino) {
   grupoSel = grupoDestino || "";
   parteSel = parteDestino || "";
   // Si el día ya tiene ejercicios de un solo tipo, el buscador se abre en ese tipo
-  const tiposDia = dia ? [...new Set(seriesDelDia(dia.id).map(s => s.ejercicio_id).concat(enEspera[dia.id] || []).map(tipoDe))] : [];
+  const tiposDia = dia ? [...new Set(seriesDelDia(dia.id).map(s => s.ejercicio_id).concat((enEspera[dia.id] || []).map(ejDeClave)).map(tipoDe))] : [];
   if (tiposDia.length === 1) tipoSel = tiposDia[0];
   pintarFiltroTipo();
   $("buscarEj").value = "";
@@ -2369,8 +3079,12 @@ function elegir(id) {
   const dia = diaSelector;
   $("selector").close();
   if (alElegirSel) { const f = alElegirSel; alElegirSel = null; f(id); return; }
-  const yaTiene = seriesVivas().some(s => s.fecha === dia.id && s.ejercicio_id === id && (s.grupo || "") === grupoSel);
-  if (!yaTiene) {
+  // El mismo ejercicio otra vez en la misma parte: otra tarjeta («Press banca (2)»), con sus propias series
+  const enParte = seriesVivas().filter(s => s.fecha === dia.id && s.ejercicio_id === id && !s.bloque_id && (s.grupo || "") === grupoSel && (s.seccion || "") === parteSel).map(s => n0(s.copia) > 1 ? n0(s.copia) : 1)
+    .concat((enEspera[dia.id] || []).filter(k => ejDeClave(k) === id).map(k => copiaDeClave(k) || 1));   // los que esperan (sin series) usan una clave por día
+  const idK = enParte.length ? id + "#" + (Math.max(...enParte) + 1) : id;
+  {
+    id = idK;
     enEspera[dia.id] = (enEspera[dia.id] || []).filter(x => x !== id).concat(id); guardarEspera();
     if (grupoSel) esperaGrupo[dia.id + "|" + id] = grupoSel; else delete esperaGrupo[dia.id + "|" + id];
     if (parteSel) esperaParte[dia.id + "|" + id] = parteSel; else delete esperaParte[dia.id + "|" + id];
@@ -2383,7 +3097,8 @@ function elegir(id) {
 function pintarSelector() {
   const q = $("buscarEj").value.trim(), lista = $("listaEj");
   lista.textContent = "";
-  const ejs = ejerciciosOrdenados().filter(e => compacto(e.nombre).includes(compacto(q)) && (!tipoSel || tipoDe(e.id) === tipoSel));
+  const uso = usoEjercicios();
+  const ejs = uso.lista.filter(e => compacto(e.nombre).includes(compacto(q)) && (!tipoSel || tipoDe(e.id) === tipoSel));
   // «300», «300m» o «series 300 m» propone directamente «Series 300 m» de carrera
   const md = q.match(/^(?:series\s*(?:de\s*)?)?(\d+(?:[.,]\d+)?)\s*(m|km|metros)?$/i);
   const sugerencia = md ? "Series " + md[1] + " " + (md[2] && md[2].toLowerCase() === "km" ? "km" : "m") : "";
@@ -2422,6 +3137,8 @@ function pintarSelector() {
     b.className = "opcion";
     b.textContent = e.nombre;
     b.appendChild(etiquetaTipo(tipoDe(e.id)));
+    const veces = uso.n(e.id);
+    if (veces) { const c = document.createElement("span"); c.className = "op-uso"; c.textContent = veces + (veces === 1 ? " vez" : " veces"); b.appendChild(c); }
     b.addEventListener("click", () => elegir(e.id));
     lista.appendChild(b);
   });
@@ -2500,11 +3217,14 @@ let catAbiertas = leer("catalogo-abiertas-v1") || {};
 // en varias semanas. «siguiente» es la posición (contando solo entrenamientos) del que toca después, para rotar A, B, C…
 let listasAbiertas = leer("listas-abiertas-v1") || {};
 const esSep = x => !!(x && typeof x === "object" && x.sep);
+// Mesociclo (o fase) de una lista: agrupa todo lo que va debajo (semanas o bloques y entrenamientos) hasta el siguiente
+const esGrupoL = x => !!(x && typeof x === "object" && x.grupo);
 const entrenosDeLista = l => (l.items || []).filter(x => typeof x === "string").map(id => db.plantillas[id]).filter(p => p && !p.borrado);
 // Entrenamientos con su posición (k) y la semana/bloque a la que pertenecen
 function recorrerLista(l) {
   const out = []; let sep = null, k = 0;
   (l.items || []).forEach((x, i) => {
+    if (esGrupoL(x)) { sep = null; return; }
     if (esSep(x)) { sep = x; return; }
     const p = db.plantillas[x];
     if (p && !p.borrado) out.push({ p, k: k++, i, sep });
@@ -2574,9 +3294,10 @@ function pintarListas() {
     const nSem = (l.items || []).filter(esSep).length;
     const sec = document.createElement("section");
     sec.className = "cat-sec lista-sec" + (abierta ? "" : " cerrada");
-    sec.innerHTML = '<div class="lista-cab"><button type="button" class="sec-toggle"><span class="flecha-dia" aria-hidden="true">▸</span><h3></h3><span class="sec-n"></span></button><button type="button" class="menu-btn">⋯</button></div><div class="sec-cuerpo"><div class="sec-cuerpo-in"><div class="lista-ents"></div><div class="add-fila"><button type="button" class="add-ej">+ Entrenamiento</button><button type="button" class="add-ej">+ Bloque (semana, fase…)</button></div></div></div>';
+    sec.innerHTML = '<div class="lista-cab"><button type="button" class="sec-toggle"><span class="flecha-dia" aria-hidden="true">▸</span><h3></h3><span class="sec-n"></span></button><button type="button" class="menu-btn">⋯</button></div><div class="sec-cuerpo"><div class="sec-cuerpo-in"><div class="lista-ents"></div><div class="add-fila"><button type="button" class="add-ej">+ Entrenamiento</button><button type="button" class="add-ej">+ Bloque (semana, fase…)</button><button type="button" class="add-ej add-meso">+ Mesociclo</button></div></div></div>';
     sec.querySelector("h3").textContent = l.nombre;
-    sec.querySelector(".sec-n").textContent = "· " + rec.length + (nSem ? " · " + nSem + (nSem === 1 ? " bloque" : " bloques") : "");
+    const nGr = (l.items || []).filter(esGrupoL).length;
+    sec.querySelector(".sec-n").textContent = "· " + rec.length + (nGr ? " · " + nGr + (nGr === 1 ? " mesociclo" : " mesociclos") : "") + (nSem ? " · " + nSem + (nSem === 1 ? " bloque" : " bloques") : "");
     const boton = sec.querySelector(".sec-toggle"), cuerpo = sec.querySelector(".sec-cuerpo");
     boton.setAttribute("aria-expanded", String(abierta)); cuerpo.inert = !abierta;
     boton.addEventListener("click", () => {
@@ -2589,14 +3310,27 @@ function pintarListas() {
       const n = await pedirNombre("Nombre del bloque", "Semana " + (nSem + 1), "Por ejemplo «Semana 1», «Semana 4 · descarga», «Bloque de fuerza» o «Pretemporada». Dentro pondrás sus entrenamientos.");
       if (n) insertarEnLista(l, { sep: nuevoId(), titulo: n }, tras);
     };
+    // Mesociclo: sin ninguno aún, agrupa todo lo que ya hay; si ya hay, empieza uno nuevo al final (o donde se pida)
+    const nuevoGrupo = async tras => {
+      const its = db.listas[l.id].items || [], nG = its.filter(esGrupoL).length;
+      const n = await pedirNombre("Nombre del mesociclo", "Mesociclo " + (nG + 1), "Agrupa semanas o bloques: «Mesociclo 1», «Fase de base», «Pretemporada»… Lo que quede debajo va dentro, hasta el siguiente mesociclo.");
+      if (!n) return;
+      const pos = tras !== undefined ? tras : (nG ? its.length - 1 : -1);
+      const fresca = db.listas[l.id], its2 = (fresca.items || []).slice();
+      its2.splice(pos + 1, 0, { grupo: nuevoId(), titulo: n });
+      listasAbiertas[l.id] = true; escribir("listas-abiertas-v1", listasAbiertas);
+      guardarLista(fresca, { items: its2 });
+    };
     const [bEnt, bSem] = sec.querySelectorAll(":scope > .sec-cuerpo .add-fila > .add-ej");
     bEnt.addEventListener("click", () => anadir());
     bSem.addEventListener("click", () => nuevaSemana());
+    sec.querySelector(":scope > .sec-cuerpo .add-meso").addEventListener("click", () => nuevoGrupo());
     const menu = sec.querySelector(".lista-cab .menu-btn");
     menu.setAttribute("aria-label", "Opciones de la lista " + l.nombre);
     menu.addEventListener("click", () => abrirMenu(l.nombre, rec.length + (rec.length === 1 ? " entrenamiento" : " entrenamientos"), [
       { texto: "+ Añadir entrenamiento…", accion: () => anadir() },
       { texto: "+ Añadir bloque (semana, fase…)…", accion: () => nuevaSemana() },
+      { texto: (l.items || []).some(esGrupoL) ? "+ Añadir mesociclo…" : "Agrupar en un mesociclo…", accion: () => nuevoGrupo() },
       rec.length && { texto: "Poner el siguiente («" + rec[sig].p.nombre + "») en un día…", accion: () => ponerEntrenoDeLista(l, rec[sig].p, rec[sig].k) },
       { texto: "Cambiar nombre…", accion: async () => { const n = await pedirNombre("Nombre de la lista", l.nombre); if (n) guardarLista(db.listas[l.id], { nombre: n }); } },
       { texto: "Eliminar lista", peligro: true, confirmar: "Los entrenamientos siguen en tus plantillas", accion: () => {
@@ -2609,7 +3343,7 @@ function pintarListas() {
     if (!(l.items || []).length) caja.innerHTML = '<p class="vacio-lista">Lista vacía. Añade entrenamientos con «+ Entrenamiento» (o guarda un día desde su ⋯) y, si quieres, sepáralos en semanas o bloques con «+ Semana o bloque».</p>';
     // Todo (entrenamientos y separadores) se ordena junto con el asa ≡: lo que quede debajo de una semana pasa a ella
     // Entrenamientos: se ordenan junto a las cabeceras de bloque (así se pueden meter en otro bloque); solo los visibles
-    const hermanos = () => [...caja.querySelectorAll(".lista-ent, .lista-sep")].filter(x => x.offsetParent);
+    const hermanos = () => [...caja.querySelectorAll(".lista-ent, .lista-sep, .lista-gcab")].filter(x => x.offsetParent);
     const soltar = n => {
       const fresca = db.listas[l.id], items = fresca.items || [], actual = recorrerLista(fresca)[sig];
       // Lo que no se ve (bloques plegados o entrenos borrados) sigue pegado a su bloque; el resto, al final
@@ -2617,7 +3351,9 @@ function pintarListas() {
       n.forEach(y => {
         const i0 = +y.dataset.i;
         nuevo.push(items[i0]);
-        if (esSep(items[i0])) for (let j = i0 + 1; j < items.length && !esSep(items[j]); j++) if (!enN.has(j)) { nuevo.push(items[j]); usados.add(j); }
+        // Lo plegado va con su cabecera: un bloque, hasta el siguiente bloque o mesociclo; un mesociclo, hasta el siguiente mesociclo
+        if (esSep(items[i0])) for (let j = i0 + 1; j < items.length && !esSep(items[j]) && !esGrupoL(items[j]); j++) { if (!enN.has(j)) { nuevo.push(items[j]); usados.add(j); } }
+        if (esGrupoL(items[i0])) for (let j = i0 + 1; j < items.length && !esGrupoL(items[j]); j++) { if (!enN.has(j)) { nuevo.push(items[j]); usados.add(j); } }
       });
       const todo = nuevo.concat(items.filter((x, i) => !usados.has(i)));
       // El «siguiente» sigue siendo el mismo entrenamiento tras moverlo
@@ -2625,19 +3361,78 @@ function pintarListas() {
       const nuevoSig = pos < 0 ? 0 : nuevo.slice(0, pos).filter(y => typeof y === "string" && db.plantillas[y] && !db.plantillas[y].borrado).length;
       guardarLista(fresca, { items: todo, siguiente: Math.max(0, nuevoSig) });
     };
-    const finSeccion = i => { const its = l.items || []; let j = i; while (j + 1 < its.length && !esSep(its[j + 1])) j++; return j; };
-    // Bloques enteros: se mueven con su asa ≡ (todo lo que llevan dentro va con ellos)
-    const soltarBloques = n => {
-      const fresca = db.listas[l.id], its = fresca.items || [], primero = its.findIndex(esSep);
-      const antes = primero < 0 ? its.slice() : its.slice(0, primero);
-      const segs = n.map(b => { const i0 = +b.dataset.i; return its.slice(i0, finSeccion(i0) + 1); });
-      const todo = antes.concat(...segs);
+    const finSeccion = i => { const its = l.items || []; let j = i; while (j + 1 < its.length && !esSep(its[j + 1]) && !esGrupoL(its[j + 1])) j++; return j; };
+    const finGrupo = i => { const its = l.items || []; let j = i; while (j + 1 < its.length && !esGrupoL(its[j + 1])) j++; return j; };
+    // Bloques (o mesociclos) enteros: se mueven con su asa ≡ y todo lo que llevan dentro va con ellos. Cada uno ocupa
+    // el sitio de otro: así un bloque puede pasar a otro mesociclo y los mesociclos no se deshacen
+    const reordenarTramos = (n, esTramo, fin) => {
+      const fresca = db.listas[l.id], its = fresca.items || [];
+      const segs = n.map(b => { const i0 = +b.dataset.i; return its.slice(i0, fin(i0) + 1); });
+      const todo = []; let k2 = 0;
+      for (let j = 0; j < its.length;) { if (esTramo(its[j])) { todo.push(...(segs[k2++] || [])); j = fin(j) + 1; } else { todo.push(its[j]); j++; } }
+      return todo;
+    };
+    const soltarBloques = (n, grupos) => {
+      const fresca = db.listas[l.id];
+      const todo = grupos ? reordenarTramos(n, esGrupoL, finGrupo) : reordenarTramos(n, esSep, finSeccion);
       const actual = recorrerLista(fresca)[sig], idAct = actual ? actual.p.id : null;
       guardarLista(fresca, { items: todo, siguiente: 0 });
       if (idAct) { const nuevoK = recorrerLista(db.listas[l.id]).find(x => x.p.id === idAct); if (nuevoK) guardarLista(db.listas[l.id], { siguiente: nuevoK.k }); }
     };
-    let k = 0, destino = caja;
+    let k = 0, destino = caja, cajaG = caja;
     (l.items || []).forEach((x, i) => {
+      if (esGrupoL(x)) {
+        const g = document.createElement("div");
+        g.className = "lista-grupo";
+        g.dataset.i = i;
+        const claveG = "g|" + x.grupo, plegado = listasAbiertas[claveG] === false;
+        g.classList.toggle("lg-plegado", plegado);
+        const its = l.items || [], fin = finGrupo(i);
+        const nB = its.slice(i + 1, fin + 1).filter(esSep).length, nE = its.slice(i + 1, fin + 1).filter(y => typeof y === "string" && db.plantillas[y] && !db.plantillas[y].borrado).length;
+        const cab = document.createElement("div");
+        cab.className = "lista-gcab";
+        cab.dataset.i = i;
+        cab.innerHTML = '<button type="button" class="lg-toggle"><span class="flecha-dia" aria-hidden="true">▸</span><span class="lg-tit"></span><span class="ls-n"></span></button><button type="button" class="menu-btn">⋯</button>';
+        cab.querySelector(".lg-tit").textContent = x.titulo;
+        cab.querySelector(".ls-n").textContent = (nB ? nB + (nB === 1 ? " semana/bloque · " : " semanas/bloques · ") : "") + nE + (nE === 1 ? " entrenamiento" : " entrenamientos");
+        const tg = cab.querySelector(".lg-toggle");
+        tg.setAttribute("aria-expanded", String(!plegado));
+        tg.addEventListener("click", () => {
+          const pl = !g.classList.contains("lg-plegado");
+          g.classList.toggle("lg-plegado", pl); tg.setAttribute("aria-expanded", String(!pl));
+          listasAbiertas[claveG] = !pl; escribir("listas-abiertas-v1", listasAbiertas);
+        });
+        cab.querySelector(".menu-btn").setAttribute("aria-label", "Opciones de " + x.titulo);
+        cab.querySelector(".menu-btn").addEventListener("click", () => abrirMenu(x.titulo, cab.querySelector(".ls-n").textContent, [
+          { texto: "+ Semana o bloque en este mesociclo…", accion: () => nuevaSemana(finGrupo(i)) },
+          { texto: "+ Entrenamiento en este mesociclo…", accion: () => anadir(finGrupo(i)) },
+          { texto: "Cambiar nombre…", accion: async () => {
+            const n = await pedirNombre("Nombre del mesociclo", x.titulo);
+            if (!n) return;
+            guardarLista(db.listas[l.id], { items: (db.listas[l.id].items || []).map(y => esGrupoL(y) && y.grupo === x.grupo ? { ...y, titulo: n } : y) });
+          } },
+          { texto: "Duplicar (copia con sus semanas y entrenamientos)", accion: async () => {
+            const n = await pedirNombre("Nombre de la copia", /\d+/.test(x.titulo) ? x.titulo.replace(/\d+/, d => String(+d + 1)) : x.titulo + " (copia)");
+            if (!n) return;
+            const its2 = (db.listas[l.id].items || []).slice(), f2 = finGrupo(i);
+            const copia = its2.slice(i + 1, f2 + 1).map(y => esSep(y) ? { ...y, sep: nuevoId() } : y);
+            its2.splice(f2 + 1, 0, { grupo: nuevoId(), titulo: n }, ...copia);
+            guardarLista(db.listas[l.id], { items: its2 });
+          } },
+          { texto: "Quitar el mesociclo (sus semanas y entrenamientos se quedan)", accion: () => {
+            const fresca = db.listas[l.id], antes = [["listas", { ...fresca }]];
+            guardarLista(fresca, { items: (fresca.items || []).filter(y => !(esGrupoL(y) && y.grupo === x.grupo)) });
+            avisoDeshacer("Agrupación «" + x.titulo + "» quitada", antes);
+          } }
+        ]));
+        cab.appendChild(asaArrastre(g, () => [...caja.querySelectorAll(":scope > .lista-grupo")], n => soltarBloques(n, true), x.titulo));
+        const cuerpoG = document.createElement("div");
+        cuerpoG.className = "lg-cuerpo";
+        g.append(cab, cuerpoG);
+        caja.appendChild(g);
+        destino = cajaG = cuerpoG;
+        return;
+      }
       if (esSep(x)) {
         const fs = document.createElement("div");
         fs.className = "lista-sep";
@@ -2648,6 +3443,7 @@ function pintarListas() {
         fs.querySelector(".ls-n").textContent = ents + (ents === 1 ? " entrenamiento" : " entrenamientos");
         fs.querySelector(".menu-btn").addEventListener("click", () => abrirMenu(x.titulo, "", [
           { texto: "+ Añadir entrenamiento aquí…", accion: () => anadir(finSeccion(i)) },
+          { texto: "Empezar un mesociclo aquí (agrupa desde esta semana)…", accion: () => nuevoGrupo(i - 1) },
           { texto: "Duplicar (copia con los mismos entrenamientos)", accion: async () => {
             const n = await pedirNombre("Nombre de la copia", x.titulo.replace(/\d+/, d => String(+d + 1)) === x.titulo ? x.titulo + " (copia)" : x.titulo.replace(/\d+/, d => String(+d + 1)));
             if (!n) return;
@@ -2684,7 +3480,7 @@ function pintarListas() {
           caj.classList.toggle("lb-plegado", pl); tg.setAttribute("aria-expanded", String(!pl));
           listasAbiertas[claveB] = !pl; escribir("listas-abiertas-v1", listasAbiertas);
         });
-        fs.appendChild(asaArrastre(caj, () => [...caja.querySelectorAll(":scope > .lista-bloque")], soltarBloques, x.titulo));
+        fs.appendChild(asaArrastre(caj, () => [...caja.querySelectorAll(".lista-bloque")].filter(y => y.offsetParent), n => soltarBloques(n, false), x.titulo));
         const cuerpoB = document.createElement("div");
         cuerpoB.className = "lb-cuerpo";
         const add = document.createElement("div");
@@ -2692,7 +3488,7 @@ function pintarListas() {
         add.innerHTML = '<button type="button" class="add-ej">+ Entrenamiento en este bloque</button>';
         add.firstChild.addEventListener("click", () => anadir(finSeccion(i)));
         caj.append(fs, cuerpoB, add);
-        caja.appendChild(caj);
+        cajaG.appendChild(caj);
         destino = cuerpoB;
         return;
       }
@@ -2763,7 +3559,19 @@ $("nuevoEj").addEventListener("click", () => {
 
 // ---------- Ficha del ejercicio: tipo, vídeo, récords, progreso e historial ----------
 let detalleId = null;
+// Tramo del vídeo: el inicio que trae el enlace de YouTube (?t=90, ?t=1m30s, &start=) y el final (&end=), o un tramo
+// escrito detrás del enlace con un espacio: «https://youtu.be/xxxx 1:30-2:15» (desde 1:30 hasta 2:15)
+function tramoYoutube(u) {
+  const seg = t => { t = String(t || "").trim(); if (!t) return 0; if (/^\d+$/.test(t)) return +t; const m = t.match(/^(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?$/); if (m && (m[1] || m[2] || m[3])) return (+m[1] || 0) * 3600 + (+m[2] || 0) * 60 + (+m[3] || 0); const p = t.split(":").map(Number); return p.some(isNaN) ? 0 : p.reduce((a, x) => a * 60 + x, 0); };
+  let inicio = 0, fin = 0;
+  const partes = String(u || "").trim().split(/\s+/), extra = partes.slice(1).join(" ");
+  try { const x = new URL(partes[0]); inicio = seg(x.searchParams.get("t") || x.searchParams.get("start")); fin = seg(x.searchParams.get("end")); } catch {}
+  const m = extra.match(/^(\d[\d:]*)\s*(?:-|a|hasta)\s*(\d[\d:]*)$/) || extra.match(/^(\d[\d:]*)$/);
+  if (m) { inicio = seg(m[1]); if (m[2]) fin = seg(m[2]); }
+  return { inicio, fin: fin > inicio ? fin : 0 };
+}
 function idYoutube(u) {
+  u = String(u || "").trim().split(/\s+/)[0];
   try {
     const x = new URL(u);
     if (/(^|\.)youtu\.be$/.test(x.hostname)) return x.pathname.slice(1).split("/")[0] || null;
@@ -2793,7 +3601,7 @@ function ponerVideo(cont, e) {
     b.addEventListener("click", ev => { ev.stopPropagation(); verVideo(e); });
     cont.appendChild(b);
     const a = document.createElement("a");
-    a.href = "https://www.youtube.com/watch?v=" + encodeURIComponent(yt); a.target = "_blank"; a.rel = "noopener"; a.className = "enlace";
+    a.href = "https://www.youtube.com/watch?v=" + encodeURIComponent(yt) + (tramoYoutube(e.video_url).inicio ? "&t=" + tramoYoutube(e.video_url).inicio + "s" : ""); a.target = "_blank"; a.rel = "noopener"; a.className = "enlace";
     a.textContent = "Abrir en YouTube";
     cont.appendChild(a);
   } else if (/^https?:\/\//i.test(e.video_url)) {
@@ -2808,7 +3616,7 @@ const esShort = u => /\/shorts\//i.test(u || "");
 // algunos vídeos); los Shorts se ven en vertical y completos
 function verVideo(e) {
   const yt = idYoutube(e.video_url);
-  if (!yt) { if (/^https?:\/\//i.test(e.video_url || "")) window.open(e.video_url, "_blank", "noopener"); return; }
+  if (!yt) { const u0 = String(e.video_url || "").trim().split(/\s+/)[0]; if (/^https?:\/\//i.test(u0)) window.open(u0, "_blank", "noopener"); return; }
   let d = document.getElementById("visorVideo");
   if (!d) {
     d = document.createElement("dialog");
@@ -2822,9 +3630,10 @@ function verVideo(e) {
   }
   d.classList.toggle("vertical", esShort(e.video_url));
   d.querySelector(".vv-tit").textContent = e.nombre || "Vídeo";
-  d.querySelector(".vv-yt").href = "https://www.youtube.com/watch?v=" + encodeURIComponent(yt);
+  d.querySelector(".vv-yt").href = "https://www.youtube.com/watch?v=" + encodeURIComponent(yt) + (tramoYoutube(e.video_url).inicio ? "&t=" + tramoYoutube(e.video_url).inicio + "s" : "");
   const f = document.createElement("iframe");
-  f.src = "https://www.youtube-nocookie.com/embed/" + encodeURIComponent(yt) + "?playsinline=1&rel=0&autoplay=1";
+  const tr = tramoYoutube(e.video_url);
+  f.src = "https://www.youtube-nocookie.com/embed/" + encodeURIComponent(yt) + "?playsinline=1&rel=0&autoplay=1" + (tr.inicio ? "&start=" + tr.inicio : "") + (tr.fin ? "&end=" + tr.fin : "");
   f.title = "Vídeo: " + (e.nombre || "");
   f.allow = "accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; fullscreen";
   f.allowFullscreen = true;
@@ -2868,7 +3677,16 @@ function refrescarDetalle() {
   if (!e) { if ($("detalle").open) $("detalle").close(); return; }
   const st = estadisticas(e.id), tipo = st.tipo;
   $("detTipo").querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.tipo === tipo)));
-  const fuerza = tipo === "fuerza";
+  const medida = tipo === "fuerza" ? medidaDe(e.id) : "";
+  $("detMedidaSec").hidden = tipo !== "fuerza" && tipo !== "movilidad";
+  $("detMedida").hidden = tipo !== "fuerza"; $("detMedidaInfo").hidden = tipo !== "fuerza";
+  $("detLado").checked = ladoDe(e.id);
+  if (tipo === "fuerza") {
+    $("detMedida").querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", String(x.dataset.m === medida)));
+    const puesta = MEDIDAS[(db.personales[e.id] || {}).medida];
+    $("detMedidaInfo").textContent = puesta ? "Elegido por ti." : "Automático (por el nombre y lo que apuntas): " + MEDIDAS[medida].toLowerCase() + ". Toca otra opción si no encaja.";
+  }
+  const fuerza = tipo === "fuerza" && medida === "peso";
   $("detRmSec").hidden = !fuerza;
   $("detBilboSec").hidden = !fuerza;
   if (fuerza) {
@@ -2907,6 +3725,16 @@ function refrescarDetalle() {
     $("detGraficaTit").textContent = "Progreso · minutos por sesión";
     puntos = st.sesiones.slice(-12).map(s => ({ f: s.fecha, v: Math.round(s.series.reduce((m, x) => m + segs(x), 0) / 6) / 10 }));
     etiqueta = v => num(v) + " min";
+  } else if (medida === "reps" || medida === "tiempo") {
+    // Peso corporal: el récord son las repeticiones (o el tiempo) máximas de una serie
+    const campo = medida === "reps" ? "reps" : "tiempo", fmtV = v => medida === "reps" ? v + " reps" : fmtSegs(v);
+    const val = st.lista.filter(x => n0(x[campo]) > 0 && !x.calentamiento);
+    const mejor = val.reduce((m, x) => !m || n0(x[campo]) > n0(m[campo]) ? x : m, null);
+    if (mejor) rec.appendChild(recuadro(medida === "reps" ? "Máximo de repeticiones" : "Tiempo máximo", fmtV(n0(mejor[campo])), (n0(mejor.peso) > 0 ? "con " + num(mejor.peso) + " kg · " : "") + fechaCorta(mejor.fecha), true));
+    rec.appendChild(recuadro("Sesiones", String(st.sesiones.length), st.lista.length + " series"));
+    $("detGraficaTit").textContent = "Progreso · " + (medida === "reps" ? "repeticiones máximas" : "tiempo máximo") + " por sesión";
+    puntos = st.sesiones.slice(-12).map(x => ({ f: x.fecha, v: Math.max.apply(null, x.series.map(y => n0(y[campo])).concat(0)) }));
+    etiqueta = v => medida === "reps" ? num(v) + " reps" : fmtSegs(Math.round(v));
   } else if (st.mejor) {
     rec.appendChild(recuadro("Peso máximo", num(st.mejor.peso) + " kg", "× " + n0(st.mejor.reps) + " · " + fechaCorta(st.mejor.fecha), true));
     rec.appendChild(recuadro("1RM estimado", num(Math.round(rm(st.mejorRm))) + " kg", serieTexto(st.mejorRm) + " · " + fechaCorta(st.mejorRm.fecha)));
@@ -2922,7 +3750,7 @@ function refrescarDetalle() {
     etiqueta = v => num(v) + " reps";
   }
   $("detGrafica").innerHTML = st.lista.length ? grafica(puntos, etiqueta) : "";
-  const hist = $("detHistorial"), prs = prsDe(st.lista, tipo);
+  const hist = $("detHistorial"), prs = prsDe(st.lista, tipo, tipo === "fuerza" ? medidaDe(e.id) : "");
   hist.textContent = "";
   st.sesiones.slice().reverse().forEach(s => {
     const li = document.createElement("li");
@@ -3045,9 +3873,26 @@ function tablaBilbo(ses) {
   caja.appendChild(t);
   return caja;
 }
+$("detLado").addEventListener("change", () => {
+  if (!detalleId) return;
+  const p = db.personales[detalleId] || { ejercicio_id: detalleId, rm: 0 };
+  cambiar("personales", { ...p, ejercicio_id: detalleId, rm: n0(p.rm), lado: $("detLado").checked });
+  // Las series pendientes de este ejercicio pasan a «por lado» (o dejan de serlo); las hechas no se tocan
+  Object.values(db.series).filter(x => x.ejercicio_id === detalleId && !x.borrado && !hecha(x)).forEach(x => cambiar("series", { ...x, por_lado: $("detLado").checked }, true));
+  persistir(); pintarBloques(true);
+});
+$("detMedida").addEventListener("click", ev => {
+  const x = ev.target.closest("button[data-m]");
+  if (!x || !detalleId) return;
+  const p = db.personales[detalleId] || { ejercicio_id: detalleId, rm: 0 };
+  // Tocar la que ya sale automática la deja fija; así no cambia aunque cambien las series
+  cambiar("personales", { ...p, ejercicio_id: detalleId, rm: n0(p.rm), medida: x.dataset.m });
+  indiceSeries().prs[detalleId] = null;
+  refrescarDetalle(); pintarBloques(true);
+});
 $("detRm").addEventListener("change", () => {
   const v = parseFloat(($("detRm").value || "0").replace(",", "."));
-  cambiar("personales", { ejercicio_id: detalleId, rm: v > 0 ? v : 0 });
+  cambiar("personales", { ...(db.personales[detalleId] || {}), ejercicio_id: detalleId, rm: v > 0 ? v : 0 });
   refrescarDetalle();
 });
 
@@ -3094,7 +3939,7 @@ $("detNombre").addEventListener("change", () => {
   pintarVideo(db.ejercicios[detalleId]);
 });
 $("detVideo").addEventListener("change", () => {
-  let u = $("detVideo").value.trim();
+  let u = $("detVideo").value.trim().replace(/\s+/g, " ");
   if (u && !/^https?:\/\//i.test(u)) u = "https://" + u;
   $("detVideo").value = u;
   editarEjercicio({ video_url: u });
@@ -3115,7 +3960,14 @@ $("detalle").addEventListener("close", () => {
 
 // ---------- Rendimiento: marcas, forma (VDOT de Daniels), predicciones y ritmos objetivo ----------
 // Son estimaciones orientativas calculadas con las series hechas.
-const DIST_MARCAS = [200, 400, 800, 1000, 1500, 2000, 3000, 5000, 10000, 21097, 42195];
+const DIST_MARCAS = [100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 1500, 2000, 3000, 5000, 10000, 21097, 42195];
+// Marcas con décimas cuando las hay (100 m en 13,2 s; o una marca sacada de una serie más larga): sin redondear
+const fmtMarca = seg => {
+  const t = n0(seg);
+  if (t >= 3600 || Math.abs(t - Math.round(t)) < 0.05) return fmtTiempo(t);
+  const d = Math.round(t * 10) / 10, m = Math.floor(d / 60), x = d - m * 60;
+  return m + ":" + (x < 10 ? "0" : "") + x.toFixed(1).replace(".", ",");
+};
 const DIST_NADO = [50, 100, 200, 400, 800, 1500];
 const nombreDist = d => ({ 1000: "1 km", 2000: "2 km", 21097: "Media maratón", 42195: "Maratón" })[d] || fmtDist(d);
 const vo2 = v => -4.6 + 0.182258 * v + 0.000104 * v * v;                                   // v en m/min
@@ -3248,8 +4100,10 @@ function vdotSesion(ses) {
 }
 // ---------- Mis carreras (competiciones): marcas oficiales que pesan más en la forma ----------
 const tiempoCarrera = c => n0(c.chip) || n0(c.tiempo);   // el de chip es el que corriste tú; si no, el oficial
-const carrerasHechas = () => vivos("carreras").filter(c => c.fecha && c.fecha <= iso(new Date()) && tiempoCarrera(c) > 0 && n0(c.distancia) > 0);
-const carrerasProximas = () => vivos("carreras").filter(c => c.fecha && c.fecha > iso(new Date())).sort((a, b) => a.fecha.localeCompare(b.fecha));
+const esMarcaManual = c => c.categoria === "__marca";
+const marcasManuales = () => vivos("carreras").filter(c => esMarcaManual(c) && n0(c.distancia) > 0 && n0(c.tiempo) > 0);
+const carrerasHechas = () => vivos("carreras").filter(c => !esMarcaManual(c) && c.fecha && c.fecha <= iso(new Date()) && tiempoCarrera(c) > 0 && n0(c.distancia) > 0);
+const carrerasProximas = () => vivos("carreras").filter(c => !esMarcaManual(c) && c.fecha && c.fecha > iso(new Date())).sort((a, b) => a.fecha.localeCompare(b.fecha));
 // Forma: media ponderada de las mejores sesiones de las últimas 12 semanas; lo reciente pesa más (vida media 6 semanas)
 function calcularForma() {
   const hoy = new Date();
@@ -3320,7 +4174,8 @@ const textoObjetivo = o => !o ? "" : (o.suave ? "obj. suave ~" + fmtTiempo(o.rit
 // Mejores marcas por distancia: exactas o, dentro de una serie algo más larga, a su ritmo medio
 function marcasDe(tipo) {
   const lista = seriesVivas().filter(s => hecha(s) && !s.calentamiento && tipoDe(s.ejercicio_id) === tipo && n0(s.distancia) > 0 && n0(s.tiempo) > 0 && !fueraDeMarcas(s))
-    .concat(tipo === "carrera" ? carrerasHechas().map(c => ({ fecha: c.fecha, distancia: n0(c.distancia), tiempo: tiempoCarrera(c), carrera: true })) : []);   // las carreras oficiales son marcas reales
+    .concat(tipo === "carrera" ? carrerasHechas().map(c => ({ fecha: c.fecha, distancia: n0(c.distancia), tiempo: tiempoCarrera(c), carrera: true })) : [])
+    .concat(tipo === "carrera" ? marcasManuales().map(c => ({ fecha: c.fecha, distancia: n0(c.distancia), tiempo: n0(c.tiempo), manual: true })) : []);   // las carreras oficiales son marcas reales
   return (tipo === "natacion" ? DIST_NADO : DIST_MARCAS).map(d => {
     let mejor = null;
     const evol = {};
@@ -3332,11 +4187,20 @@ function marcasDe(tipo) {
     return mejor ? { d, ...mejor, evol: Object.keys(evol).sort().map(f => ({ f, v: evol[f] })) } : null;
   }).filter(Boolean);
 }
+// Cada apartado de Marcas se pliega tocando su título (se recuerda en este dispositivo)
 function seccionMarcas(titulo) {
   const s = document.createElement("section");
-  s.className = "plan-sec";
+  const k = "s:" + titulo;
+  s.className = "plan-sec ms-plegable" + (marcasAbiertas[k] === false ? " plegada" : "");
   const h = document.createElement("h3");
-  h.textContent = titulo;
+  h.className = "ms-tit";
+  h.innerHTML = '<span class="flecha-dia" aria-hidden="true">▸</span><span></span>';
+  h.lastChild.textContent = titulo;
+  h.tabIndex = 0; h.setAttribute("role", "button");
+  h.setAttribute("aria-expanded", String(marcasAbiertas[k] !== false));
+  const alternar = () => { const pl = !s.classList.contains("plegada"); s.classList.toggle("plegada", pl); h.setAttribute("aria-expanded", String(!pl)); marcasAbiertas[k] = !pl; escribir("marcas-abiertas-v1", marcasAbiertas); };
+  h.addEventListener("click", alternar);
+  h.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); alternar(); } });
   s.appendChild(h);
   return s;
 }
@@ -3461,6 +4325,47 @@ function editarPulso() {
 // Mis carreras: próximas (objetivo y cuenta atrás) y hechas por distancia, con la mejor (PB), su evolución y previsto frente a real
 const DIST_CARRERA = [[2000, "2 km"], [5000, "5 km"], [10000, "10 km"], [21097, "Media maratón (21,1 km)"], [42195, "Maratón (42,2 km)"]];
 let distCarreraGraf = 0;
+let marcaEdit = null;
+function abrirMarcaManual(c) {
+  marcaEdit = c ? { ...c } : null;
+  const t = c ? n0(c.tiempo) : 0;
+  $("mmDist").value = c ? (n0(c.distancia) >= 1000 ? num(n0(c.distancia) / 1000) + " km" : n0(c.distancia) + " m") : "";
+  $("mmMin").value = c ? Math.floor(t / 60) : "";
+  $("mmSeg").value = c ? num(Math.round((t - Math.floor(t / 60) * 60) * 10) / 10) : "";
+  $("mmFecha").value = c ? c.fecha : iso(new Date());
+  $("mmNota").value = c ? c.notas || "" : "";
+  $("mmAviso").textContent = "";
+  $("mmBorrar").hidden = !c;
+  $("dlgMarca").showModal();
+  if (!c) $("mmDist").focus();
+}
+// «2 km», «2k», «100 m», «21,1 km», «400»: sin unidad, menos de 50 son km
+function leerDistMarca(txt) {
+  const m = String(txt || "").trim().toLowerCase().replace(",", ".").match(/^(\d+(?:\.\d+)?)\s*(km|k|m|metros)?$/);
+  if (!m) return 0;
+  const v = parseFloat(m[1]);
+  return Math.round(m[2] === "km" || m[2] === "k" || (!m[2] && v < 50) ? v * 1000 : v);
+}
+$("mmGuardar").addEventListener("click", () => {
+  const d = leerDistMarca($("mmDist").value), mi = parseInt($("mmMin").value || "0", 10), se = parseFloat(($("mmSeg").value || "0").replace(",", "."));
+  const t = (mi || 0) * 60 + (se || 0), aviso = x => { $("mmAviso").textContent = x; };
+  if (!(d > 0)) { aviso("Pon la distancia: 2 km, 100 m, 400…"); $("mmDist").focus(); return; }
+  if (isNaN(mi) || isNaN(se) || se >= 60 || !(t > 0)) { aviso("Pon el tiempo: minutos y segundos (los segundos pueden llevar décimas: 13,2)."); $("mmMin").focus(); return; }
+  if (!$("mmFecha").value) { aviso("Pon la fecha."); return; }
+  const base = marcaEdit || { id: nuevoId(), lugar: "", chip: 0, pos_general: 0, total_general: 0, pos_categoria: 0, total_categoria: 0, desnivel_pos: 0, fc_media: 0, enlace: "", previsto: 0, borrado: false };
+  cambiar("carreras", { ...base, nombre: "Marca " + nombreDist(d), categoria: "__marca", fecha: $("mmFecha").value, distancia: d, tiempo: Math.round(t * 10) / 10, notas: $("mmNota").value.trim().slice(0, 200) });
+  $("dlgMarca").close();
+  pintarMarcas();
+  setEstado("Marca guardada: " + nombreDist(d) + " en " + fmtMarca(t));
+});
+$("mmBorrar").addEventListener("click", () => {
+  if (!marcaEdit) return;
+  const antes = { ...db.carreras[marcaEdit.id] };
+  cambiar("carreras", { ...antes, borrado: true });
+  $("dlgMarca").close();
+  pintarMarcas();
+  avisoDeshacer("Marca borrada", [["carreras", antes]]);
+});
 function seccionCarreras() {
   const s = seccionMarcas("Mis carreras");
   const cab = s.querySelector("h3");
@@ -3597,19 +4502,100 @@ function marcasFuerza(cont) {
     const s = seccionMarcas(region);
     s.appendChild(tablaSimple(["Ejercicio", "Récord", "1RM est.", "Fecha"], deRegion.map(({ e, st }) => {
       const m = st.mejor || st.mejorReps;
-      return { celdas: [e.nombre, m ? (st.mejor ? serieTexto(m) : n0(m.reps) + (n0(m.reps) === 1 ? " rep" : " reps")) : "—", st.mejorRm ? num(Math.round(rm(st.mejorRm))) + " kg" : "—", m ? fechaCorta(m.fecha) : ""], alPulsar: () => abrirDetalle(e.id) };
+      const sinPeso = m && !st.mejor ? (st.medida === "tiempo" ? fmtSegs(n0(m.tiempo)) : n0(m.reps) + (n0(m.reps) === 1 ? " rep" : " reps")) + (n0(m.peso) > 0 ? " · " + num(m.peso) + " kg" : "") + (m.por_lado ? " por lado" : "") : "";
+      return { celdas: [e.nombre, m ? (st.mejor ? serieTexto(m) : sinPeso) : "—", st.mejorRm ? num(Math.round(rm(st.mejorRm))) + " kg" : "—", m ? fechaCorta(m.fecha) : ""], alPulsar: () => abrirDetalle(e.id) };
     })));
     caja.appendChild(s);
   });
   caja.appendChild(nota("Toca un ejercicio para ver su gráfica e historial. La zona sale de las que trabaja el ejercicio (en su ficha)."));
+}
+// ---------- Registro de Bilbo (como la hoja de cálculo): un apartado en Marcas y una ventana por ejercicio ----------
+function marcasBilbo(cont) {
+  const ejs = [...new Set(vivos("ciclos").map(c => c.ejercicio_id))].filter(id => ejercicioVivo(id));
+  if (!ejs.length) return;
+  const caja = apartadoMarcas(cont, "bilbo", "Bilbo", ejs.length);
+  const s = seccionMarcas("Tus ciclos");
+  s.appendChild(tablaSimple(["Ejercicio", "Ciclo", "Próxima", "Récord 1RM"], ejs.map(id => {
+    const cs = vivos("ciclos").filter(c => c.ejercicio_id === id), act = cicloActivo(id);
+    const todas = cs.flatMap(sesionesBilbo), mr = todas.length ? Math.max(...todas.map(x => rmBilbo(x.peso, x.reps))) : 0;
+    return { celdas: [nombreEj(id), act ? "Ciclo " + act.numero + " · " + sesionesBilbo(act).length + " ses." : cs.length + (cs.length === 1 ? " ciclo" : " ciclos"),
+      act ? num(pesoBilbo(id)) + " kg × máx" : "—", mr ? num(Math.round(mr * 10) / 10) + " kg" : "—"], alPulsar: () => abrirRegistroBilbo(id) };
+  })));
+  caja.appendChild(s);
+  caja.appendChild(nota("Toca un ejercicio para ver su registro completo: cada ciclo con sus sesiones, el trabajo, el 1RM estimado, los acumulados y los récords."));
+}
+function abrirRegistroBilbo(id) {
+  $("bregTit").textContent = "Bilbo · " + nombreEj(id);
+  const cuerpo = $("bregCuerpo");
+  cuerpo.textContent = "";
+  const ciclos = vivos("ciclos").filter(c => c.ejercicio_id === id).sort((a, b) => n0(a.numero) - n0(b.numero));
+  const act = cicloActivo(id);
+  if (act) {
+    const p = document.createElement("p");
+    p.className = "breg-res";
+    p.textContent = "Ciclo " + act.numero + " en curso · próxima sesión: " + num(pesoBilbo(id)) + " kg × máx · empezó con 1RM " + num(act.rm_inicio) + " kg (" + num(act.peso_inicial) + " kg) · +" + num(act.incremento) + " kg por sesión · resetear al bajar a " + act.reps_reset + " reps";
+    cuerpo.appendChild(p);
+  }
+  // Récord de 1RM de cada ciclo, para ver la progresión de un vistazo
+  const porCiclo = ciclos.map(c => { const ss = sesionesBilbo(c); return { c, ss, mr: ss.length ? Math.max(...ss.map(x => rmBilbo(x.peso, x.reps))) : 0 }; });
+  const graf = document.createElement("div");
+  graf.className = "breg-graf";
+  const evol = porCiclo.flatMap(x => x.ss.filter(y => y.fecha).map(y => ({ v: Math.round(rmBilbo(y.peso, y.reps) * 10) / 10, f: y.fecha })));
+  if (evol.length >= 2) { const t = document.createElement("p"); t.className = "bc-t"; t.textContent = "1RM estimado por sesión"; graf.appendChild(t); const g = document.createElement("div"); g.innerHTML = grafica(evol, v => num(v) + " kg"); graf.appendChild(g); cuerpo.appendChild(graf); }
+  const fila = document.createElement("div");
+  fila.className = "breg-ciclos";
+  porCiclo.forEach(({ c, ss, mr }) => {
+    const col = document.createElement("section");
+    col.className = "breg-ciclo" + (c === act ? " activo" : "");
+    const h = document.createElement("h4");
+    h.textContent = "Ciclo " + c.numero + (c === act ? " · en curso" : "");
+    const sub = document.createElement("p");
+    sub.className = "menu-det";
+    sub.textContent = "1RM inicio " + num(c.rm_inicio) + " kg · +" + num(c.incremento) + " kg";
+    col.append(h, sub);
+    const t = document.createElement("table");
+    t.className = "tabla-bilbo";
+    t.innerHTML = "<thead><tr><th>Día</th><th>Fecha</th><th>Peso</th><th>Reps</th><th>Trabajo</th><th>1RM</th></tr></thead><tbody></tbody><tfoot></tfoot>";
+    const tb = t.querySelector("tbody"), mt = ss.length ? Math.max(...ss.map(x => x.peso * x.reps)) : 0;
+    const celdas = (vals, clases) => { const tr = document.createElement("tr"); vals.forEach((v, k) => { const td = document.createElement("td"); td.textContent = v; if (clases && clases[k]) td.className = clases[k]; tr.appendChild(td); }); return tr; };
+    ss.forEach((x, i) => {
+      const tr = x.peso * x.reps, e1 = rmBilbo(x.peso, x.reps);
+      tb.appendChild(celdas([i + 1, x.fecha ? fechaCorta(x.fecha) : "—", num(x.peso), x.reps, num(tr), num(Math.round(e1 * 10) / 10)], [0, 0, 0, 0, tr === mt ? "es-pr" : "", e1 === mr ? "es-pr" : ""]));
+    });
+    // Como en la hoja: las próximas sesiones del ciclo en curso, con el peso que toca
+    if (c === act) for (let k = 0; k < 4; k++) { const trp = celdas([ss.length + k + 1, "", num(n0(c.peso_inicial) + n0(c.incremento) * (ss.length + k)), "", "", ""]); trp.className = "breg-futura"; tb.appendChild(trp); }
+    const reps = ss.reduce((a, x) => a + x.reps, 0), trabajo = ss.reduce((a, x) => a + x.peso * x.reps, 0);
+    const tf = t.querySelector("tfoot");
+    const pieFila = (et, vals) => { const tr = celdas([et].concat(vals)); tr.firstChild.colSpan = 3; return tr; };
+    tf.appendChild(pieFila("Acumulado", [reps, num(trabajo), ""]));
+    tf.appendChild(pieFila("Récords", ["", mt ? num(mt) : "—", mr ? num(Math.round(mr * 10) / 10) : "—"]));
+    const sc = document.createElement("div");
+    sc.className = "tabla-scroll";
+    sc.appendChild(t);
+    col.appendChild(sc);
+    if (!ss.length) col.appendChild(nota("Aún sin sesiones."));
+    fila.appendChild(col);
+  });
+  cuerpo.appendChild(fila);
+  const pie = document.createElement("p");
+  pie.className = "menu-det";
+  pie.textContent = "Trabajo = peso × repeticiones. 1RM estimado = peso × reps × 0,03 + peso (la fórmula de tu hoja). Resaltados, los récords de cada ciclo; en gris, las próximas sesiones con el peso que toca.";
+  cuerpo.appendChild(pie);
+  const b = document.createElement("button");
+  b.type = "button"; b.className = "nav-btn"; b.textContent = "Ver la ficha del ejercicio";
+  b.addEventListener("click", () => { $("dlgBilboReg").close(); abrirDetalle(id); });
+  cuerpo.appendChild(b);
+  if (!$("dlgBilboReg").open) $("dlgBilboReg").showModal();
+  const ult = fila.lastElementChild;
+  if (ult) setTimeout(() => { fila.scrollLeft = fila.scrollWidth; }, 0);   // el ciclo más reciente a la vista
 }
 function pintarMarcas() {
   const raiz = $("marcasCont");
   raiz.textContent = "";
   marcasPulso(raiz);
   marcasFuerza(raiz);
+  marcasBilbo(raiz);
   const cont = apartadoMarcas(raiz, "carrera", "Carrera");
-  cont.appendChild(seccionCarreras());
   const { forma: f, carga } = rendimiento();
   const s1 = seccionMarcas("Forma en carrera");
   if (!f) s1.appendChild(nota("Apunta series o rodajes de carrera con metros y tiempo para estimar tu forma, tus marcas previstas y tus ritmos."));
@@ -3629,25 +4615,42 @@ function pintarMarcas() {
     s2.appendChild(tablaSimple(["Distancia", "Según VDOT", "Ritmo", ref ? "Riegel (desde " + nombreDist(ref.d) + ")" : "Riegel", "Real"],
       [1000, 2000, 5000, 10000, 21097, 42195].map(d => {
         const t = tiempoPrevisto(f.vdot, d), real = marcas.find(m => m.d === d);
-        return { celdas: [nombreDist(d), fmtTiempo(t), fmtTiempo(t / d * 1000) + "/km", ref ? fmtTiempo(ref.t * Math.pow(d / ref.d, 1.06)) : "—", real ? fmtTiempo(real.t) + (real.exacta ? "" : " *") : "—"] };
+        return { celdas: [nombreDist(d), fmtTiempo(t), fmtTiempo(t / d * 1000) + "/km", ref ? fmtTiempo(ref.t * Math.pow(d / ref.d, 1.06)) : "—", real ? fmtMarca(real.t) + (real.exacta ? "" : " *") : "—"] };
       })));
     s2.appendChild(nota("«Real»: tu mejor marca en esa distancia (* sacada de una serie algo más larga, a su ritmo medio). En 1 y 2 km la predicción es más aproximada: la fórmula de Daniels es menos fiable en esfuerzos de menos de 5 minutos."));
     const s3 = seccionMarcas("Ritmos de entrenamiento");
     s3.appendChild(tablaSimple(["Zona", "Por km", "Por 400 m"], ZONAS.map(([n, fr]) => { const r = ritmoZona(f.vdot, fr) * (1 + carga.ajuste); return { celdas: [n, fmtTiempo(r), fmtTiempo(r * 0.4)] }; })));
     s3.appendChild(nota("Cada serie de carrera planificada muestra su objetivo calculado con todo el entrenamiento de ese día (series, bloques, volumen y recuperaciones) y se ajusta según cómo te van saliendo."));
-    cont.append(s1, s2, s3);
+    cont.append(s1, seccionCarreras(), s2, s3);
   }
-  if (!f) cont.appendChild(s1);
+  if (!f) cont.append(s1, seccionCarreras());
 
   const piscina = apartadoMarcas(raiz, "natacion", "Piscina", marcasDe("natacion").length);
   if (!marcasDe("natacion").length) piscina.appendChild(nota("Cuando apuntes series de natación con metros y tiempo, aquí verás tus mejores marcas en 50, 100, 200, 400, 800 y 1500 m y su evolución."));
   [["carrera", "Mejores marcas de carrera", 1000, "/km", cont], ["natacion", "Mejores marcas en piscina", 100, "/100 m", piscina]].forEach(([tipo, titulo, por, suf, destino]) => {
     const marcas = marcasDe(tipo);
-    if (!marcas.length) return;
+    if (!marcas.length && tipo !== "carrera") return;
     const s = seccionMarcas(titulo);
+    if (tipo === "carrera") {
+      const b = document.createElement("button");
+      b.type = "button"; b.className = "nav-btn"; b.textContent = "+ Marca";
+      b.title = "Añadir una marca sin que sea una carrera (un 2 km, un 100 m…)";
+      b.addEventListener("click", () => abrirMarcaManual());
+      const fila = document.createElement("div");
+      fila.className = "sec-cab";
+      s.querySelector("h3").before(fila);
+      fila.append(s.querySelector("h3"), b);
+      const mm = marcasManuales().sort((a, b2) => b2.fecha.localeCompare(a.fecha));
+      if (!marcas.length) { s.appendChild(nota("Apunta series con metros y tiempo, tus carreras o una marca suelta con «+ Marca» (un 2 km, un 100 m…) y aquí verás tus mejores marcas.")); destino.appendChild(s); return; }
+      if (mm.length) setTimeout(() => {
+        const t = document.createElement("p"); t.className = "bc-t"; t.textContent = "Marcas añadidas a mano";
+        s.appendChild(t);
+        s.appendChild(tablaSimple(["Distancia", "Tiempo", "Fecha", "Nota"], mm.map(c => ({ celdas: [nombreDist(n0(c.distancia)), fmtMarca(n0(c.tiempo)), fechaCorta(c.fecha), c.notas || "—"], alPulsar: () => abrirMarcaManual(c) }))));
+      }, 0);
+    }
     const sel = marcas.find(m => tipo + m.d === distGrafica) || marcas.slice().sort((x, y) => y.evol.length - x.evol.length)[0];
     s.appendChild(tablaSimple(["Distancia", "Tiempo", "Ritmo", "Fecha"], marcas.map(m => ({
-      celdas: [nombreDist(m.d) + (m.exacta ? "" : " *"), fmtTiempo(m.t), fmtTiempo(m.t / m.d * por) + suf, fechaCorta(m.fecha)],
+      celdas: [nombreDist(m.d) + (m.exacta ? "" : " *"), fmtMarca(m.t), fmtTiempo(m.t / m.d * por) + suf, fechaCorta(m.fecha)],
       activa: m === sel, alPulsar: () => { distGrafica = tipo + m.d; pintarMarcas(); }
     }))));
     if (marcas.some(m => !m.exacta)) s.appendChild(nota("* Sacada de una serie algo más larga, a su ritmo medio."));
@@ -3655,7 +4658,7 @@ function pintarMarcas() {
     tit.className = "bc-t";
     tit.textContent = "Evolución · " + nombreDist(sel.d);
     const g = document.createElement("div");
-    g.innerHTML = grafica(sel.evol, v => fmtTiempo(v));
+    g.innerHTML = grafica(sel.evol, v => fmtMarca(v));
     s.append(tit, g, nota("Toca otra distancia para ver su evolución. En esta gráfica, más abajo es más rápido."));
     destino.appendChild(s);
   });
@@ -3882,23 +4885,44 @@ function quitarMesoDelCalendario(mesoId) {
 }
 // Rellena el calendario: cada semana, cada día con sus plantillas; la progresión suma kg cada semana
 // y las semanas de descarga bajan la carga o el número de series
-function aplicarMeso(m) {
-  quitarMesoDelCalendario(m.id);
+// Sin duplicar nunca: cada sesión del plan (semana, plantilla) que ya esté en el calendario —en su día o movida a
+// otro, hecha o pendiente— se respeta; solo se crean las que faltan. «rehacer» quita antes lo pendiente
+function aplicarMeso(m, rehacer) {
+  if (rehacer) quitarMesoDelCalendario(m.id);
   const lunes = deIso(m.inicio);
-  let total = 0;
+  const ya = seriesVivas().filter(s => s.meso_id === m.id);
+  const semanaDe = f => Math.floor((deIso(f) - lunes) / (7 * 864e5));
+  // Huecos del plan por plantilla y semana, y sesiones que ya hay (una por día y entreno)
+  const huecos = {}, hay = {};
   for (let w = 0; w < m.semanas; w++) {
     const diasSemana = (m.dias || {})["s" + (w + 1)] || m.dias || {};
-    for (let d = 0; d < 7; d++) {
-      const fecha = iso(sumarDias(lunes, w * 7 + d));
-      (diasSemana[d] || []).forEach(pid => {
-        const p = db.plantillas[pid];
-        if (!p || p.borrado) return;
-        const items = esDescarga(m, w) ? descargarItems(p.items || [], m.descarga, w * n0(m.progresion)) : p.items || [];
-        pegarItems(fecha, items, p.nombre, m.id, esDescarga(m, w) ? 0 : w * n0(m.progresion));
-        total += contarSeries(items);
-      });
-    }
+    for (let d = 0; d < 7; d++) (diasSemana[d] || []).forEach(pid => { const p = db.plantillas[pid]; if (p && !p.borrado) (huecos[pid + "|" + w] = huecos[pid + "|" + w] || []).push(d); });
   }
+  const pidDe = nombre => Object.keys(db.plantillas).find(id => !db.plantillas[id].borrado && db.plantillas[id].nombre === nombre);
+  new Set(ya.map(s => s.fecha + "|" + (s.grupo || ""))).forEach(k => {
+    const [f, g] = [k.slice(0, 10), k.slice(11)], pid = pidDe(g), w = semanaDe(f);
+    if (pid) (hay[pid] = hay[pid] || []).push({ w, d: (deIso(f).getDay() + 6) % 7 });
+  });
+  let total = 0;
+  Object.keys(db.plantillas).forEach(pid => {
+    const p = db.plantillas[pid];
+    if (p.borrado) return;
+    const sesiones = (hay[pid] || []).slice();
+    // Primero las que siguen en su semana; las movidas a otra semana cubren los huecos que falten
+    const faltan = [];
+    for (let w = 0; w < m.semanas; w++) {
+      const dias = huecos[pid + "|" + w] || [];
+      let enSemana = sesiones.filter(x => x.w === w);
+      enSemana.slice(0, dias.length).forEach(x => sesiones.splice(sesiones.indexOf(x), 1));
+      const libres = dias.filter(d => !enSemana.some(x => x.d === d));
+      for (let k = 0; k < dias.length - Math.min(dias.length, enSemana.length); k++) faltan.push({ w, d: libres[k] !== undefined ? libres[k] : dias[k] });
+    }
+    faltan.slice(sesiones.length).forEach(({ w, d }) => {
+      const items = esDescarga(m, w) ? descargarItems(p.items || [], m.descarga, w * n0(m.progresion)) : p.items || [];
+      pegarItems(iso(sumarDias(lunes, w * 7 + d)), items, p.nombre, m.id, esDescarga(m, w) ? 0 : w * n0(m.progresion));
+      total += contarSeries(items);
+    });
+  });
   return total;
 }
 $("mesoGuardar").addEventListener("click", () => {
@@ -3908,13 +4932,59 @@ $("mesoGuardar").addEventListener("click", () => {
 });
 $("mesoAplicar").addEventListener("click", () => {
   const m = leerMeso(); if (!m) return;
-  cambiar("mesociclos", m, true);
-  const n = aplicarMeso(m);
-  persistir();
-  $("dlgMeso").close();
-  setEstado("Mesociclo aplicado: " + n + " series planificadas");
-  desplazamiento = Math.round((lunesDe(deIso(m.inicio)) - lunesDe(new Date())) / (7 * 864e5));
-  verPestana("semana");
+  const fin = iso(sumarDias(deIso(m.inicio), n0(m.semanas) * 7));
+  const ya = seriesVivas().filter(s => s.meso_id === m.id);
+  const otros = vivos("mesociclos").filter(o => o.id !== m.id && o.inicio && o.inicio < fin && iso(sumarDias(deIso(o.inicio), n0(o.semanas) * 7)) > m.inicio && seriesVivas().some(s => s.meso_id === o.id && s.fecha >= m.inicio && s.fecha < fin));
+  const aplicar = rehacer => {
+    const antes = new Map(seriesVivas().filter(s => s.meso_id === m.id).map(s => [s.id, { ...s }]));
+    cambiar("mesociclos", m, true);
+    const n = aplicarMeso(m, rehacer);
+    persistir();
+    $("dlgMeso").close();
+    // Deshacer: vuelve lo que había (lo pendiente quitado) y quita lo nuevo
+    const ahora = seriesVivas().filter(s => s.meso_id === m.id);
+    const deshacer = [...antes.values()].filter(s => !db.series[s.id] || db.series[s.id].borrado).map(s => ["series", s])
+      .concat(ahora.filter(s => !antes.has(s.id)).map(s => ["series", { ...s, borrado: true }]));
+    desplazamiento = Math.round((lunesDe(deIso(m.inicio)) - lunesDe(new Date())) / (7 * 864e5));
+    verPestana("semana");
+    avisoDeshacer(n ? "Mesociclo en el calendario: " + n + " series nuevas" : "No faltaba ninguna sesión: el calendario ya estaba completo", deshacer.length ? deshacer : null);
+  };
+  const conSolape = rehacer => !otros.length ? aplicar(rehacer) : abrirMenu("Se cruza con otro mesociclo", "En esas fechas ya tienes «" + otros.map(o => o.nombre).join("», «") + "» en el calendario. Si sigues, los dos quedarán juntos esos días.", [
+    { texto: "Aplicar igualmente", accion: () => aplicar(rehacer) },
+    { texto: "Cancelar", accion: () => {} }
+  ]);
+  if (!ya.length) { conSolape(false); return; }
+  const hechas = new Set(ya.filter(hecha).map(s => s.fecha + "|" + s.grupo)).size, total = new Set(ya.map(s => s.fecha + "|" + s.grupo)).size;
+  abrirMenu("Este mesociclo ya está en el calendario", total + (total === 1 ? " sesión" : " sesiones") + (hechas ? " (" + hechas + (hechas === 1 ? " hecha)" : " hechas)") : "") + ". No se duplica nada: lo que hayas movido de día o cambiado a mano se respeta.", [
+    { texto: "Completar solo lo que falte (recomendado)", accion: () => conSolape(false) },
+    { texto: "Rehacer lo pendiente según el plan", peligro: true, confirmar: "Pulsa otra vez: lo pendiente vuelve a los días del plan (lo hecho no se toca y se puede deshacer)", accion: () => conSolape(true) }
+  ]);
+});
+// Añadir un mesociclo a una lista: sus entrenamientos en el orden de la semana; si cada semana es distinta, una
+// cabecera por semana («Meso · Semana 2»). Si ya estaba en esa lista, pregunta antes de repetirlo
+function anadirMesoALista(m, l) {
+  const pref = "«" + m.nombre + "»";
+  const porSemana = Object.keys(m.dias || {}).some(k => /^s\d+$/.test(k));
+  const semana = w => { const ds = porSemana ? (m.dias["s" + (w + 1)] || {}) : (m.dias || {}); const out = []; for (let d = 0; d < 7; d++) (ds[d] || []).forEach(pid => { if (db.plantillas[pid] && !db.plantillas[pid].borrado) out.push(pid); }); return out; };
+  const nuevos = [];
+  if (porSemana) for (let w = 0; w < n0(m.semanas); w++) { const ps = semana(w); if (!ps.length) continue; nuevos.push({ sep: nuevoId(), titulo: "Semana " + (w + 1) + (esDescarga(m, w) ? " (descarga)" : "") }, ...ps); }
+  else { const ps = semana(0); if (ps.length) nuevos.push(...ps); }
+  if (nuevos.length) nuevos.unshift({ grupo: nuevoId(), titulo: m.nombre + " · " + n0(m.semanas) + " semanas" });
+  if (!nuevos.length) { avisoDeshacer("Este mesociclo no tiene entrenamientos en sus días: añádelos primero", null); return; }
+  const meter = () => {
+    const fresca = db.listas[l.id], antes = { ...fresca };
+    cambiar("listas", { ...fresca, items: (fresca.items || []).concat(nuevos) });
+    pintarListas();
+    avisoDeshacer(pref + " añadido a la lista «" + l.nombre + "» (" + nuevos.filter(x => typeof x === "string").length + " entrenamientos)", [["listas", antes]]);
+  };
+  const ya = (db.listas[l.id].items || []).some(x => (esSep(x) && (x.titulo || "").startsWith(pref)) || (esGrupoL(x) && (x.titulo || "").startsWith(m.nombre + " · ")));
+  if (ya) abrirMenu("Ya está en esta lista", pref + " ya está en «" + l.nombre + "». ¿Lo añado otra vez?", [{ texto: "Añadir otra vez", accion: meter }, { texto: "Cancelar", accion: () => {} }]);
+  else meter();
+}
+$("mesoALista").addEventListener("click", () => {
+  const m = leerMeso(); if (!m) return;
+  cambiar("mesociclos", m);
+  elegirLista("¿En qué lista añado «" + m.nombre + "»?", l => anadirMesoALista(db.mesociclos[m.id] || m, l));
 });
 $("mesoQuitar").addEventListener("click", () => {
   const n = quitarMesoDelCalendario(mesoEdit.id);
@@ -4360,6 +5430,29 @@ function exportarDias() {
     .forEach(e => filas.push([e.fecha, diaSemana(e.fecha), aTexto(e.html || "").trim(), n0(e.rpe) || "", e.sensacion || ""]));
   descargarArchivo("entreno-dias-" + iso(new Date()) + ".csv", csv(filas), "text/csv");
 }
+function limitesInforme() {
+  const ref = deIso($("fechaInforme").value || iso(new Date())), modo = $("periodoInforme").value;
+  let ini, fin;
+  if (modo === "semana") { ini = lunesDe(ref); fin = sumarDias(ini, 7); }
+  else if (modo === "mes") { ini = new Date(ref.getFullYear(), ref.getMonth(), 1); fin = new Date(ref.getFullYear(), ref.getMonth() + 1, 1); }
+  else { ini = new Date(ref.getFullYear(), 0, 1); fin = new Date(ref.getFullYear() + 1, 0, 1); }
+  return { desde: iso(ini), hasta: iso(fin), titulo: modo === "semana" ? "Semana del " + fmt(ini) + " a " + fmt(sumarDias(fin, -1)) : modo === "mes" ? "Mes de " + MESES[ref.getMonth()] + " de " + ref.getFullYear() : "Año " + ref.getFullYear() };
+}
+function descargarResumenPeriodo() {
+  const { desde, hasta, titulo } = limitesInforme();
+  const filas = seriesVivas().filter(s => s.fecha >= desde && s.fecha < hasta && hecha(s) && !s.calentamiento);
+  const dias = new Set(filas.map(s => s.fecha)), sesiones = new Set(filas.map(s => s.fecha + "|" + (s.grupo || "Entreno"))), correr = filas.filter(s => tipoDe(s.ejercicio_id) === "carrera"), nadar = filas.filter(s => tipoDe(s.ejercicio_id) === "natacion"), fuerza = filas.filter(s => tipoDe(s.ejercicio_id) === "fuerza");
+  const metros = xs => xs.reduce((a, s) => a + n0(s.distancia), 0), segundos = xs => xs.reduce((a, s) => a + n0(s.tiempo), 0), desnivel = correr.reduce((a, s) => a + n0(s.desnivel_pos), 0);
+  const registros = new Map();
+  fuerza.forEach(s => { const nombre = nombreEj(s.ejercicio_id), r = rm(s); if (r > 0 && (!registros.has(nombre) || r > registros.get(nombre).valor)) registros.set(nombre, { nombre, valor: r, detalle: num(n0(s.peso)) + " kg × " + num(n0(s.reps)) + " reps · 1RM estimado " + num(r) + " kg" }); });
+  correr.filter(s => n0(s.distancia) && n0(s.tiempo)).forEach(s => { const nombre = nombreEj(s.ejercicio_id), r = n0(s.tiempo) / n0(s.distancia); if (!registros.has(nombre) || r < registros.get(nombre).valor) registros.set(nombre, { nombre, valor: r, detalle: fmtDist(s.distancia) + " · " + fmtTiempo(s.tiempo) + " · " + ritmo(s, "carrera") }); });
+  const esc = x => String(x).replace(/[&<>\"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;" })[c]);
+  const top = [...registros.values()].sort((a, b) => a.nombre.localeCompare(b.nombre, "es")).slice(0, 30);
+  const contenido = `<!doctype html><html lang="es"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>${esc(titulo)} · Fuerza y Ritmo</title><style>body{font:16px system-ui,sans-serif;max-width:760px;margin:36px auto;padding:0 20px;color:#20252b}h1{font-size:28px}small{color:#667}section{border-top:1px solid #ddd;padding:14px 0}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:12px}.k{padding:14px;background:#f3f5f7;border-radius:12px}.k b{display:block;font-size:22px}li{margin:8px 0}@media print{body{margin:0 auto}}</style><h1>${esc(titulo)}</h1><p>Resumen de entrenamientos registrados · ${desde} a ${iso(sumarDias(deIso(hasta),-1))}</p><section class="grid"><div class="k"><b>${sesiones.size}</b>sesiones</div><div class="k"><b>${filas.length}</b>series completadas</div><div class="k"><b>${dias.size}</b>días activos</div><div class="k"><b>${fmtDist(metros(correr))}</b>distancia de carrera</div><div class="k"><b>${fmtDist(metros(nadar))}</b>distancia de natación</div><div class="k"><b>${fmtTiempo(segundos(correr)+segundos(nadar))}</b>tiempo de carrera y natación</div><div class="k"><b>${Math.round(desnivel)} m</b>desnivel positivo registrado</div></section><section><h2>Mejores resultados registrados</h2>${top.length ? `<ul>${top.map(x=>`<li><b>${esc(x.nombre)}</b>: ${esc(x.detalle)}</li>`).join("")}</ul>` : "<p>No hay marcas de fuerza o carrera en este periodo.</p>"}</section><p>Generado por Fuerza y Ritmo. Los datos reflejan lo registrado en la app.</p></html>`;
+  descargarArchivo("resumen-entrenamiento-" + desde + "-" + iso(sumarDias(deIso(hasta),-1)) + ".html", contenido, "text/html");
+}
+$("fechaInforme").value = iso(new Date());
+$("descargarInforme").addEventListener("click", descargarResumenPeriodo);
 // Restaurar: recupera lo que falta, lo borrado o lo más antiguo aquí; nunca borra nada
 function restaurar(archivo) {
   const lector = new FileReader();
@@ -4421,8 +5514,8 @@ function leerValor(txt, tipo) {
   else if ((m = tok.match(/^(\d+(?:\.\d+)?)(min|')$/))) v.tiempo = Math.round(parseFloat(m[1]) * 60);
   else if ((m = tok.match(/^(\d+)(s|seg|")$/))) v.tiempo = +m[1];
   else if (/^\d+[:'´’]\d{2}([:'´’]\d{2})?$/.test(tok)) v.tiempo = leerTiempo(tok);
-  else if ((m = tok.match(/^(\d+)(?:-\d+)?(?:reps?)?$/))) v.reps = +m[1];
-  else if (/^(m[aá]x|amrap|fallo)/.test(tok)) { v.reps = 0; if (/^\s*m[aá]x\s*(s\b|seg|tiempo)/i.test(t)) v.max_tiempo = true; }
+  else if ((m = tok.match(/^(\d+)(?:-(\d+))?(?:reps?)?$/))) { v.reps = +m[1]; if (m[2] && +m[2] > +m[1]) { v.rango_min = +m[1]; v.rango_max = +m[2]; } }
+  else if (/^(m[aá]x|amrap|fallo)/.test(tok)) { v.reps = 0; if (/^\s*m[aá]x\s*(s\b|seg|tiempo)/i.test(t)) v.max_tiempo = true; else v.max_reps = true; }
   else return { error: "no entiendo «" + tok + "» (usa 8, máx, 400m, 40min o 3:30)" };
   if (tipo === "movilidad") {
     if (v.distancia) return { error: "en movilidad las series van en repeticiones o tiempo (por ejemplo 2x10 por lado o 3x45s)" };
@@ -4536,21 +5629,35 @@ const textoDias = dias => dias.map(d => NOMBRES[d].slice(0, 3)).join(", ");
 const lunesSiguiente = () => { const hoy = new Date(); return iso(hoy.getDay() === 1 ? lunesDe(hoy) : sumarDias(lunesDe(hoy), 7)); };
 const semanasRutina = r => r.semanas || (r.multi ? r.bloques.length : 4);
 // Guarda la rutina como plantillas (y, si se pide, un mesociclo que las reparte por los días); los ejercicios que falten se crean
-function guardarRutina(r, comoMeso, inicio, semanas) {
+function guardarRutina(r, comoMeso, inicio, semanas, enLista) {
   const usados = new Set(vivos("plantillas").map(p => norm(p.nombre)));
   const libre = n => { let x = n, k = 2; while (usados.has(norm(x))) x = n + " (" + k++ + ")"; usados.add(norm(x)); return x; };
   const prefijo = r.nombre.split(/[(:·]/)[0].trim();
-  const dias = {};
+  const dias = {}, porSemana = [];
   let n = 0;
   r.bloques.forEach((b, w) => {
     const destino = r.multi ? (dias["s" + (w + 1)] = {}) : dias;
+    porSemana.push([]);
     b.sesiones.forEach(s => {
       const id = nuevoId();
+      porSemana[w].push(id);
       cambiar("plantillas", { id, nombre: libre(r.multi ? prefijo + " · S" + (w + 1) + " · " + s.nombre : s.nombre), items: desdeCompartido(s.items), borrado: false }, true);
       n++;
       s.dias.forEach(d => (destino[d] = destino[d] || []).push(id));
     });
   });
+  // En una lista de entrenamientos: si el plan cambia cada semana, cada semana va en su bloque
+  if (enLista) {
+    const fresca = db.listas[enLista.id], items = (fresca.items || []).slice();
+    if (r.multi) items.push({ grupo: nuevoId(), titulo: r.nombre });
+    porSemana.forEach((ids, w) => { if (r.multi) items.push({ sep: nuevoId(), titulo: "Semana " + (w + 1) }); items.push(...ids); });
+    cambiar("listas", { ...fresca, items }, true);
+    listasAbiertas[fresca.id] = true; escribir("listas-abiertas-v1", listasAbiertas);
+    persistir(); pintarPlan();
+    avisoDeshacer(n + (n === 1 ? " entrenamiento guardado" : " entrenamientos guardados") + " en la lista «" + fresca.nombre + "»", null);
+    verPestana("listas");
+    return;
+  }
   if (comoMeso) {
     const id = nuevoId();
     cambiar("mesociclos", { id, nombre: r.nombre, inicio, semanas, dias, progresion: 0, descarga: {}, notas: r.nota || "", borrado: false }, true);
@@ -4701,23 +5808,137 @@ NOTA: Nivel intermedio, RPE 7-8. Si te sobran repeticiones, sube 2,5 kg la próx
 ## Pierna
 ### Calentamiento
 - Bicicleta estática [fuerza]: 1x5min
+- Movilidad de cadera 90/90 [movilidad]: 2x8 por lado
+- Movilidad de tobillo en pared [movilidad]: 2x10 por lado
+- Puente de glúteo [fuerza]: 2x12
 ### Parte principal
 - Sentadilla [fuerza]: 4x6 @RPE8 desc 2:30
-- Peso muerto rumano [fuerza]: 3x8 @RPE7 desc 2:00
-- Zancadas [fuerza]: 3x10 @RPE7 desc 1:30`;
+- Peso muerto rumano [fuerza]: 3x8-10 @RPE7 desc 2:00
+- Zancadas [fuerza]: 3x10 por lado @RPE7 desc 1:30
+### Vuelta a la calma
+- Estiramiento de cuádriceps [movilidad]: 1x30s por lado`;
 const EJEMPLO_IA = `RUTINA: Fuerza y carrera 3 días
 SEMANAS: 6
 NOTA: Para nivel intermedio. Sube 2,5 kg cuando completes todas las series.
 ## Fuerza @ Lunes, Jueves
+### Calentamiento
+- Movilidad torácica en cuadrupedia [movilidad]: 2x8 por lado
+- Movilidad de cadera 90/90 [movilidad]: 2x8 por lado
+### Parte principal
 - Sentadilla [fuerza]: 4x6 @RPE8 desc 2:30
-- Press banca [fuerza]: 4x8 @75% desc 2:00
+- Press banca [fuerza]: 4x8-10 @75% desc 2:00
 - Dominadas [fuerza]: 3xmáx desc 2:00
 ## Series @ Miércoles
+### Calentamiento
 - Calentamiento carrera [carrera]: 1x15min
+- Movilidad dinámica de cadera [movilidad]: 1x10 por lado
+### Parte principal
 - Series 1000 m [carrera]: 5x1000m @4:10/km rec 2:00
 - BLOQUE x4: Series 200 m [carrera] 200m | Trote de recuperación [carrera] 200m
 ## Rodaje @ Sábado
 - Rodaje [carrera]: 1x45min`;
+// ---------- Prompt basado en un mesociclo, una lista o tus últimas semanas ----------
+// Resume lo anterior como texto corto para la otra IA: estructura (días, partes, ejercicios y series) y cómo progresaste
+function lineasItemsIA(items) {
+  const out = []; let parte = null;
+  items.forEach(it => {
+    const sec = it.seccion || "";
+    if (sec !== parte) { if (sec) out.push("### " + sec); parte = sec; }
+    if (it.bloque) out.push("- BLOQUE x" + Math.max(1, ...(it.tramos || []).map(t => t.series.length)) + ": " + (it.tramos || []).map(t => nombreEj(t.ejercicio_id) + " [" + tipoDe(t.ejercicio_id) + "] " + textoValor(t.series[0] || {}, tipoDe(t.ejercicio_id))).join(" | "));
+    else if (ejercicioVivo(it.ejercicio_id)) out.push("- " + nombreEj(it.ejercicio_id) + " [" + tipoDe(it.ejercicio_id) + "]: " + resumenSeriesRutina(it.series, tipoDe(it.ejercicio_id)) + (it.series[0] && it.series[0].nota ? " nota: " + it.series[0].nota : ""));
+  });
+  return out;
+}
+// Sesiones de una semana a partir de sus series (por día y entreno)
+function sesionesDeSeries(series) {
+  const out = [];
+  [...new Set(series.map(s => s.fecha))].sort().forEach(f => {
+    const delDia = series.filter(s => s.fecha === f).sort(ordenSerie);
+    [...new Set(delDia.map(s => s.grupo || ""))].forEach(g => {
+      out.push("## " + (g || "Sesión") + " @ " + diaSemana(f));
+      out.push(...lineasItemsIA(itemsDe(delDia.filter(s => (s.grupo || "") === g))));
+    });
+  });
+  return out;
+}
+// Cómo progresó cada ejercicio de fuerza: la primera y la última vez que lo hiciste
+function progresionDeSeries(series) {
+  const hechas = series.filter(s => hecha(s) && tipoDe(s.ejercicio_id) === "fuerza");
+  const ejs = [...new Set(hechas.map(s => s.ejercicio_id))].slice(0, 16);
+  return ejs.map(id => {
+    const deEj = hechas.filter(s => s.ejercicio_id === id), fechas = [...new Set(deEj.map(s => s.fecha))].sort();
+    const txt = f => resumenSeriesRutina(deEj.filter(s => s.fecha === f).sort(ordenSerie).map(valores), "fuerza");
+    return "- " + nombreEj(id) + ": " + (fechas.length > 1 ? fechaCorta(fechas[0]) + " " + txt(fechas[0]) + " → " + fechaCorta(fechas[fechas.length - 1]) + " " + txt(fechas[fechas.length - 1]) : fechaCorta(fechas[0]) + " " + txt(fechas[0]));
+  });
+}
+function referenciaIA(val) {
+  if (!val) return null;
+  if (val.startsWith("m:")) {
+    const m = db.mesociclos[val.slice(2)];
+    if (!m || m.borrado) return null;
+    const ss = seriesVivas().filter(s => s.meso_id === m.id);
+    const sem1 = m.inicio ? ss.filter(s => s.fecha < iso(sumarDias(lunesDe(deIso(m.inicio)), 7))) : [];
+    return { titulo: "Mi mesociclo anterior «" + m.nombre + "» (" + n0(m.semanas) + " semanas" + (m.inicio ? " desde el " + fechaCorta(m.inicio) : "") + (n0(m.progresion) ? ", +" + num(m.progresion) + " kg por semana" : "") + ")",
+      estructura: sesionesDeSeries(sem1.length ? sem1 : ss.slice(0, 60)), progreso: progresionDeSeries(ss), notas: m.notas || "" };
+  }
+  if (val.startsWith("l:")) {
+    const l = db.listas[val.slice(2)];
+    if (!l || l.borrado) return null;
+    const lineas = [];
+    let sepAnt = null;
+    recorrerLista(l).forEach(({ p, sep }) => {
+      if (sep && sep !== sepAnt) { lineas.push("SEMANA/BLOQUE: " + (sep.titulo || "")); sepAnt = sep; }
+      lineas.push("## " + p.nombre, ...lineasItemsIA(p.items || []));
+    });
+    const ids = new Set(entrenosDeLista(l).flatMap(p => (p.items || []).flatMap(it => it.bloque ? (it.tramos || []).map(t => t.ejercicio_id) : [it.ejercicio_id])));
+    const hace = iso(sumarDias(new Date(), -84));
+    return { titulo: "Mi lista de entrenamientos «" + l.nombre + "»", estructura: lineas.slice(0, 140), progreso: progresionDeSeries(seriesVivas().filter(s => ids.has(s.ejercicio_id) && s.fecha >= hace)) };
+  }
+  const n = val === "u8" ? 8 : 4, desde = iso(sumarDias(new Date(), -7 * n)), hoy = iso(new Date());
+  const ss = seriesVivas().filter(s => s.fecha >= desde && s.fecha <= hoy && hecha(s));
+  // La estructura: la semana más reciente con entrenamientos
+  const ult = ss.length ? iso(lunesDe(deIso(ss.map(s => s.fecha).sort().pop()))) : "";
+  return { titulo: "Lo que he entrenado las últimas " + n + " semanas", estructura: sesionesDeSeries(ss.filter(s => s.fecha >= ult)), progreso: progresionDeSeries(ss) };
+}
+const MODOS_REF = {
+  variantes: "Mantén la estructura (días, tipo de sesión, partes, número de ejercicios y volumen parecidos), pero cambia los ejercicios por VARIANTES que trabajen el mismo patrón de movimiento y los mismos músculos: otro agarre, implemento, ángulo o versión unilateral (por ejemplo press banca → press inclinado con mancuernas, sentadilla → sentadilla frontal o búlgara, remo con barra → remo en polea o con mancuerna). Ajusta las cargas e intensidades a partir de mis resultados.",
+  progresar: "Continúa la progresión con los mismos ejercicios principales: sube cargas, repeticiones o series según lo que hice; si algún ejercicio se estancó, cámbialo por una variante parecida.",
+  nuevo: "Hazme algo con otro enfoque, sin repetir los ejercicios principales, usando lo anterior para saber de dónde parto (nivel, volumen que tolero y cargas)."
+};
+function bloqueReferenciaIA() {
+  const ref = referenciaIA($("iaRef").value);
+  if (!ref) return [];
+  const out = ["Toma como referencia " + ref.titulo.charAt(0).toLowerCase() + ref.titulo.slice(1) + ". " + MODOS_REF[$("iaRefModo").value || "variantes"]];
+  if (ref.notas) out.push("Notas que tenía: " + ref.notas);
+  if (ref.estructura.length) out.push("Estructura de referencia:", ...ref.estructura);
+  else out.push("(No hay entrenamientos apuntados en esa referencia.)");
+  if (ref.progreso.length) out.push("Cómo me fue (primera → última vez):", ...ref.progreso);
+  return out.concat("");
+}
+// Opciones de «Basado en»: tus mesociclos, tus listas y tus últimas semanas
+function pintarRefIA() {
+  const sel = $("iaRef"), antes = sel.value;
+  sel.textContent = "";
+  const op = (v, t) => { const o = document.createElement("option"); o.value = v; o.textContent = t; sel.appendChild(o); };
+  op("", "Nada: desde cero");
+  vivos("mesociclos").sort((a, b) => (b.inicio || "").localeCompare(a.inicio || "")).forEach(m => op("m:" + m.id, "Mesociclo · " + m.nombre + (m.inicio ? " (" + fechaCorta(m.inicio) + ")" : "")));
+  vivos("listas").forEach(l => op("l:" + l.id, "Lista · " + l.nombre));
+  op("u4", "Mis últimas 4 semanas");
+  op("u8", "Mis últimas 8 semanas");
+  sel.value = [...sel.options].some(o => o.value === antes) ? antes : "";
+  $("iaRefModoL").hidden = !sel.value;
+}
+$("iaRef").addEventListener("change", () => {
+  // Un mesociclo de referencia propone sus semanas y días
+  const v = $("iaRef").value;
+  if (v.startsWith("m:") && db.mesociclos[v.slice(2)]) {
+    const m = db.mesociclos[v.slice(2)], dd = [...new Set(seriesVivas().filter(s => s.meso_id === m.id).map(s => diaSemana(s.fecha)))];
+    if (n0(m.semanas)) $("iaSemanas").value = n0(m.semanas);
+    if (dd.length) $("iaDias").value = dd.length;
+  }
+  pintarCamposIA();
+});
+$("iaRefModo").addEventListener("change", pintarCamposIA);
 function textoPrompt() {
   if (docIA) return textoPromptDocumento();
   if ($("iaModo").value === "sesion") return textoPromptSesion();
@@ -4743,7 +5964,7 @@ function textoPrompt() {
     molestiasActivas().length && "Molestias o lesiones que tengo ahora (adapta el plan para no agravarlas): " + molestiasActivas().map(m => m.zona + (m.descripcion ? " (" + m.descripcion + ")" : "")).join("; "),
     corre && f && "Mis ritmos de carrera actuales por km: " + ZONAS.map(([n, fr]) => n.split(" (")[0] + " " + fmtTiempo(ritmoZona(f.vdot, fr))).join(", ") + " (VDOT " + num(Math.round(f.vdot)) + "). Usa estos ritmos."
   ].filter(Boolean);
-  return ["Actúa como entrenador. Diséñame un plan de entrenamiento con estos datos:", ...datos.map(d => "- " + d), "",
+  return ["Actúa como entrenador. Diséñame un plan de entrenamiento con estos datos:", ...datos.map(d => "- " + d), "", ...bloqueReferenciaIA(),
     "Responde SOLO con el plan dentro de un bloque de código, sin texto fuera, en este formato exacto (una app lo lee automáticamente):",
     "```", EJEMPLO_IA, "```",
     "Reglas del formato:",
@@ -4751,12 +5972,13 @@ function textoPrompt() {
     "- Si todas las semanas son iguales, pon «SEMANAS: número» y escribe las sesiones una sola vez. Si el plan cambia cada semana, escribe «SEMANA 1», «SEMANA 2»… y debajo las sesiones de esa semana.",
     "- Cada sesión empieza por «## Nombre @ Día» (Lunes, Martes, Miércoles, Jueves, Viernes, Sábado o Domingo; varios días separados por comas).",
     "- Un ejercicio por línea: «- Nombre [tipo]: series». El tipo es fuerza, carrera, natacion o movilidad (estiramientos y movilidad). Usa nombres de ejercicios comunes en español.",
-    "- Series: 4x8 (repeticiones), 3xmáx, 5x1000m, 8x100m, 1x40min, 6x2min. Sin rangos: 4x10, no 4x8-12. En fuerza también por tiempo: 1x5min (bici de calentamiento), 3x45s (plancha). En movilidad: 2x10 por lado, 2x30s por lado.",
+    "- Series: 4x8 (repeticiones), 4x8-12 (ventana de repeticiones), 3xmáx, 5x1000m, 8x100m, 1x40min, 6x2min. En fuerza también por tiempo: 1x5min (bici de calentamiento), 3x45s (plancha). En movilidad: 2x10 por lado, 2x30s por lado.",
     "- Intensidad: @RPE8 o @75% (del 1RM) en fuerza, @4:30/km en carrera, @1:50/100m en natación. No pongas kilos fijos.",
     "- Descanso: «desc 2:00» o «desc 90» (segundos). En carrera y natación la recuperación también puede ir en metros: «rec 200m».",
     "- Indicaciones de un ejercicio (tempo, tipo de banda o resistencia, EEP/RIR, pausas…): al final de su línea, «nota: …». Ejemplo: «- Sentadilla [fuerza]: 4x6 @RPE8 nota: Tempo 3-1-1-0».",
     "- Tramos que se repiten seguidos: «- BLOQUE x4: Ejercicio [tipo] 400m rec 200m | Ejercicio [tipo] 200m».",
-    "- Partes opcionales dentro de una sesión (si ayudan): una línea «### Calentamiento», «### Parte principal» o «### Vuelta a la calma» antes de sus ejercicios.",
+    "- Divide cada sesión en partes con una línea «### Calentamiento», «### Parte principal» y, si encaja, «### Vuelta a la calma» antes de sus ejercicios.",
+    "- El calentamiento incluye movilidad [movilidad] de las articulaciones que se van a trabajar ese día (por ejemplo cadera y tobillo para pierna, hombro y columna torácica para torso, o movilidad dinámica antes de correr) y, si encaja, otros ejercicios: bici o trote suave, activación, técnica o series de aproximación [fuerza]. La vuelta a la calma puede llevar estiramientos [movilidad].",
     "- Tirada larga con ritmos distintos por tramos, en una línea: «- Tirada larga [carrera]: 1x8km @5:20/km + 1x6km @4:50/km + 1x2km @5:30/km».",
     carrera && "- Como el plan prepara una carrera, escribe «SEMANA 1», «SEMANA 2»… hasta la última, que es la de la carrera, con progresión, semanas de descarga y un tapering (menos volumen, algo de ritmo de carrera) en las 1–2 semanas previas. La carrera va como «## Carrera @ Día» con «- " + nombreDist(carrera) + " [carrera]: 1x" + (carrera / 1000).toString().replace(".", ",") + "km @ritmo»."].filter(Boolean).join("\n");
 }
@@ -4778,18 +6000,19 @@ function textoPromptSesion() {
     molestiasActivas().length && "Molestias o lesiones que tengo ahora (adapta la sesión para no agravarlas): " + molestiasActivas().map(m => m.zona + (m.descripcion ? " (" + m.descripcion + ")" : "")).join("; "),
     esCarrera && f && "Mis ritmos de carrera actuales por km: " + ZONAS.map(([n, fr]) => n.split(" (")[0] + " " + fmtTiempo(ritmoZona(f.vdot, fr))).join(", ") + " (VDOT " + num(Math.round(f.vdot)) + "). Usa estos ritmos."
   ].filter(Boolean);
-  return ["Actúa como entrenador. Diséñame UN SOLO entrenamiento (una sesión) con estos datos:", ...datos.map(d => "- " + d), "",
+  return ["Actúa como entrenador. Diséñame UN SOLO entrenamiento (una sesión) con estos datos:", ...datos.map(d => "- " + d), "", ...bloqueReferenciaIA(),
     "Responde SOLO con la sesión dentro de un bloque de código, sin texto fuera, en este formato exacto (una app lo lee automáticamente):",
     "```", EJEMPLO_SESION_IA, "```",
     "Reglas del formato:",
     "- Empieza por «RUTINA: nombre» y «NOTA:» con una o dos frases. Después UNA sola línea «## Nombre de la sesión» (sin día).",
     "- Un ejercicio por línea: «- Nombre [tipo]: series». El tipo es fuerza, carrera, natacion o movilidad (estiramientos y movilidad). Incluye calentamiento y vuelta a la calma si encajan.",
-    "- Series: 4x8, 3xmáx, 5x1000m, 8x100m, 1x40min, 6x2min. Sin rangos. Intensidad: @RPE8 o @75% en fuerza, @4:30/km en carrera, @1:50/100m en natación.",
+    "- Series: 4x8, 4x8-12 (ventana de repeticiones), 3xmáx, 5x1000m, 8x100m, 1x40min, 6x2min. Intensidad: @RPE8 o @75% en fuerza, @4:30/km en carrera, @1:50/100m en natación.",
     "- Calentamiento o isométricos por tiempo: «- Bicicleta estática [fuerza]: 1x5min», «- Plancha [fuerza]: 3x45s».",
     "- Movilidad y estiramientos en repeticiones o tiempo, y «por lado» si se hace a cada lado: «- Movilidad de cadera 90/90 [movilidad]: 2x8 por lado», «- Estiramiento de isquios [movilidad]: 2x30s por lado».",
     "- Descanso: «desc 2:00» o «desc 90»; en carrera y natación también «rec 200m».",
     "- Indicaciones (tempo, banda, EEP/RIR, pausas…): al final de la línea del ejercicio, «nota: …». Ejemplo: «- Remo con banda [fuerza]: 3x12 nota: Banda roja, tempo 2-0-1-1».",
     "- Divide la sesión en partes con una línea «### Calentamiento», «### Parte principal» y «### Vuelta a la calma» antes de sus ejercicios.",
+    "- El calentamiento incluye movilidad [movilidad] de las articulaciones que se van a trabajar (cadera y tobillo para pierna, hombro y columna torácica para torso, movilidad dinámica antes de correr) y, si encaja, otros ejercicios: bici o trote suave, activación, técnica o series de aproximación [fuerza]. La vuelta a la calma puede llevar estiramientos [movilidad].",
     "- Tramos que se repiten: «- BLOQUE x4: Ejercicio [tipo] 400m rec 200m | Ejercicio [tipo] 200m». Tirada por tramos: «- Tirada larga [carrera]: 1x8km @5:20/km + 1x6km @4:50/km»."].filter(Boolean).join("\n");
 }
 // ---------- Importar un documento de entrenamiento (PDF, Word, Excel, CSV, texto o foto) ----------
@@ -4862,6 +6085,8 @@ function pintarCamposIA() {
   $("iaCamposSesion").hidden = !sesion;
   $("iaCamposCarrera").hidden = !carrera;
   $("iaSesOtroL").hidden = $("iaSesTipo").value !== "otro";
+  $("iaRefCaja").hidden = !!docIA;
+  pintarRefIA();
   $("iaTexto").value = textoPrompt();
 }
 let rutinaIA = null;
@@ -4909,7 +6134,16 @@ $("iaCopiar").addEventListener("click", () => {
   });
 });
 $("iaRevisar").addEventListener("click", () => {
-  const r = leerRutina($("iaRespuesta").value);
+  // Si se pega el propio prompt (lleva un ejemplo dentro), la app leería el ejemplo: se avisa en vez de importarlo
+  const txt = $("iaRespuesta").value;
+  if (/Reglas del formato:/.test(txt) && /Responde SOLO con/.test(txt)) {
+    rutinaIA = null;
+    $("iaVistaTit").textContent = "";
+    $("iaError").textContent = "Esto es el prompt, no la respuesta: pégalo en ChatGPT, Claude u otra IA y pega aquí lo que te conteste (empieza por «RUTINA:»).";
+    pintarVistaIA();
+    return;
+  }
+  const r = leerRutina(txt);
   rutinaIA = r.error ? null : r;
   $("iaError").textContent = r.error || "";
   $("iaVistaTit").textContent = r.error ? "" : r.nombre;
@@ -4917,6 +6151,12 @@ $("iaRevisar").addEventListener("click", () => {
 });
 $("iaRespuesta").addEventListener("input", () => { rutinaIA = null; $("iaError").textContent = ""; pintarVistaIA(); });
 $("iaPlantillas").addEventListener("click", () => { if (!rutinaIA) return; $("dlgIA").close(); guardarRutina(rutinaIA, false); });
+$("iaLista").addEventListener("click", () => {
+  if (!rutinaIA) return;
+  const r = rutinaIA;
+  $("dlgIA").close();
+  elegirLista("¿En qué lista guardo «" + r.nombre + "»?", l => guardarRutina(r, false, null, null, l));
+});
 $("iaMeso").addEventListener("click", () => {
   if (!rutinaIA) return;
   const sem = parseInt($("iaMesoSem").value, 10), ini = $("iaInicio").value;
@@ -5181,7 +6421,7 @@ function colocarPrimeraSerie(fecha, id, grupo, eraEspera) {
   if (!eraEspera || !antes) return;
   const g = estructuraDia(fecha).find(x => x.nombre === (grupo || ""));
   if (!g) return;
-  const items = g.items.slice(), i = items.findIndex(x => ejDeClave(x.clave) === id && !x.clave.startsWith("b:")), j = items.findIndex(x => x.clave === antes);
+  const items = g.items.slice(), i = items.findIndex(x => x.clave.split("§")[0] === id && !x.clave.startsWith("b:")), j = items.findIndex(x => x.clave === antes);
   if (i < 0 || j < 0) return;
   const [it] = items.splice(i, 1);
   items.splice(items.findIndex(x => x.clave === antes), 0, it);
@@ -5198,8 +6438,10 @@ function moverASesion(series, destino) {
 }
 // Sesiones del día con sus ejercicios y bloques, en el orden en que se ven
 // Clave de un elemento del día: «b:bloque», o el ejercicio y, si tiene parte, «ejercicio§parte»
-const claveSerie = s => s.bloque_id ? "b:" + s.bloque_id : s.ejercicio_id + (s.seccion ? "§" + s.seccion : "");
-const ejDeClave = k => String(k).split("§")[0];
+// El mismo ejercicio puede ir dos veces en la misma parte: la 2.ª tarjeta es «ejercicio#2» (columna «copia»)
+const claveSerie = s => s.bloque_id ? "b:" + s.bloque_id : s.ejercicio_id + (n0(s.copia) > 1 ? "#" + n0(s.copia) : "") + (s.seccion ? "§" + s.seccion : "");
+const ejDeClave = k => String(k).split("§")[0].split("#")[0];
+const copiaDeClave = k => parseInt(String(k).split("§")[0].split("#")[1], 10) || 0;
 function estructuraDia(fecha) {
   const grupos = [];
   seriesDelDia(fecha).forEach(s => {
@@ -5257,14 +6499,16 @@ function asaArrastre(el, hermanos, alSoltar, nombre, zonas) {
     if (e.button > 0) return;
     e.preventDefault();
     e.stopPropagation();
+    ultimoTocado = null;   // al arrastrar, lo movido va a su nuevo sitio: no se «sujeta» la pantalla
     const lista = hermanos(), idx = lista.indexOf(el), zl = zonas ? zonas.lista() : [];
     if ((lista.length < 2 && !zl.length) || idx < 0) return;
-    let zona = null;
+    let zona = null, cand = null, candDesde = 0, tZona = 0;
     try { asa.setPointerCapture(e.pointerId); } catch {}
     arrastreActivo = true;
     const y0 = scrollY, cajas = lista.map(x => { const r = x.getBoundingClientRect(); return { top: r.top + y0, alto: r.height }; });
     const hueco = idx + 1 < cajas.length ? cajas[idx + 1].top - cajas[idx].top - cajas[idx].alto : idx > 0 ? cajas[idx].top - cajas[idx - 1].top - cajas[idx - 1].alto : 0;
     const paso = cajas[idx].alto + Math.max(0, hueco), inicioY = e.clientY + y0;
+    const zf = el.offsetHeight > 0 ? cajas[idx].alto / el.offsetHeight || 1 : 1;   // zoom del ordenador
     let dedoY = e.clientY, destino = idx, pendiente = false, vivo = true;
     el.classList.add("arrastrando");
     lista.forEach(x => { if (x !== el) x.classList.add("apartandose"); });
@@ -5285,27 +6529,32 @@ function asaArrastre(el, hermanos, alSoltar, nombre, zonas) {
       const { arriba, abajo } = bordes();
       if (dedoY < arriba + 48) scrollBy(0, -Math.min(14, arriba + 48 - dedoY));
       else if (dedoY > abajo - 48) scrollBy(0, Math.min(14, dedoY - (abajo - 48)));
-      const dy = dedoY + scrollY - inicioY, centro = cajas[idx].top + cajas[idx].alto / 2 + dy;
+      // Cambia de sitio cuando el borde de lo arrastrado (el de abajo al bajar, el de arriba al subir) pasa la mitad del otro: igual de fácil en los dos sentidos
+      const dy = dedoY + scrollY - inicioY, arribaEl = cajas[idx].top + dy, abajoEl = arribaEl + cajas[idx].alto;
       destino = idx;
       // ¿El dedo está encima de una zona? Entonces se resalta y los demás no se apartan
-      const z = zl.find(x => { const r = x.getBoundingClientRect(); return dedoY >= r.top - 6 && dedoY <= r.bottom + 6; }) || null;
+      const zc = zl.find(x => { const r = x.getBoundingClientRect(); return dedoY >= r.top && dedoY <= r.bottom; }) || null;
+      if (zc !== cand) { cand = zc; candDesde = Date.now(); }
+      const z = cand && Date.now() - candDesde >= 450 ? cand : null;
+      if (cand && !z) { clearTimeout(tZona); tZona = setTimeout(pedir, 470 - (Date.now() - candDesde)); }
       if (z !== zona) { if (zona) zona.classList.remove("zona-destino"); zona = z; if (zona) zona.classList.add("zona-destino"); el.classList.toggle("sobre-zona", !!zona); }
       lista.forEach((x, k) => {
         if (k === idx) return;
         if (zona) { x.style.transform = ""; return; }
         const medio = cajas[k].top + cajas[k].alto / 2;
         let mueve = 0;
-        if (k < idx && centro < medio) { mueve = paso; destino--; }
-        else if (k > idx && centro > medio) { mueve = -paso; destino++; }
-        x.style.transform = mueve ? "translate3d(0," + mueve + "px,0)" : "";
+        if (k < idx && arribaEl < medio) { mueve = paso; destino--; }
+        else if (k > idx && abajoEl > medio) { mueve = -paso; destino++; }
+        x.style.transform = mueve ? "translate3d(0," + mueve / zf + "px,0)" : "";
       });
-      el.style.transform = "translate3d(0," + dy + "px,0)";
+      el.style.transform = "translate3d(0," + dy / zf + "px,0)";
       if (dedoY < arriba + 48 || dedoY > abajo - 48) pedir();
     };
     const pedir = () => { if (!pendiente) { pendiente = true; requestAnimationFrame(pintar); } };
     const mover = ev => { dedoY = ev.clientY; pedir(); };
     const fin = ev => {
       vivo = false;
+      clearTimeout(tZona);
       arrastreActivo = false;
       asa.removeEventListener("pointermove", mover);
       asa.removeEventListener("pointerup", fin);
@@ -5325,6 +6574,182 @@ function asaArrastre(el, hermanos, alSoltar, nombre, zonas) {
     asa.addEventListener("pointercancel", fin);
   });
   return asa;
+}
+
+// Arrastrar un ejercicio o bloque dentro de su entreno: lo arrastrado sigue al dedo y un hueco marca dónde caerá.
+// Los demás no cambian de parte: solo se apartan dentro de la suya para dejar sitio. El hueco puede ir:
+// entre dos ejercicios, al principio de una parte (mitad de abajo de su título), al final (mitad de arriba de su
+// «+ Ejercicio») o suelto entre dos partes (mitad de arriba del título de la de abajo, o de abajo del «+ Ejercicio» de la de arriba)
+function asaArrastreDia(el, caja, hermanos, alSoltar, nombre, zonas) {
+  const asa = asaArrastre(el, hermanos, alSoltar, nombre, zonas);   // teclado (flechas) como siempre
+  const nuevo = asa.cloneNode(true);
+  nuevo.addEventListener("click", e => e.stopPropagation());
+  nuevo.addEventListener("touchstart", e => e.preventDefault(), { passive: false });
+  nuevo.addEventListener("keydown", e => asa.dispatchEvent(new KeyboardEvent("keydown", { key: e.key, bubbles: false, cancelable: true })) || e.preventDefault());
+  nuevo.addEventListener("pointerdown", e => {
+    if (e.button > 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    ultimoTocado = null;
+    try { nuevo.setPointerCapture(e.pointerId); } catch {}
+    arrastreActivo = true;
+    // Sin «position: fixed» (en el iPhone descoloca): lo arrastrado sigue en su sitio sin ocupar espacio
+    // (margen negativo) y se mueve con transform; el hueco ocupa su lugar
+    const r0 = el.getBoundingClientRect(), y0 = e.clientY, sy0 = scrollY;
+    // En el ordenador la app va con zoom (body): las medidas de pantalla se pasan a px de CSS dividiendo por él
+    const zf = el.offsetHeight > 0 ? r0.height / el.offsetHeight || 1 : 1;
+    const gap = parseFloat(getComputedStyle(el.parentElement).rowGap) || 0;
+    const ph = document.createElement("div");
+    ph.className = "hueco-arrastre";
+    ph.style.height = el.offsetHeight + "px";
+    el.before(ph);
+    el.classList.add("arrastrando", "arrastre-fijo");
+    el.style.marginBottom = -(el.offsetHeight + gap) + "px";
+    const zl = zonas ? zonas.lista().filter(z => z.closest(".bloque-rep")) : [];
+    let dedoY = e.clientY, ultY = e.clientY, dir = 1, pendiente = false, vivo = true, zona = null, cand = null, candDesde = 0, tZona = 0;
+    // Bordes de la pantalla (cabecera y barra fijas): se miden una vez
+    let bArriba = 0, bAbajo = innerHeight;
+    document.querySelectorAll(".cabecera, .tabbar").forEach(b => {
+      const pos = getComputedStyle(b).position;
+      if (pos !== "sticky" && pos !== "fixed") return;
+      const r = b.getBoundingClientRect();
+      if (r.height && r.top < innerHeight / 2) bArriba = Math.max(bArriba, r.bottom); else if (r.height) bAbajo = Math.min(bAbajo, r.top);
+    });
+    // Posiciones (en el documento, sin transiciones) de lo que puede recibir el hueco: se miden al empezar y cada vez que se mueve el hueco
+    // Todo el día: también se puede soltar en otro entreno (su título lo pone el primero; su «+ Ejercicio», el último)
+    const zonaDia = caja.closest(".bloques") || caja;
+    const calcObjetivos = () => [...zonaDia.querySelectorAll(".grupo .bloque[data-clave], .grupo > .parte-caja > .parte-cab, .grupo > .parte-caja > .add-fila, .letra-caja > .letra-cab, .grupo > .add-fila, .grupo > .grupo-cab")]
+      .filter(x => x !== el && !el.contains(x) && x.offsetParent !== null);
+    let objetivos = calcObjetivos();
+    // Partes, letras o entrenos plegados: si te quedas un momento encima de su título se despliegan para poder
+    // meter ahí el ejercicio; al soltar fuera vuelven a quedar plegados (y si lo sueltas dentro, se quedan abiertos)
+    const diaId = (dias.find(d => d.col.contains(zonaDia)) || {}).id || "";
+    const plegable = cab => {
+      const cont = cab.parentElement;
+      if (cab.classList.contains("parte-cab") && cont.classList.contains("p-plegada")) return { cont, cls: "p-plegada", key: "p|" + diaId + "|" + ((cont.closest(".grupo") || {}).dataset || {}).grupo + "|" + cont.dataset.parte };
+      if (cab.classList.contains("letra-cab") && cont.classList.contains("l-plegada")) { const pc = cont.closest(".parte-caja"); return { cont, cls: "l-plegada", key: "l|" + diaId + "|" + ((cont.closest(".grupo") || {}).dataset || {}).grupo + "|" + (pc ? pc.dataset.parte : "") + "|" + cont.dataset.letra }; }
+      if (cab.classList.contains("grupo-cab") && cont.classList.contains("g-plegado")) return { cont, cls: "g-plegado", key: diaId + "|" + (cont.dataset.grupo || "") };
+      return null;
+    };
+    const abiertasTemp = [];
+    let candPl = null, candPlDesde = 0, tPl = 0;
+    let pos = [], baseEl = 0, trasEl = 0;
+    const medir = () => {
+      const sy = scrollY;
+      pos = objetivos.map(x => { const r = x.getBoundingClientRect(); return { x, top: r.top + sy, bottom: r.bottom + sy }; });
+      const re = el.getBoundingClientRect();
+      baseEl = re.top + sy - trasEl;   // dónde estaría sin el transform
+      zlPos = zl.map(x => { const r = x.getBoundingClientRect(); return { x, top: r.top + sy, bottom: r.bottom + sy }; });
+    };
+    let zlPos = [];
+    const moverHueco = hacer => {
+      const antes = new Map(pos.map(p => [p.x, p.top]));
+      hacer();
+      objetivos.forEach(x => { x.style.transition = "none"; x.style.transform = ""; });
+      medir();
+      pos.forEach(p => {
+        const d = antes.get(p.x) - p.top;
+        if (!d) return;
+        p.x.style.transform = "translate3d(0," + d / zf + "px,0)";
+        requestAnimationFrame(() => { p.x.style.transition = "transform 0.15s ease"; p.x.style.transform = ""; });
+      });
+    };
+    const colocar = (ref, donde) => {   // donde: "antes" | "despues"
+      if (donde === "antes" ? ref.previousElementSibling === ph || ref.previousElementSibling === el && el.previousElementSibling === ph : ref.nextElementSibling === ph) return;
+      moverHueco(() => donde === "antes" ? ref.before(ph) : ref.after(ph));
+    };
+    medir();
+    const pintar = () => {
+      pendiente = false;
+      if (!vivo) return;
+      if (dedoY < bArriba + 48) scrollBy(0, -Math.min(14, bArriba + 48 - dedoY));
+      else if (dedoY > bAbajo - 48) scrollBy(0, Math.min(14, dedoY - (bAbajo - 48)));
+      const sy = scrollY, topDoc = r0.top + (dedoY - y0) + sy;   // el dedo manda: lo arrastrado no se separa de él
+      trasEl = topDoc - baseEl;
+      el.style.transform = "translate3d(0," + trasEl / zf + "px,0)";
+      const yDedo = dedoY + sy;
+      const zc = (zlPos.find(p => yDedo >= p.top && yDedo <= p.bottom) || {}).x || null;
+      if (zc !== cand) { cand = zc; candDesde = Date.now(); }
+      const z = cand && Date.now() - candDesde >= 450 ? cand : null;
+      if (cand && !z) { clearTimeout(tZona); tZona = setTimeout(pedir, 470 - (Date.now() - candDesde)); }
+      if (z !== zona) { if (zona) zona.classList.remove("zona-destino"); zona = z; if (zona) zona.classList.add("zona-destino"); el.classList.toggle("sobre-zona", !!zona); }
+      if (!zona) {
+        // Se mira con el borde de lo arrastrado: el de abajo al bajar, el de arriba al subir (igual de fácil en los dos sentidos)
+        const y = dir > 0 ? topDoc + r0.height - 4 : topDoc + 4;
+        const t = pos.find(p => y >= p.top && y <= p.bottom && !plegable(p.x));   // un título plegado no mueve el hueco: espera a desplegarse
+        if (t) {
+          const x = t.x, arribaMitad = y < (t.top + t.bottom) / 2;
+          if (x.classList.contains("grupo-cab")) colocar(x, "despues");
+          else if (x.classList.contains("parte-cab") || x.classList.contains("letra-cab")) arribaMitad ? colocar(x.parentElement, "antes") : colocar(x, "despues");
+          else if (x.classList.contains("add-fila")) x.parentElement.classList.contains("parte-caja") ? (arribaMitad ? colocar(x, "antes") : colocar(x.parentElement, "despues")) : colocar(x, "antes");
+          else colocar(x, arribaMitad ? "antes" : "despues");
+        }
+      }
+      // Si el hueco se ha movido, su sitio de partida ha cambiado: se recoloca en el mismo fotograma (sin saltos)
+      if (topDoc - baseEl !== trasEl) { trasEl = topDoc - baseEl; el.style.transform = "translate3d(0," + trasEl / zf + "px,0)"; }
+      // Desplegar lo plegado si el dedo se queda un momento encima de su título
+      const cabPl = pos.find(p => yDedo >= p.top && yDedo <= p.bottom && plegable(p.x));
+      const cp = cabPl ? cabPl.x : null;
+      if (cp !== candPl) { candPl = cp; candPlDesde = Date.now(); }
+      if (candPl) {
+        if (Date.now() - candPlDesde >= 350) {
+          const info = plegable(candPl);
+          if (info) { info.cont.classList.remove(info.cls); abiertasTemp.push(info); objetivos = calcObjetivos(); medir(); trasEl = topDoc - baseEl; el.style.transform = "translate3d(0," + trasEl / zf + "px,0)"; }
+          candPl = null;
+        } else { clearTimeout(tPl); tPl = setTimeout(pedir, 370 - (Date.now() - candPlDesde)); }
+      }
+      ph.classList.toggle("oculto", !!zona);
+      if (dedoY < bArriba + 48 || dedoY > bAbajo - 48) pedir();
+    };
+    const pedir = () => { if (!pendiente) { pendiente = true; requestAnimationFrame(pintar); } };
+    const mover = ev => { dedoY = ev.clientY; if (Math.abs(dedoY - ultY) > 2) { dir = dedoY > ultY ? 1 : -1; ultY = dedoY; } pedir(); };
+    const fin = ev => {
+      vivo = false;
+      clearTimeout(tZona); clearTimeout(tPl);
+      arrastreActivo = false;
+      // Soltado justo encima del título de un entreno o parte plegados (sin esperar a que se abra): entra ahí, al final,
+      // y se despliega para que se vea
+      let cambioPl = false;
+      if (ev.type !== "pointercancel" && !zona) {
+        const yF = dedoY + scrollY, cabF = pos.find(p => yF >= p.top && yF <= p.bottom && plegable(p.x));
+        if (cabF) {
+          const info = plegable(cabF.x), fin = info.cont.querySelector(":scope > .add-fila");
+          if (info.cls === "l-plegada") info.cont.appendChild(ph);
+          else if (fin) fin.before(ph); else info.cont.appendChild(ph);
+          info.cont.classList.remove(info.cls);
+          delete gruposPlegados[info.key]; cambioPl = true;
+        }
+      }
+      // Lo desplegado al pasar: donde ha caído se queda abierto; lo demás vuelve a plegarse
+      abiertasTemp.forEach(info => {
+        if (!zona && ev.type !== "pointercancel" && info.cont.contains(ph)) { delete gruposPlegados[info.key]; cambioPl = true; }
+        else info.cont.classList.add(info.cls);
+      });
+      if (cambioPl) escribir("grupos-plegados-v1", gruposPlegados);
+      nuevo.removeEventListener("pointermove", mover);
+      nuevo.removeEventListener("pointerup", fin);
+      nuevo.removeEventListener("pointercancel", fin);
+      el.classList.remove("arrastrando", "arrastre-fijo", "sobre-zona");
+      el.style.transform = ""; el.style.marginBottom = "";
+      objetivos.forEach(x => { x.style.transition = ""; x.style.transform = ""; });
+      if (zona) zona.classList.remove("zona-destino");
+      if (ev.type !== "pointercancel" && zona) { ph.remove(); zonas.alSoltar(zona); return; }
+      const destParte = ph.closest(".parte-caja") ? ph.closest(".parte-caja").dataset.parte || "" : "";
+      const cajaDest = ph.closest(".grupo") || caja;
+      const orden = [...cajaDest.querySelectorAll(".bloque[data-clave], .hueco-arrastre")].filter(x => x !== el).map(x => x === ph ? el : x);
+      ph.remove();
+      if (ev.type === "pointercancel") { if (repintarLuego) pintarBloques(true); return; }
+      if (cajaDest !== caja) { alSoltar(orden, el, destParte, cajaDest.dataset.grupo || ""); return; }
+      const antes = hermanos();
+      const igual = antes.length === orden.length && antes.every((x, k) => x === orden[k]) && destParte === (el.dataset.parte || "");
+      if (igual) { if (repintarLuego) pintarBloques(true); return; }
+      alSoltar(orden, el, destParte);
+    };
+    nuevo.addEventListener("pointermove", mover);
+    nuevo.addEventListener("pointerup", fin);
+    nuevo.addEventListener("pointercancel", fin);
+  });
+  return nuevo;
 }
 
 // ---------- Vista de un solo día ----------
@@ -5595,7 +7020,7 @@ function pintarEntreno() {
   const mov = tipo === "movilidad";
   ent.campos = dist ? (n0(s.distancia) > 0 ? ["m", "t"] : ["t", "m"]) : !mov && (n0(s.tiempo) > 0 || s.max_tiempo) && !(n0(s.reps) > 0) ? ["kg", "s"] : mov ? (n0(s.reps) > 0 || !(n0(s.tiempo) > 0) ? ["reps", "s"] : ["s", "reps"]) : ["kg", "reps"];
   const etiqueta = { kg: "Peso (kg)", reps: "Repeticiones" + (s.por_lado ? " por lado" : ""), m: enKm() ? "Kilómetros" : "Metros", t: "Tiempo", s: "Tiempo" + (s.por_lado ? " por lado" : "") + " (45 = segundos)" };
-  const valor = c => c === "kg" ? (kg ? num(kg) : "") : c === "reps" ? (s.ciclo_id === "auto" && !hecha(s) ? "" : n0(s.reps) || "")
+  const valor = c => c === "kg" ? (kg ? num(kg) : "") : c === "reps" ? ((s.ciclo_id === "auto" || esRango(s)) && !hecha(s) ? "" : n0(s.reps) || "")
     : c === "m" ? distCampo(s.distancia) : c === "s" ? (n0(s.tiempo) > 0 ? (n0(s.tiempo) < 60 ? String(n0(s.tiempo)) : fmtTiempo(s.tiempo)) : "") : n0(s.tiempo) ? fmtTiempo(s.tiempo) : "";
   [["enA", "enEtA"], ["enB", "enEtB"]].forEach(([inp, et], k) => {
     const c = ent.campos[k];
@@ -5605,7 +7030,7 @@ function pintarEntreno() {
     // En carrera, el ejemplo del tiempo es el objetivo de la serie (si lo hay), no un número cualquiera
     const obj = c === "t" && !hecha(s) ? objetivoSerie(s) : null;
     const esMaxE = !hecha(s) && !(n0(s.reps) > 0) && !(n0(s.tiempo) > 0);
-    $(inp).placeholder = c === "reps" && (s.ciclo_id || esMaxE) ? "máx: ¿cuántas?" : c === "s" ? (esMaxE ? "máx: ¿cuántos s?" : "45") : c === "t" ? (obj && obj.tiempo ? "obj. " + fmtTiempo(obj.tiempo) : "3:40") : "";
+    $(inp).placeholder = c === "reps" && esRango(s) && !hecha(s) ? rangoTxt(s) + ": ¿cuántas?" : c === "reps" && (s.ciclo_id || esMaxE) ? "máx: ¿cuántas?" : c === "s" ? (esMaxE ? "máx: ¿cuántos s?" : "45") : c === "t" ? (obj && obj.tiempo ? "obj. " + fmtTiempo(obj.tiempo) : "3:40") : "";
   });
   $("enHecha").textContent = hecha(s) ? "Guardar cambios" : "✓ Hecha";
   $("enDesmarcar").hidden = !hecha(s);
@@ -5629,6 +7054,7 @@ $("enHecha").addEventListener("click", () => {
   if (!ent.audio && window.AudioContext) { try { ent.audio = new AudioContext(); } catch {} }
   const a = $("enA"), b = $("enB"), aviso = t => { $("enAviso").textContent = t; };
   const fila = { ...s, hecha: true };
+  if (tipoDe(s.ejercicio_id) === "fuerza" && esMaxSinDato(s) && !s.max_tiempo) fila.max_reps = true;   // «máx reps» de antes, sin marca
   if (ent.campos[0] === "kg" && ent.campos[1] === "reps") {
     const kg = parseFloat((a.value.trim() || "0").replace(",", ".")), reps = parseInt(b.value, 10);
     if (!(kg >= 0)) { aviso("Revisa el peso."); a.focus(); return; }
@@ -5747,7 +7173,7 @@ $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); 
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
 // VERSION_APP es interna (sube en cada publicación para que los móviles se actualicen); la que se ve es siempre la 26
-const VERSION_APP = "v91" + (BETA ? " beta" : "");
+const VERSION_APP = "v143" + (BETA ? " beta" : "");
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";
@@ -6510,6 +7936,23 @@ document.querySelectorAll("#vistaPlan > .plan-sec[data-sec]").forEach(sec => {
     if (seccionesPlan[clave]) verAlAbrir(sec);
   });
 });
+const GRUPOS_PLAN = {
+  crear: ["importar", "ia", "compartido"],
+  entrenos: ["plantillas", "mesociclos", "rutinas", "molestias"],
+  cuenta: ["copia", "ajustes", "sugerencias", "usuarios"]
+};
+function mostrarGrupoPlan(grupo) {
+  const elegido = GRUPOS_PLAN[grupo] ? grupo : "crear";
+  document.querySelectorAll("#vistaPlan > .plan-sec[data-sec]").forEach(sec => { sec.hidden = !GRUPOS_PLAN[elegido].includes(sec.dataset.sec); });
+  document.querySelectorAll(".plan-nav-btn[data-plan]").forEach(b => {
+    const activa = b.dataset.plan === elegido;
+    b.classList.toggle("activa", activa);
+    b.setAttribute("aria-pressed", String(activa));
+  });
+  escribir("plan-grupo-v1", elegido);
+}
+document.querySelectorAll(".plan-nav-btn[data-plan]").forEach(b => b.addEventListener("click", () => mostrarGrupoPlan(b.dataset.plan)));
+mostrarGrupoPlan(leer("plan-grupo-v1") || "crear");
 $("buscarPlantilla").addEventListener("input", () => {
   const sec = $("buscarPlantilla").closest(".plan-sec");
   if (sec.classList.contains("cerrada")) { seccionesPlan.plantillas = true; escribir("plan-abiertas-v1", seccionesPlan); ponerSeccion(sec, true); }
@@ -6529,7 +7972,7 @@ if (window.visualViewport) {
 const VERSION_NOV = VERSION_APP.split(" ")[0];
 const novedadesVistas = () => [(perfil && perfil.novedades_vistas) || "", leer("novedades-vistas-v1") || ""].includes(VERSION_NOV);
 // Versiones con novedades que merece la pena avisar; en las demás (o para quien entra por primera vez) no hay aviso
-const AVISAR_NOVEDADES = true;
+const AVISAR_NOVEDADES = false;
 function pintarAvisoNovedades() {
   // Quien nunca ha visto ninguna versión entra por primera vez: para él todo es nuevo, así que se da por vista
   if (sesion && perfil && !perfil.novedades_vistas && !leer("novedades-vistas-v1")) { marcarNovedadesVistas(); return; }
@@ -6550,8 +7993,7 @@ function abrirAyuda() {
   if (habia) {
     // Con novedades sin ver, se abre directamente por ellas
     const nov = $("dlgAyuda").querySelector(".novedades");
-    nov.open = true;
-    nov.scrollIntoView({ block: "start" });
+    if (nov) { nov.open = true; nov.scrollIntoView({ block: "start" }); }
     marcarNovedadesVistas();
   }
 }
