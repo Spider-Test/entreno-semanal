@@ -1322,7 +1322,7 @@ h1 { color: var(--titulo); }
 .tramo .tr-calc { margin: 0; font-size: 13px; color: var(--muted); text-align: right; }
 
 /* Arrastre con hueco: lo arrastrado flota y un hueco marca dónde cae */
-.arrastre-fijo { z-index: 1000 !important; pointer-events: none; box-shadow: 0 12px 32px rgba(0, 0, 0, 0.25); }
+.arrastre-fijo { position: relative; z-index: 1000 !important; pointer-events: none; box-shadow: 0 12px 32px rgba(0, 0, 0, 0.25); will-change: transform; }
 .hueco-arrastre { flex: none; box-sizing: border-box; border: 2px dashed var(--accent); border-radius: 10px; background: var(--accent-soft); margin: 4px 0; }
 .hueco-arrastre.oculto { visibility: hidden; }
 

@@ -5759,6 +5759,7 @@ function asaArrastre(el, hermanos, alSoltar, nombre, zonas) {
     const y0 = scrollY, cajas = lista.map(x => { const r = x.getBoundingClientRect(); return { top: r.top + y0, alto: r.height }; });
     const hueco = idx + 1 < cajas.length ? cajas[idx + 1].top - cajas[idx].top - cajas[idx].alto : idx > 0 ? cajas[idx].top - cajas[idx - 1].top - cajas[idx - 1].alto : 0;
     const paso = cajas[idx].alto + Math.max(0, hueco), inicioY = e.clientY + y0;
+    const zf = el.offsetHeight > 0 ? cajas[idx].alto / el.offsetHeight || 1 : 1;   // zoom del ordenador
     let dedoY = e.clientY, destino = idx, pendiente = false, vivo = true;
     el.classList.add("arrastrando");
     lista.forEach(x => { if (x !== el) x.classList.add("apartandose"); });
@@ -5795,9 +5796,9 @@ function asaArrastre(el, hermanos, alSoltar, nombre, zonas) {
         let mueve = 0;
         if (k < idx && arribaEl < medio) { mueve = paso; destino--; }
         else if (k > idx && abajoEl > medio) { mueve = -paso; destino++; }
-        x.style.transform = mueve ? "translate3d(0," + mueve + "px,0)" : "";
+        x.style.transform = mueve ? "translate3d(0," + mueve / zf + "px,0)" : "";
       });
-      el.style.transform = "translate3d(0," + dy + "px,0)";
+      el.style.transform = "translate3d(0," + dy / zf + "px,0)";
       if (dedoY < arriba + 48 || dedoY > abajo - 48) pedir();
     };
     const pedir = () => { if (!pendiente) { pendiente = true; requestAnimationFrame(pintar); } };
@@ -5843,73 +5844,89 @@ function asaArrastreDia(el, caja, hermanos, alSoltar, nombre, zonas) {
     ultimoTocado = null;
     try { nuevo.setPointerCapture(e.pointerId); } catch {}
     arrastreActivo = true;
-    const r0 = el.getBoundingClientRect(), y0 = e.clientY;
+    // Sin «position: fixed» (en el iPhone descoloca): lo arrastrado sigue en su sitio sin ocupar espacio
+    // (margen negativo) y se mueve con transform; el hueco ocupa su lugar
+    const r0 = el.getBoundingClientRect(), y0 = e.clientY, sy0 = scrollY;
+    // En el ordenador la app va con zoom (body): las medidas de pantalla se pasan a px de CSS dividiendo por él
+    const zf = el.offsetHeight > 0 ? r0.height / el.offsetHeight || 1 : 1;
+    const gap = parseFloat(getComputedStyle(el.parentElement).rowGap) || 0;
     const ph = document.createElement("div");
     ph.className = "hueco-arrastre";
-    ph.style.height = r0.height + "px";
+    ph.style.height = el.offsetHeight + "px";
     el.before(ph);
     el.classList.add("arrastrando", "arrastre-fijo");
-    Object.assign(el.style, { position: "fixed", left: r0.left + "px", top: r0.top + "px", width: r0.width + "px", margin: "0" });
+    el.style.marginBottom = -(el.offsetHeight + gap) + "px";
     const zl = zonas ? zonas.lista().filter(z => z.closest(".bloque-rep")) : [];
     let dedoY = e.clientY, ultY = e.clientY, dir = 1, pendiente = false, vivo = true, zona = null, cand = null, candDesde = 0, tZona = 0;
-    const bordes = () => {
-      let arriba = 0, abajo = innerHeight;
-      document.querySelectorAll(".cabecera, .tabbar").forEach(b => {
-        const pos = getComputedStyle(b).position;
-        if (pos !== "sticky" && pos !== "fixed") return;
-        const r = b.getBoundingClientRect();
-        if (r.height && r.top < innerHeight / 2) arriba = Math.max(arriba, r.bottom); else if (r.height) abajo = Math.min(abajo, r.top);
-      });
-      return { arriba, abajo };
+    // Bordes de la pantalla (cabecera y barra fijas): se miden una vez
+    let bArriba = 0, bAbajo = innerHeight;
+    document.querySelectorAll(".cabecera, .tabbar").forEach(b => {
+      const pos = getComputedStyle(b).position;
+      if (pos !== "sticky" && pos !== "fixed") return;
+      const r = b.getBoundingClientRect();
+      if (r.height && r.top < innerHeight / 2) bArriba = Math.max(bArriba, r.bottom); else if (r.height) bAbajo = Math.min(bAbajo, r.top);
+    });
+    // Posiciones (en el documento, sin transiciones) de lo que puede recibir el hueco: se miden al empezar y cada vez que se mueve el hueco
+    const objetivos = [...caja.querySelectorAll(".bloque[data-clave], :scope > .parte-caja > .parte-cab, :scope > .parte-caja > .add-fila, .letra-caja > .letra-cab, :scope > .add-fila")]
+      .filter(x => x !== el && !el.contains(x) && x.offsetParent !== null);
+    let pos = [], baseEl = 0, trasEl = 0;
+    const medir = () => {
+      const sy = scrollY;
+      pos = objetivos.map(x => { const r = x.getBoundingClientRect(); return { x, top: r.top + sy, bottom: r.bottom + sy }; });
+      const re = el.getBoundingClientRect();
+      baseEl = re.top + sy - trasEl;   // dónde estaría sin el transform
+      zlPos = zl.map(x => { const r = x.getBoundingClientRect(); return { x, top: r.top + sy, bottom: r.bottom + sy }; });
     };
-    // Los que se apartan lo hacen con una transición corta (FLIP)
+    let zlPos = [];
     const moverHueco = hacer => {
-      const vis = [...caja.querySelectorAll(".bloque[data-clave], .parte-cab, .add-fila, .letra-cab")].filter(x => x !== el);
-      const antes = vis.map(x => x.getBoundingClientRect().top);
+      const antes = new Map(pos.map(p => [p.x, p.top]));
       hacer();
-      vis.forEach((x, k) => {
-        const d = antes[k] - x.getBoundingClientRect().top;
+      objetivos.forEach(x => { x.style.transition = "none"; x.style.transform = ""; });
+      medir();
+      pos.forEach(p => {
+        const d = antes.get(p.x) - p.top;
         if (!d) return;
-        x.style.transition = "none"; x.style.transform = "translate3d(0," + d + "px,0)";
-        requestAnimationFrame(() => { x.style.transition = "transform 0.15s ease"; x.style.transform = ""; });
+        p.x.style.transform = "translate3d(0," + d / zf + "px,0)";
+        requestAnimationFrame(() => { p.x.style.transition = "transform 0.15s ease"; p.x.style.transform = ""; });
       });
     };
     const colocar = (ref, donde) => {   // donde: "antes" | "despues"
-      if (donde === "antes" ? ref.previousElementSibling === ph : ref.nextElementSibling === ph) return;
+      if (donde === "antes" ? ref.previousElementSibling === ph || ref.previousElementSibling === el && el.previousElementSibling === ph : ref.nextElementSibling === ph) return;
       moverHueco(() => donde === "antes" ? ref.before(ph) : ref.after(ph));
     };
+    medir();
     const pintar = () => {
       pendiente = false;
       if (!vivo) return;
-      const { arriba, abajo } = bordes();
-      if (dedoY < arriba + 48) scrollBy(0, -Math.min(14, arriba + 48 - dedoY));
-      else if (dedoY > abajo - 48) scrollBy(0, Math.min(14, dedoY - (abajo - 48)));
-      el.style.top = (r0.top + dedoY - y0) + "px";
-      // Soltar encima del título de un bloque (quedándose un momento) mete el ejercicio en él
-      const zc = zl.find(x => { const r = x.getBoundingClientRect(); return dedoY >= r.top && dedoY <= r.bottom; }) || null;
+      if (dedoY < bArriba + 48) scrollBy(0, -Math.min(14, bArriba + 48 - dedoY));
+      else if (dedoY > bAbajo - 48) scrollBy(0, Math.min(14, dedoY - (bAbajo - 48)));
+      const sy = scrollY, topDoc = r0.top + (dedoY - y0) + sy;   // el dedo manda: lo arrastrado no se separa de él
+      trasEl = topDoc - baseEl;
+      el.style.transform = "translate3d(0," + trasEl / zf + "px,0)";
+      const yDedo = dedoY + sy;
+      const zc = (zlPos.find(p => yDedo >= p.top && yDedo <= p.bottom) || {}).x || null;
       if (zc !== cand) { cand = zc; candDesde = Date.now(); }
       const z = cand && Date.now() - candDesde >= 450 ? cand : null;
       if (cand && !z) { clearTimeout(tZona); tZona = setTimeout(pedir, 470 - (Date.now() - candDesde)); }
       if (z !== zona) { if (zona) zona.classList.remove("zona-destino"); zona = z; if (zona) zona.classList.add("zona-destino"); el.classList.toggle("sobre-zona", !!zona); }
       if (!zona) {
         // Se mira con el borde de lo arrastrado: el de abajo al bajar, el de arriba al subir (igual de fácil en los dos sentidos)
-        const re = el.getBoundingClientRect(), y = dir > 0 ? re.bottom - 4 : re.top + 4;
-        const objetivos = [...caja.querySelectorAll(".bloque[data-clave], :scope > .parte-caja > .parte-cab, :scope > .parte-caja > .add-fila, .letra-caja > .letra-cab, :scope > .add-fila")]
-          .filter(x => x !== el && !el.contains(x) && x.offsetParent !== null);
-        const t = objetivos.find(x => { const r = x.getBoundingClientRect(); return y >= r.top && y <= r.bottom; });
+        const y = dir > 0 ? topDoc + r0.height - 4 : topDoc + 4;
+        const t = pos.find(p => y >= p.top && y <= p.bottom);
         if (t) {
-          const r = t.getBoundingClientRect(), arribaMitad = y < r.top + r.height / 2;
-          if (t.classList.contains("parte-cab")) arribaMitad ? colocar(t.parentElement, "antes") : colocar(t, "despues");
-          else if (t.classList.contains("letra-cab")) arribaMitad ? colocar(t.parentElement, "antes") : colocar(t, "despues");
-          else if (t.classList.contains("add-fila")) t.parentElement.classList.contains("parte-caja") ? (arribaMitad ? colocar(t, "antes") : colocar(t.parentElement, "despues")) : colocar(t, "antes");
-          else colocar(t, arribaMitad ? "antes" : "despues");
+          const x = t.x, arribaMitad = y < (t.top + t.bottom) / 2;
+          if (x.classList.contains("parte-cab") || x.classList.contains("letra-cab")) arribaMitad ? colocar(x.parentElement, "antes") : colocar(x, "despues");
+          else if (x.classList.contains("add-fila")) x.parentElement.classList.contains("parte-caja") ? (arribaMitad ? colocar(x, "antes") : colocar(x.parentElement, "despues")) : colocar(x, "antes");
+          else colocar(x, arribaMitad ? "antes" : "despues");
         }
       }
+      // Si el hueco se ha movido, su sitio de partida ha cambiado: se recoloca en el mismo fotograma (sin saltos)
+      if (topDoc - baseEl !== trasEl) { trasEl = topDoc - baseEl; el.style.transform = "translate3d(0," + trasEl / zf + "px,0)"; }
       ph.classList.toggle("oculto", !!zona);
-      if (dedoY < arriba + 48 || dedoY > abajo - 48) pedir();
+      if (dedoY < bArriba + 48 || dedoY > bAbajo - 48) pedir();
     };
     const pedir = () => { if (!pendiente) { pendiente = true; requestAnimationFrame(pintar); } };
-    const mover = ev => { dedoY = ev.clientY; if (dedoY !== ultY) { dir = dedoY > ultY ? 1 : -1; ultY = dedoY; } pedir(); };
+    const mover = ev => { dedoY = ev.clientY; if (Math.abs(dedoY - ultY) > 2) { dir = dedoY > ultY ? 1 : -1; ultY = dedoY; } pedir(); };
     const fin = ev => {
       vivo = false;
       clearTimeout(tZona);
@@ -5918,8 +5935,8 @@ function asaArrastreDia(el, caja, hermanos, alSoltar, nombre, zonas) {
       nuevo.removeEventListener("pointerup", fin);
       nuevo.removeEventListener("pointercancel", fin);
       el.classList.remove("arrastrando", "arrastre-fijo", "sobre-zona");
-      ["position", "left", "top", "width", "margin"].forEach(k => { el.style[k] = ""; });
-      caja.querySelectorAll(".bloque[data-clave], .parte-cab, .add-fila, .letra-cab").forEach(x => { x.style.transition = ""; x.style.transform = ""; });
+      el.style.transform = ""; el.style.marginBottom = "";
+      objetivos.forEach(x => { x.style.transition = ""; x.style.transform = ""; });
       if (zona) zona.classList.remove("zona-destino");
       if (ev.type !== "pointercancel" && zona) { ph.remove(); zonas.alSoltar(zona); return; }
       const destParte = ph.closest(".parte-caja") ? ph.closest(".parte-caja").dataset.parte || "" : "";
@@ -6358,7 +6375,7 @@ $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); 
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
 // VERSION_APP es interna (sube en cada publicación para que los móviles se actualicen); la que se ve es siempre la 26
-const VERSION_APP = "v123" + (BETA ? " beta" : "");
+const VERSION_APP = "v125" + (BETA ? " beta" : "");
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";
