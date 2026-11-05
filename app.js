@@ -2293,9 +2293,12 @@ function tarjetaBloque(dia, bloqueId, series) {
   c.innerHTML = '<div class="bloque-cab"><span class="br-tit"></span><span class="g-prog"></span><button type="button" class="menu-btn">⋯</button></div>' +
     '<div class="rondas"></div>' +
     '<form class="nueva-serie br-form" hidden><span class="br-que"></span>' +
-      '<div class="ns-fila"><input class="in-a" autocomplete="off" enterkeyhint="next"><span class="por"></span><input class="in-b" autocomplete="off" enterkeyhint="next"></div>' +
-      '<div class="ns-fila"><input class="in-c" inputmode="decimal" placeholder="⏱ recuperación 2,00 o 300 m" aria-label="Recuperación (tiempo o metros)" autocomplete="off" enterkeyhint="done">' +
-      '<button class="anadir">✓ Guardar</button></div><button type="button" class="enlace desmarcar" hidden>↺ Marcar como pendiente</button></form>';
+      '<div class="ns-fila"><input class="in-a" autocomplete="off" enterkeyhint="next"><button type="button" class="modo br-modo" hidden aria-label="Cambiar entre kg y % del 1RM">kg</button><span class="por"></span><input class="in-b" autocomplete="off" enterkeyhint="next"></div>' +
+      '<p class="calc br-calc" hidden></p>' +
+      '<div class="ns-fila"><input class="in-c" inputmode="decimal" placeholder="⏱ descanso después: 1,30 o 300 m" aria-label="Descanso o recuperación después de esta serie (tiempo o metros)" autocomplete="off" enterkeyhint="done">' +
+      '<button class="anadir">✓ Guardar</button></div>' +
+      '<label class="br-todas" hidden><input type="checkbox"> <span></span></label>' +
+      '<button type="button" class="enlace desmarcar" hidden>↺ Marcar como pendiente</button></form>';
   // El título solo dice «Bloque ×N»; los ejercicios salen en cada ronda (los de nombre con distancia, como «Series 1000 m», van en el título)
   const enTitulo = [...new Set(primera.map(s => nombreEj(s.ejercicio_id)).filter(n => distDeNombre(n)))];
   c.querySelector(".br-tit").textContent = "×" + rondas.length + " rondas" + (enTitulo.length ? " · " + enTitulo.join(" + ") : "");
@@ -2320,6 +2323,7 @@ function tarjetaBloque(dia, bloqueId, series) {
       (variosTramos || !notaDe(series)) && { texto: variosTramos ? "Descripción (del bloque o de un ejercicio)…" : "+ Descripción (tempo, banda, EEP…)", accion: () => !variosTramos ? editarNota(dia, series, "Descripción del bloque")
         : abrirMenu("¿Descripción de qué?", "", [{ texto: "De todo el bloque", accion: () => editarNota(dia, series, "Descripción del bloque") }]
           .concat(primera.map(s0 => ({ texto: nombreEj(s0.ejercicio_id), accion: () => editarNota(dia, series.filter(x => x.ejercicio_id === s0.ejercicio_id), "Descripción de " + nombreEj(s0.ejercicio_id)) })))) },
+      { texto: "⏱ Descansos del bloque…", accion: () => menuDescansos() },
       { texto: "+ Añadir un ejercicio al bloque…", accion: () => abrirSelector(dia, id => meterEnBloque(dia, series, id, null), series[0].grupo || "", series[0].seccion || "") },
       variosTramos && { texto: "Quitar un ejercicio del bloque…", accion: () => abrirMenu("¿Qué ejercicio quitas?", "Se borran sus series de todas las rondas", primera.map(s0 => ({ texto: nombreEj(s0.ejercicio_id), peligro: true, accion: () => {
         const fuera = series.filter(x => x.ejercicio_id === s0.ejercicio_id);
@@ -2336,7 +2340,53 @@ function tarjetaBloque(dia, bloqueId, series) {
     ]);
   });
 
+  // Descansos: entre ejercicios (dentro de la ronda), entre rondas (tras el último de cada ronda) y al acabar el bloque
+  // (tras la última serie: es el descanso antes de lo siguiente). Se guardan en la serie, como en los ejercicios sueltos
+  function menuDescansos() {
+    const porRonda = rondas.map(r => series.filter(s => n0(s.ronda) === r).sort((a, b) => a.orden - b.orden));
+    const entreEj = porRonda.flatMap(l => l.slice(0, -1)), entreR = porRonda.slice(0, -1).map(l => l[l.length - 1]), alFinal = [porRonda[porRonda.length - 1].slice(-1)[0]];
+    const actual = l => { const t = l.map(recTexto); return t.every(x => x === t[0]) ? t[0] : ""; };
+    const poner = async (lista, titulo) => {
+      const t = await pedirNombre(titulo, actual(lista) || "", "Tiempo («1,30» = 1 min 30 s, «3» = 3 min, «90» = 90 s) o metros trotando («300 m»). «0» lo quita.");
+      if (t === null) return;
+      const rec = /^\s*0\s*$/.test(t) ? { descanso: 0, rec_dist: 0 } : leerRecuperacion(t);
+      if (!rec) { setEstado("No entiendo «" + t + "»: prueba 1,30, 90 o 300 m"); return; }
+      const antes = lista.map(x => ["series", { ...x }]);
+      lista.forEach(x => cambiar("series", { ...x, descanso: rec.descanso, rec_dist: rec.rec_dist }, true));
+      persistir(); pintarDia(dia);
+      avisoDeshacer("Descanso puesto en " + lista.length + (lista.length === 1 ? " serie" : " series"), antes);
+    };
+    const et = l => actual(l) ? " (ahora " + actual(l) + ")" : "";
+    abrirMenu("Descansos del bloque", "Se guardan en la serie de antes del descanso, y el modo entreno los usa.", [
+      variosTramos && { texto: "Entre ejercicios" + et(entreEj), accion: () => poner(entreEj, "Descanso entre ejercicios") },
+      rondas.length > 1 && { texto: "Entre rondas" + et(entreR), accion: () => poner(entreR, "Descanso entre rondas") },
+      { texto: "Al terminar el bloque" + et(alFinal), accion: () => poner(alFinal, "Descanso al terminar el bloque") }
+    ]);
+  }
   const form = c.querySelector("form"), fa = c.querySelector(".in-a"), fb = c.querySelector(".in-b"), fc = c.querySelector(".in-c");
+  const brModo = c.querySelector(".br-modo"), brCalc = c.querySelector(".br-calc"), brTodas = c.querySelector(".br-todas");
+  let brPct = false;
+  const pintarBrCalc = () => {
+    if (!editando || !brPct) { brCalc.hidden = true; return; }
+    const v = parseFloat((fa.value || "").replace(",", ".")), ref = rmReferencia(editando.ejercicio_id);
+    brCalc.hidden = false;
+    brCalc.textContent = !ref ? "Pon tu 1RM en la ficha del ejercicio" : v > 0 ? "= " + num(kgDePct(editando.ejercicio_id, v)) + " kg (1RM " + num(ref) + ")" : "1RM de referencia: " + num(ref) + " kg";
+  };
+  const ponerBrModo = pct => {
+    brPct = pct;
+    brModo.textContent = pct ? "%" : "kg";
+    brModo.classList.toggle("activo", pct);
+    fa.placeholder = pct ? "% 1RM" : "kg";
+    fa.setAttribute("aria-label", pct ? "Porcentaje del 1RM" : "Peso en kg");
+    pintarBrCalc();
+  };
+  brModo.addEventListener("click", () => {
+    const id = editando.ejercicio_id, v = parseFloat((fa.value || "").replace(",", ".")), ref = rmReferencia(id);
+    if (!brPct) { ponerBrModo(true); fa.value = v > 0 && ref ? num(Math.round(v / ref * 100)) : ""; }
+    else { const kg = v > 0 ? kgDePct(id, v) : 0; ponerBrModo(false); fa.value = kg ? num(kg) : ""; }
+    fa.focus();
+  });
+  fa.addEventListener("input", () => { if (/%\s*$/.test(fa.value) && !brPct && !brModo.hidden) { fa.value = fa.value.replace(/\s*%\s*$/, ""); ponerBrModo(true); } pintarBrCalc(); });
   const prs = {};
   primera.forEach(s => { if (!prs[s.ejercicio_id]) prs[s.ejercicio_id] = prsEj(s.ejercicio_id); });
   const editar = (s, li) => {
@@ -2349,19 +2399,28 @@ function tarjetaBloque(dia, bloqueId, series) {
     fa.placeholder = dist ? UD() : mov ? "reps" : "kg"; fa.inputMode = mov ? "numeric" : "decimal"; fa.setAttribute("aria-label", dist ? "Distancia en " + UD() : mov ? "Repeticiones" : "Peso en kg");
     fb.placeholder = dist ? "tiempo 3,40" : mov ? "tiempo 45 s" : "reps o máx"; fb.inputMode = dist || mov ? "decimal" : "text"; fb.setAttribute("aria-label", dist ? "Tiempo (minutos y segundos)" : mov ? "Tiempo: 45 son segundos" : "Repeticiones (o «máx»)");
     c.querySelector(".por").textContent = dist ? "" : mov ? "o" : "×";
-    const isoT = !dist && !mov && (n0(s.tiempo) > 0 || !!s.max_tiempo) && !(n0(s.reps) > 0);
+    const isoT = !dist && !mov && (n0(s.tiempo) > 0 || !!s.max_tiempo || medidaDe(s.ejercicio_id) === "tiempo" && !s.max_reps) && !(n0(s.reps) > 0);
     form.dataset.isoT = isoT ? "1" : "";
     if (isoT) { fb.placeholder = "tiempo 45 s"; fb.inputMode = "decimal"; fb.setAttribute("aria-label", "Tiempo: 45 son segundos"); c.querySelector(".por").textContent = "·"; }
     const maxSin = !dist && !mov && esMaxSinDato(s);
     if (mov) { fa.value = n0(s.reps) || ""; fb.value = (n0(s.tiempo) > 0 ? (n0(s.tiempo) < 60 ? String(n0(s.tiempo)) : fmtTiempo(s.tiempo)) : ""); }
     else if (dist) { fa.value = distCampo(s.distancia); fb.value = n0(s.tiempo) > 0 ? fmtTiempo(s.tiempo) : ""; }
-    else { fa.value = pesoMostrado(s) > 0 ? num(pesoMostrado(s)) : ""; fb.value = maxSin ? "" : isoT ? (n0(s.tiempo) > 0 ? (n0(s.tiempo) < 60 ? String(n0(s.tiempo)) : fmtTiempo(s.tiempo)) : "máx") : n0(s.reps) || "máx"; if (maxSin) fb.placeholder = isoT ? "¿cuántos segundos?" : "¿cuántas reps?"; }
+    else { fa.value = pesoMostrado(s) > 0 ? num(pesoMostrado(s)) : ""; if (n0(s.pct) > 0 && !s.ciclo_id) fa.value = num(s.pct); fb.value = maxSin ? "" : isoT ? (n0(s.tiempo) > 0 ? (n0(s.tiempo) < 60 ? String(n0(s.tiempo)) : fmtTiempo(s.tiempo)) : "máx") : n0(s.reps) || "máx"; if (maxSin) fb.placeholder = isoT ? "¿cuántos segundos?" : "¿cuántas reps?"; }
     fc.value = recTexto(s);
+    const fuerza = !dist && !mov;
+    brModo.hidden = !fuerza || medidaDe(s.ejercicio_id) !== "peso" && !(n0(s.peso) > 0) && !(n0(s.pct) > 0);
+    if (fuerza) ponerBrModo(n0(s.pct) > 0 && !s.ciclo_id); else { brPct = false; brCalc.hidden = true; }
+    if (fuerza && medidaDe(s.ejercicio_id) !== "peso" && !fa.value) fa.placeholder = "kg (opcional)";
+    // Igual en las demás rondas pendientes de este ejercicio
+    const otras = series.filter(x => x.ejercicio_id === s.ejercicio_id && x.id !== s.id && !hecha(x));
+    brTodas.hidden = !otras.length;
+    brTodas.querySelector("input").checked = false;
+    brTodas.querySelector("span").textContent = "Igual en las otras " + otras.length + (otras.length === 1 ? " ronda pendiente" : " rondas pendientes");
     c.querySelectorAll("li").forEach(x => x.classList.remove("editando"));
     li.classList.add("editando");
     form.hidden = false;
     (dist && n0(s.distancia) > 0 ? fb : fa).focus();
-    fotoR = [fa.value, fb.value, fc.value].join("|");
+    fotoR = [fa.value, fb.value, fc.value, brPct, false].join("|");
   };
   // Guardado automático al salir de la edición de una ronda, si algo ha cambiado
   let fotoR = null;
@@ -2369,7 +2428,7 @@ function tarjetaBloque(dia, bloqueId, series) {
     if (form.contains(ev.relatedTarget)) return;
     setTimeout(() => {
       if (form.hidden || form.contains(document.activeElement) || !c.isConnected || fotoR === null) return;
-      if ([fa.value, fb.value, fc.value].join("|") === fotoR) return;
+      if ([fa.value, fb.value, fc.value, brPct, brTodas.querySelector("input").checked].join("|") === fotoR) return;
       fotoR = null;
       form.requestSubmit();
     }, 200);
@@ -2457,12 +2516,23 @@ function tarjetaBloque(dia, bloqueId, series) {
       if (isNaN(fila.tiempo)) { fb.focus(); return; }
       if (!(fila.reps > 0) && !(fila.tiempo > 0)) { fa.focus(); return; }
     } else {
-      fila.peso = parseFloat((fa.value.trim() || "0").replace(",", "."));
-      if (!(fila.peso >= 0)) { fa.focus(); return; }
+      const x = parseFloat((fa.value.trim().replace(/%\s*$/, "") || "0").replace(",", "."));
+      if (!(x >= 0)) { fa.focus(); return; }
+      fila.pct = brPct ? x : 0;
+      fila.peso = brPct ? kgDePct(fila.ejercicio_id, x) : x;
+      if (brPct && !fila.peso) { fa.focus(); setEstado("Pon tu 1RM en la ficha del ejercicio para usar %"); return; }
+      if (fila.ciclo_id && !brPct) fila.ciclo_id = "";
+      fila.max_tiempo = false; fila.max_reps = false;
+      if (ladoDe(fila.ejercicio_id)) fila.por_lado = true;
       if (form.dataset.isoT && /^\s*m[aá]x/i.test(fb.value)) { fila.tiempo = 0; fila.reps = 0; fila.max_tiempo = true; }
       else if (form.dataset.isoT) { fila.tiempo = leerSegs(fb.value); fila.reps = 0; if (!(fila.tiempo > 0)) { fb.focus(); return; } }
       else if (/^\s*(m[aá]x|amrap|fallo)/i.test(fb.value)) { fila.reps = 0; fila.max_reps = true; }
-      else { fila.reps = parseInt(fb.value, 10); if (!(fila.reps > 0)) { fb.focus(); return; } if (esMaxSinDato(s) && !s.max_tiempo) fila.max_reps = true; }
+      else { fila.reps = parseInt(fb.value, 10); if (!(fila.reps > 0)) { fb.focus(); return; } if (editando.max_reps || esMaxSinDato(editando) && !editando.max_tiempo) fila.max_reps = true; }
+      if (editando.max_tiempo && n0(fila.tiempo) > 0) fila.max_tiempo = true;
+    }
+    if (!brTodas.hidden && brTodas.querySelector("input").checked) {
+      const copia = { peso: fila.peso, pct: fila.pct, reps: fila.reps, tiempo: fila.tiempo, distancia: fila.distancia, max_tiempo: !!fila.max_tiempo, max_reps: !!fila.max_reps, por_lado: !!fila.por_lado, descanso: fila.descanso, rec_dist: fila.rec_dist, ciclo_id: fila.ciclo_id || "" };
+      series.filter(x => x.ejercicio_id === fila.ejercicio_id && x.id !== fila.id && !hecha(x)).forEach(x => cambiar("series", { ...x, ...copia }, true));
     }
     cambiar("series", fila);
     terminar(fila);
@@ -2495,12 +2565,12 @@ function pintarTramos() {
     fila.className = "tramo";
     fila.innerHTML = '<div class="tr-cab"><span class="tr-n"></span><button type="button" class="quitar">✕</button></div>' +
       '<div class="ns-fila"><input class="in-a" autocomplete="off"><span class="por"></span><input class="in-b" autocomplete="off"></div>' +
-      '<input class="in-c" inputmode="decimal" autocomplete="off" placeholder="⏱ recuperación después: 2,00 o 300 m" aria-label="Recuperación después de este tramo (tiempo o metros)">';
+      '<input class="in-c" inputmode="decimal" autocomplete="off" placeholder="⏱ descanso después: 1,30 o 300 m" aria-label="Descanso después de este tramo (tiempo o metros); en el último, es el descanso entre rondas">';
     fila.querySelector(".tr-n").textContent = (k + 1) + ". " + nombreEj(t.ejercicio_id);
     fila.querySelector(".tr-n").appendChild(etiquetaTipo(tipoDe(t.ejercicio_id)));
     const [a, b, cc] = [".in-a", ".in-b", ".in-c"].map(x => fila.querySelector(x));
     const mov = tipoDe(t.ejercicio_id) === "movilidad";
-    a.placeholder = dist ? UD() : mov ? "reps" : "kg"; a.inputMode = mov ? "numeric" : "decimal"; a.setAttribute("aria-label", dist ? "Distancia en " + UD() : mov ? "Repeticiones" : "Peso en kg");
+    a.placeholder = dist ? UD() : mov ? "reps" : "kg o 75%"; a.inputMode = dist || mov ? (mov ? "numeric" : "decimal") : "text"; a.setAttribute("aria-label", dist ? "Distancia en " + UD() : mov ? "Repeticiones" : "Peso en kg, o % del 1RM (75%)");
     b.placeholder = dist ? "tiempo" : mov ? "tiempo 45 s" : "reps o máx"; b.inputMode = dist || mov ? "decimal" : "text"; b.setAttribute("aria-label", dist ? "Tiempo (puedes dejar los metros vacíos)" : mov ? "Tiempo: 45 son segundos" : "Repeticiones");
     fila.querySelector(".por").textContent = dist ? "" : mov ? "o" : "×";
     a.value = t.a; b.value = t.b; cc.value = t.c;
@@ -2541,7 +2611,10 @@ $("blqCrear").addEventListener("click", () => {
       v.tiempo = leerSegs(t.b);
       if (isNaN(v.tiempo) || (!(v.reps > 0) && !(v.tiempo > 0))) { aviso.textContent = "Pon las repeticiones o el tiempo del tramo " + (k + 1) + "."; return; }
     } else {
-      v.peso = parseFloat((String(t.a).trim() || "0").replace(",", "."));
+      const conPct = /%\s*$/.test(String(t.a));
+      v.peso = parseFloat((String(t.a).trim().replace(/\s*%\s*$/, "") || "0").replace(",", "."));
+      if (conPct) { v.pct = v.peso; v.peso = kgDePct(t.ejercicio_id, v.pct); if (!v.peso) { aviso.textContent = "Para usar % en el tramo " + (k + 1) + ", pon su 1RM en la ficha del ejercicio."; return; } }
+      if (ladoDe(t.ejercicio_id)) v.por_lado = true;
       v.reps = /^\s*(m[aá]x|amrap|fallo)/i.test(t.b) ? 0 : parseInt(t.b, 10);
       if (!(v.peso >= 0)) { aviso.textContent = "Revisa el peso del tramo " + (k + 1) + "."; return; }
       if (!(v.reps > 0) && !/^\s*(m[aá]x|amrap|fallo)/i.test(t.b)) { aviso.textContent = "Pon las repeticiones del tramo " + (k + 1) + " (o «máx»)."; return; }
@@ -6044,7 +6117,7 @@ $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); 
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
 // VERSION_APP es interna (sube en cada publicación para que los móviles se actualicen); la que se ve es siempre la 26
-const VERSION_APP = "v117" + (BETA ? " beta" : "");
+const VERSION_APP = "v118" + (BETA ? " beta" : "");
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";
