@@ -7150,7 +7150,7 @@ $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); 
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
 // VERSION_APP es interna (sube en cada publicación para que los móviles se actualicen); la que se ve es siempre la 26
-const VERSION_APP = "v141" + (BETA ? " beta" : "");
+const VERSION_APP = "v142" + (BETA ? " beta" : "");
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";
@@ -7932,7 +7932,7 @@ if (window.visualViewport) {
 const VERSION_NOV = VERSION_APP.split(" ")[0];
 const novedadesVistas = () => [(perfil && perfil.novedades_vistas) || "", leer("novedades-vistas-v1") || ""].includes(VERSION_NOV);
 // Versiones con novedades que merece la pena avisar; en las demás (o para quien entra por primera vez) no hay aviso
-const AVISAR_NOVEDADES = true;
+const AVISAR_NOVEDADES = false;
 function pintarAvisoNovedades() {
   // Quien nunca ha visto ninguna versión entra por primera vez: para él todo es nuevo, así que se da por vista
   if (sesion && perfil && !perfil.novedades_vistas && !leer("novedades-vistas-v1")) { marcarNovedadesVistas(); return; }
@@ -7953,8 +7953,7 @@ function abrirAyuda() {
   if (habia) {
     // Con novedades sin ver, se abre directamente por ellas
     const nov = $("dlgAyuda").querySelector(".novedades");
-    nov.open = true;
-    nov.scrollIntoView({ block: "start" });
+    if (nov) { nov.open = true; nov.scrollIntoView({ block: "start" }); }
     marcarNovedadesVistas();
   }
 }
