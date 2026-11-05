@@ -63,7 +63,7 @@ Object.keys(TABLAS).forEach(t => { db[t] = db[t] || {}; });
 let cursores = leer("cursores-v3") || {};       // última marca de servidor leída por tabla (v3: relee todo al añadir campos)
 let enEspera = leer("bloques-v1") || {};
 // Entrenos del día aún sin series (fecha -> nombres) y en qué entreno va cada ejercicio añadido sin series (fecha|id -> nombre)
-let gruposPlegados = leer("grupos-plegados-v1") || {};   // entrenos plegados dentro de un día (solo en este dispositivo)
+let gruposPlegados = {};   // los grupos y partes empiezan plegados en cada apertura
 let sesionesVacias = leer("sesiones-v1") || {}, esperaGrupo = leer("espera-grupo-v1") || {};
 // Partes de cada entreno aún sin series (fecha|entreno -> nombres) y la parte de cada ejercicio añadido sin series (fecha|id -> parte)
 let partesVacias = leer("partes-v1") || {}, esperaParte = leer("espera-parte-v1") || {};
@@ -1653,10 +1653,10 @@ function pintarDiaSinAncla(dia) {
         const nombres = [...new Set(g.ids.map(id => id.startsWith("b:") || id.startsWith("v:") ? "Bloque" : nombreEj(ejDeClave(id))).filter(Boolean))];
         cab.querySelector(".g-res").textContent = nombres.slice(0, 3).join(", ") + (nombres.length > 3 ? "…" : "");
         const ponerPl = pl => { caja.classList.toggle("g-plegado", pl); tg.setAttribute("aria-expanded", String(!pl)); };
-        ponerPl(!!gruposPlegados[clavePl]);
+        ponerPl(gruposPlegados[clavePl] !== 0);
         tg.addEventListener("click", () => {
           const pl = !caja.classList.contains("g-plegado");
-          if (pl) gruposPlegados[clavePl] = 1; else delete gruposPlegados[clavePl];
+          gruposPlegados[clavePl] = pl ? 1 : 0;
           escribir("grupos-plegados-v1", gruposPlegados);
           ponerPl(pl);
         });
@@ -1698,10 +1698,10 @@ function pintarDiaSinAncla(dia) {
         caja.appendChild(dest);
         const claveP = "p|" + dia.id + "|" + g.nombre + "|" + p.nombre, tg = cabP.querySelector(".p-toggle");
         const ponerP = pl => { dest.classList.toggle("p-plegada", pl); tg.setAttribute("aria-expanded", String(!pl)); };
-        ponerP(!!gruposPlegados[claveP]);
+        ponerP(gruposPlegados[claveP] !== 0);
         tg.addEventListener("click", () => {
           const pl = !dest.classList.contains("p-plegada");
-          if (pl) gruposPlegados[claveP] = 1; else delete gruposPlegados[claveP];
+          gruposPlegados[claveP] = pl ? 1 : 0;
           escribir("grupos-plegados-v1", gruposPlegados);
           ponerP(pl);
         });
@@ -1753,10 +1753,10 @@ function pintarDiaSinAncla(dia) {
         items.forEach(x => lc.appendChild(x.el));
         const claveL = "l|" + dia.id + "|" + g.nombre + "|" + p.nombre + "|" + letra;
         const ponerL = pl => { lc.classList.toggle("l-plegada", pl); cabL.setAttribute("aria-expanded", String(!pl)); };
-        ponerL(!!gruposPlegados[claveL]);
+        ponerL(gruposPlegados[claveL] !== 0);
         cabL.addEventListener("click", () => {
           const pl = !lc.classList.contains("l-plegada");
-          if (pl) gruposPlegados[claveL] = 1; else delete gruposPlegados[claveL];
+          gruposPlegados[claveL] = pl ? 1 : 0;
           escribir("grupos-plegados-v1", gruposPlegados);
           ponerL(pl);
         });
@@ -3079,8 +3079,11 @@ $("selTipo").addEventListener("click", ev => {
   $("buscarEj").focus();
 });
 function crearEjercicio(nombre, tipo) {
+  const nombreLimpio = nombre.trim(), tipoLimpio = TIPOS[tipo] ? tipo : "fuerza";
+  const existente = vivos("ejercicios").find(e => e.tipo === tipoLimpio && compacto(e.nombre) === compacto(nombreLimpio));
+  if (existente) return existente.id;
   const id = nuevoId();
-  cambiar("ejercicios", { id, user_id: sesion.user_id, nombre: nombre.trim(), tipo: TIPOS[tipo] ? tipo : "fuerza", video_url: "", notas: "", compartido: puedeEditarCatalogo(), borrado: false });
+  cambiar("ejercicios", { id, user_id: sesion.user_id, nombre: nombreLimpio, tipo: tipoLimpio, video_url: "", notas: "", compartido: puedeEditarCatalogo(), borrado: false });
   return id;
 }
 let grupoSel = "";
@@ -3212,7 +3215,7 @@ function pintarCatalogo() {
   Object.keys(TIPOS).forEach(tipo => {
     const deTipo = ejs.filter(e => tipoDe(e.id) === tipo);
     if (!deTipo.length) return;
-    const abierta = q ? true : catAbiertas[tipo] !== false;
+    const abierta = q ? true : catAbiertas[tipo] === true;
     const sec = document.createElement("section");
     sec.className = "cat-sec t-" + tipo + (abierta ? "" : " cerrada");
     sec.innerHTML = '<button type="button" class="sec-toggle"><span class="flecha-dia" aria-hidden="true">▸</span><h3></h3><span class="sec-n"></span></button><div class="sec-cuerpo"><div class="sec-cuerpo-in"><div class="cat-grid"></div></div></div>';
@@ -3234,12 +3237,12 @@ function pintarCatalogo() {
     cont.appendChild(sec);
   });
 }
-let catAbiertas = leer("catalogo-abiertas-v1") || {};
+let catAbiertas = {}; // tipos de ejercicios empiezan plegados en cada apertura
 
 // ---------- Listas de entrenamientos: cada lista ordena entrenamientos guardados (plantillas) para elegir y poner en un día ----------
 // items: en orden, id de entrenamiento (string) o separador de semana/bloque ({ sep: id, titulo }). Un entrenamiento puede repetirse
 // en varias semanas. «siguiente» es la posición (contando solo entrenamientos) del que toca después, para rotar A, B, C…
-let listasAbiertas = leer("listas-abiertas-v1") || {};
+let listasAbiertas = {}; // listas, semanas y bloques empiezan plegados en cada apertura
 const esSep = x => !!(x && typeof x === "object" && x.sep);
 // Mesociclo (o fase) de una lista: agrupa todo lo que va debajo (semanas o bloques y entrenamientos) hasta el siguiente
 const esGrupoL = x => !!(x && typeof x === "object" && x.grupo);
@@ -3313,7 +3316,7 @@ function pintarListas() {
     return;
   }
   ls.forEach(l => {
-    const rec = recorrerLista(l), abierta = listasAbiertas[l.id] !== false;
+    const rec = recorrerLista(l), abierta = listasAbiertas[l.id] === true;
     const sig = rec.length ? n0(l.siguiente) % rec.length : -1;
     const nSem = (l.items || []).filter(esSep).length;
     const sec = document.createElement("section");
@@ -3409,7 +3412,7 @@ function pintarListas() {
         const g = document.createElement("div");
         g.className = "lista-grupo";
         g.dataset.i = i;
-        const claveG = "g|" + x.grupo, plegado = listasAbiertas[claveG] === false;
+        const claveG = "g|" + x.grupo, plegado = listasAbiertas[claveG] !== true;
         g.classList.toggle("lg-plegado", plegado);
         const its = l.items || [], fin = finGrupo(i);
         const nB = its.slice(i + 1, fin + 1).filter(esSep).length, nE = its.slice(i + 1, fin + 1).filter(y => typeof y === "string" && db.plantillas[y] && !db.plantillas[y].borrado).length;
@@ -3491,7 +3494,7 @@ function pintarListas() {
         const caj = document.createElement("div");
         caj.className = "lista-bloque";
         caj.dataset.i = i;
-        const claveB = "b|" + x.sep, plegado = listasAbiertas[claveB] === false;
+        const claveB = "b|" + x.sep, plegado = listasAbiertas[claveB] !== true;
         caj.classList.toggle("lb-plegado", plegado);
         const tit = fs.querySelector(".ls-tit");
         const tg = document.createElement("button");
@@ -4215,13 +4218,13 @@ function marcasDe(tipo) {
 function seccionMarcas(titulo) {
   const s = document.createElement("section");
   const k = "s:" + titulo;
-  s.className = "plan-sec ms-plegable" + (marcasAbiertas[k] === false ? " plegada" : "");
+  s.className = "plan-sec ms-plegable" + (marcasAbiertas[k] === true ? "" : " plegada");
   const h = document.createElement("h3");
   h.className = "ms-tit";
   h.innerHTML = '<span class="flecha-dia" aria-hidden="true">▸</span><span></span>';
   h.lastChild.textContent = titulo;
   h.tabIndex = 0; h.setAttribute("role", "button");
-  h.setAttribute("aria-expanded", String(marcasAbiertas[k] !== false));
+  h.setAttribute("aria-expanded", String(marcasAbiertas[k] === true));
   const alternar = () => { const pl = !s.classList.contains("plegada"); s.classList.toggle("plegada", pl); h.setAttribute("aria-expanded", String(!pl)); marcasAbiertas[k] = !pl; escribir("marcas-abiertas-v1", marcasAbiertas); };
   h.addEventListener("click", alternar);
   h.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); alternar(); } });
@@ -4254,9 +4257,9 @@ function tablaSimple(cabecera, filas) {
 }
 let distGrafica = "";
 // Marcas en tres apartados desplegables (como el catálogo): Fuerza por zonas del cuerpo, Carrera y Piscina
-let marcasAbiertas = leer("marcas-abiertas-v1") || {};
+let marcasAbiertas = {}; // apartados de Marcas empiezan plegados en cada apertura
 function apartadoMarcas(cont, clave, titulo, n) {
-  const abierta = marcasAbiertas[clave] !== false;
+  const abierta = marcasAbiertas[clave] === true;
   const sec = document.createElement("section");
   sec.className = "cat-sec marcas-sec t-" + clave + (abierta ? "" : " cerrada");
   sec.innerHTML = '<button type="button" class="sec-toggle"><span class="flecha-dia" aria-hidden="true">▸</span><h3></h3><span class="sec-n"></span></button><div class="sec-cuerpo"><div class="sec-cuerpo-in"></div></div>';
@@ -4793,6 +4796,7 @@ function pintarPlan() {
       lu.appendChild(fila);
     });
   }
+  aplicarGrupoPlan();
 }
 function menuPlantilla(p) {
   abrirMenu(p.nombre, resumenItems(p.items || []) + ": " + nombresItems(p.items || []), [
@@ -6745,12 +6749,12 @@ function asaArrastreDia(el, caja, hermanos, alSoltar, nombre, zonas) {
           if (info.cls === "l-plegada") info.cont.appendChild(ph);
           else if (fin) fin.before(ph); else info.cont.appendChild(ph);
           info.cont.classList.remove(info.cls);
-          delete gruposPlegados[info.key]; cambioPl = true;
+          gruposPlegados[info.key] = 0; cambioPl = true;
         }
       }
       // Lo desplegado al pasar: donde ha caído se queda abierto; lo demás vuelve a plegarse
       abiertasTemp.forEach(info => {
-        if (!zona && ev.type !== "pointercancel" && info.cont.contains(ph)) { delete gruposPlegados[info.key]; cambioPl = true; }
+        if (!zona && ev.type !== "pointercancel" && info.cont.contains(ph)) { gruposPlegados[info.key] = 0; cambioPl = true; }
         else info.cont.classList.add(info.cls);
       });
       if (cambioPl) escribir("grupos-plegados-v1", gruposPlegados);
@@ -6814,8 +6818,8 @@ $("semana").addEventListener("touchend", e => {
   if (Math.abs(dx) > 70 && Math.abs(dx) > 2 * Math.abs(dy)) abrirDia(iso(sumarDias(deIso(diaAbierto), dx < 0 ? 1 : -1)));
 }, { passive: true });
 // Días desplegados o plegados a mano; se recuerdan unas semanas
-let desplegados = leer("dias-desplegados-v1") || {};
-const desplegado = id => desplegados[id] ?? id === iso(new Date());
+let desplegados = {}; // todos los días empiezan plegados en cada apertura
+const desplegado = id => desplegados[id] ?? false;
 function ponerPlegado(d, plegado) {
   d.col.classList.toggle("plegado", plegado);
   d.col.querySelector(".dia-abrir").setAttribute("aria-expanded", String(!plegado));
@@ -7201,7 +7205,7 @@ $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); 
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
 // VERSION_APP es interna (sube en cada publicación para que los móviles se actualicen); la que se ve es siempre la 26
-const VERSION_APP = "v145" + (BETA ? " beta" : "");
+const VERSION_APP = "v151" + (BETA ? " beta" : "");
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";
@@ -7930,7 +7934,7 @@ function guardarPaqueteCompartido(c) {
 }
 
 // ---------- Plan: secciones desplegables con contador; se recuerda cuáles quedan abiertas ----------
-let seccionesPlan = { plantillas: true, mesociclos: true, ...(leer("plan-abiertas-v1") || {}) };
+let seccionesPlan = {}; // todas las secciones empiezan plegadas en cada apertura
 function ponerSeccion(sec, abierta) {
   sec.classList.toggle("cerrada", !abierta);
   sec.querySelector(".sec-toggle").setAttribute("aria-expanded", String(abierta));
@@ -7969,10 +7973,14 @@ const GRUPOS_PLAN = {
   entrenos: ["plantillas", "mesociclos", "rutinas"],
   cuenta: ["molestias", "copia", "ajustes", "sugerencias", "usuarios"]
 };
+function aplicarGrupoPlan() {
+  const grupo = leer("plan-grupo-v1") || "crear", secciones = GRUPOS_PLAN[grupo] || GRUPOS_PLAN.crear;
+  document.querySelectorAll("#vistaPlan > .plan-sec[data-sec]").forEach(sec => { sec.hidden = !secciones.includes(sec.dataset.sec); });
+}
 function mostrarGrupoPlan(grupo) {
   const elegido = GRUPOS_PLAN[grupo] ? grupo : "crear";
-  document.querySelectorAll("#vistaPlan > .plan-sec[data-sec]").forEach(sec => { sec.hidden = !GRUPOS_PLAN[elegido].includes(sec.dataset.sec); });
   escribir("plan-grupo-v1", elegido);
+  aplicarGrupoPlan();
 }
 function mostrarSubVistaOrganizar(vista) {
   subVistaOrganizar = ["listas", "crear", "entrenos"].includes(vista) ? vista : "listas";
