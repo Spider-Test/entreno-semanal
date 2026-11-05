@@ -416,6 +416,13 @@ function ejerciciosOrdenados() {
   seriesVivas().forEach(s => { if (!ultimo[s.ejercicio_id] || s.fecha > ultimo[s.ejercicio_id]) ultimo[s.ejercicio_id] = s.fecha; });
   return vivos("ejercicios").sort((a, b) => (ultimo[b.id] || "").localeCompare(ultimo[a.id] || "") || a.nombre.localeCompare(b.nombre, "es"));
 }
+// Para elegir ejercicio: del más usado al menos (en cuántos días lo has hecho o planificado); a igualdad, el más reciente
+function usoEjercicios() {
+  const dias = {}, ultimo = {};
+  seriesVivas().forEach(s => { (dias[s.ejercicio_id] = dias[s.ejercicio_id] || new Set()).add(s.fecha); if (!ultimo[s.ejercicio_id] || s.fecha > ultimo[s.ejercicio_id]) ultimo[s.ejercicio_id] = s.fecha; });
+  const n = id => dias[id] ? dias[id].size : 0;
+  return { n, lista: vivos("ejercicios").sort((a, b) => n(b.id) - n(a.id) || (ultimo[b.id] || "").localeCompare(ultimo[a.id] || "") || a.nombre.localeCompare(b.nombre, "es")) };
+}
 function porSesion(lista) {
   const ses = {};
   lista.forEach(s => (ses[s.fecha] = ses[s.fecha] || []).push(s));
@@ -446,7 +453,8 @@ function estadisticas(id) {
   const med = tipo === "fuerza" && lista[0] ? medidaDe(lista[0].ejercicio_id) : "peso";
   if (med === "reps" || med === "tiempo") {
     const campo = med === "reps" ? "reps" : "tiempo", m = Math.max.apply(null, lista.map(x => n0(x[campo])).concat(0));
-    st.mejorReps = lista.reduce((a, x) => n0(x.reps) > n0(a.reps) ? x : a, lista[0]);
+    st.medida = med;
+    st.mejorReps = lista.reduce((a, x) => n0(x[campo]) > n0(a[campo]) ? x : a, lista[0]);
     st.resumen = m > 0 ? "Récord: " + (med === "reps" ? m + " reps" : fmtSegs(m)) : st.sesiones.length + (st.sesiones.length === 1 ? " sesión" : " sesiones");
     return st;
   }
@@ -825,6 +833,20 @@ function lineaNota(texto, alTocar) {
   n.addEventListener("click", ev => { ev.stopPropagation(); alTocar(); });
   return n;
 }
+// Enter en un campo de una ventana guarda (su botón principal, marcado con data-enter); si la ventana no tiene, el campo
+// se confirma (como al salir de él). Antes, en las ventanas de nombre, Enter pulsaba «Cancelar» y se perdía lo escrito
+["rpeGuardar", "molGuardar", "claveGuardar", "mmGuardar", "carGuardar", "mesoGuardar"].forEach(id => { if ($(id)) $(id).dataset.enter = ""; });
+document.addEventListener("click", e => { const b = e.target.closest("[data-cerrar]"); if (b) { const d = b.closest("dialog"); if (d) d.close(b.dataset.cerrar); } });
+document.addEventListener("keydown", e => {
+  if (e.key !== "Enter" || e.shiftKey || e.defaultPrevented || e.isComposing) return;
+  const t = e.target;
+  if (!t || t.tagName !== "INPUT" || /^(checkbox|radio|button|submit|file|range|color)$/.test(t.type)) return;
+  const d = t.closest("dialog[open]");
+  if (!d) return;
+  const b = [...d.querySelectorAll("[data-enter]")].find(x => !x.disabled && x.offsetParent !== null);
+  e.preventDefault();
+  if (b) b.click(); else t.blur();
+});
 function pedirNombre(titulo, valor, ayuda) {
   return new Promise(resolver => {
     const d = $("dlgNombre");
@@ -878,6 +900,7 @@ const dias = DIAS.map((_, i) => {
   col.querySelector(".add-entreno").addEventListener("click", () => elegirNuevoEntreno(dia));
   col.querySelector(".add-parte-btn").addEventListener("click", () => enQueEntreno(dia, "Nueva parte", g => nuevaParte(dia, g)));
   col.querySelector(".menu-btn").addEventListener("click", () => menuDia(dia));
+  plegarAdd(col.querySelector(".dia-cuerpo-in > .add-fila"), true);
   return dia;
 });
 
@@ -1484,6 +1507,28 @@ function pintarDia(dia) {
   pintarDiaSinAncla(dia);
   if (ancla) recolocar(ancla);
 }
+// «＋ Añadir»: los botones de añadir (ejercicio, bloque, parte, entreno) se pliegan en uno solo y se despliegan al
+// tocarlo; se vuelven a plegar al elegir o al tocar fuera. Donde aún no hay nada salen ya desplegados
+function plegarAdd(fila, abierta) {
+  if (!fila) return;
+  if (!fila.querySelector(":scope > .add-toggle")) {
+    const t = document.createElement("button");
+    t.type = "button"; t.className = "add-toggle"; t.textContent = "＋ Añadir";
+    t.addEventListener("click", e => { e.stopPropagation(); ponerAdd(fila, true); const b = fila.querySelector(".add-ej"); if (b) b.focus({ preventScroll: true }); });
+    fila.prepend(t);
+    fila.addEventListener("click", e => { if (e.target.closest(".add-ej") && !fila.dataset.fija) setTimeout(() => ponerAdd(fila, false), 0); });
+  }
+  fila.dataset.fija = abierta ? "1" : "";
+  ponerAdd(fila, !!abierta);
+}
+function ponerAdd(fila, abierta) {
+  fila.classList.toggle("plegada", !abierta);
+  const t = fila.querySelector(":scope > .add-toggle");
+  if (t) { t.setAttribute("aria-expanded", String(abierta)); t.hidden = abierta; }
+}
+document.addEventListener("pointerdown", e => {
+  document.querySelectorAll(".add-fila:not(.plegada)").forEach(f => { if (!f.dataset.fija && f.querySelector(":scope > .add-toggle") && !f.contains(e.target)) ponerAdd(f, false); });
+}, true);
 function pintarDiaSinAncla(dia) {
   const cont = dia.bloquesEl;
   cont.textContent = "";
@@ -1503,6 +1548,7 @@ function pintarDiaSinAncla(dia) {
     const g = grupo(gn), antes = esperaAntes[dia.id + "|" + id], i = antes ? g.ids.indexOf(antes) : -1;
     if (i >= 0) g.ids.splice(i, 0, id); else g.ids.push(id);
   });
+  plegarAdd(dia.col.querySelector(".dia-cuerpo-in > .add-fila"), !grupos.length && !Object.keys(bloquesVacios).some(k => k.startsWith(dia.id + "|")));
   Object.keys(bloquesVacios).forEach(k => {
     if (!k.startsWith(dia.id + "|")) return;
     const bv = bloquesVacios[k], g = grupo(bv.g || "");
@@ -1646,6 +1692,7 @@ function pintarDiaSinAncla(dia) {
         add.children[1].setAttribute("aria-label", "Añadir un bloque a " + p.nombre);
         add.children[0].addEventListener("click", () => abrirSelector(dia, null, g.nombre, p.nombre));
         add.children[1].addEventListener("click", () => abrirBloque(dia, g.nombre, p.nombre));
+        plegarAdd(add, !p.ids.length);   // parte vacía: las opciones ya a la vista
         dest.appendChild(add);
       }
     });
@@ -1755,6 +1802,7 @@ function pintarDiaSinAncla(dia) {
       add.children[1].setAttribute("aria-label", "Añadir un bloque a " + (g.nombre || "Entreno 1"));
       add.children[0].addEventListener("click", () => abrirSelector(dia, null, g.nombre));
       add.children[1].addEventListener("click", () => abrirBloque(dia, g.nombre));
+      plegarAdd(add, !g.ids.length);
       caja.appendChild(add);
     }
     cont.appendChild(caja);
@@ -2996,7 +3044,8 @@ function elegir(id) {
 function pintarSelector() {
   const q = $("buscarEj").value.trim(), lista = $("listaEj");
   lista.textContent = "";
-  const ejs = ejerciciosOrdenados().filter(e => compacto(e.nombre).includes(compacto(q)) && (!tipoSel || tipoDe(e.id) === tipoSel));
+  const uso = usoEjercicios();
+  const ejs = uso.lista.filter(e => compacto(e.nombre).includes(compacto(q)) && (!tipoSel || tipoDe(e.id) === tipoSel));
   // «300», «300m» o «series 300 m» propone directamente «Series 300 m» de carrera
   const md = q.match(/^(?:series\s*(?:de\s*)?)?(\d+(?:[.,]\d+)?)\s*(m|km|metros)?$/i);
   const sugerencia = md ? "Series " + md[1] + " " + (md[2] && md[2].toLowerCase() === "km" ? "km" : "m") : "";
@@ -3035,6 +3084,8 @@ function pintarSelector() {
     b.className = "opcion";
     b.textContent = e.nombre;
     b.appendChild(etiquetaTipo(tipoDe(e.id)));
+    const veces = uso.n(e.id);
+    if (veces) { const c = document.createElement("span"); c.className = "op-uso"; c.textContent = veces + (veces === 1 ? " vez" : " veces"); b.appendChild(c); }
     b.addEventListener("click", () => elegir(e.id));
     lista.appendChild(b);
   });
@@ -3777,7 +3828,14 @@ $("detalle").addEventListener("close", () => {
 
 // ---------- Rendimiento: marcas, forma (VDOT de Daniels), predicciones y ritmos objetivo ----------
 // Son estimaciones orientativas calculadas con las series hechas.
-const DIST_MARCAS = [200, 400, 800, 1000, 1500, 2000, 3000, 5000, 10000, 21097, 42195];
+const DIST_MARCAS = [100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 1500, 2000, 3000, 5000, 10000, 21097, 42195];
+// Marcas con décimas cuando las hay (100 m en 13,2 s; o una marca sacada de una serie más larga): sin redondear
+const fmtMarca = seg => {
+  const t = n0(seg);
+  if (t >= 3600 || Math.abs(t - Math.round(t)) < 0.05) return fmtTiempo(t);
+  const d = Math.round(t * 10) / 10, m = Math.floor(d / 60), x = d - m * 60;
+  return m + ":" + (x < 10 ? "0" : "") + x.toFixed(1).replace(".", ",");
+};
 const DIST_NADO = [50, 100, 200, 400, 800, 1500];
 const nombreDist = d => ({ 1000: "1 km", 2000: "2 km", 21097: "Media maratón", 42195: "Maratón" })[d] || fmtDist(d);
 const vo2 = v => -4.6 + 0.182258 * v + 0.000104 * v * v;                                   // v en m/min
@@ -3910,8 +3968,10 @@ function vdotSesion(ses) {
 }
 // ---------- Mis carreras (competiciones): marcas oficiales que pesan más en la forma ----------
 const tiempoCarrera = c => n0(c.chip) || n0(c.tiempo);   // el de chip es el que corriste tú; si no, el oficial
-const carrerasHechas = () => vivos("carreras").filter(c => c.fecha && c.fecha <= iso(new Date()) && tiempoCarrera(c) > 0 && n0(c.distancia) > 0);
-const carrerasProximas = () => vivos("carreras").filter(c => c.fecha && c.fecha > iso(new Date())).sort((a, b) => a.fecha.localeCompare(b.fecha));
+const esMarcaManual = c => c.categoria === "__marca";
+const marcasManuales = () => vivos("carreras").filter(c => esMarcaManual(c) && n0(c.distancia) > 0 && n0(c.tiempo) > 0);
+const carrerasHechas = () => vivos("carreras").filter(c => !esMarcaManual(c) && c.fecha && c.fecha <= iso(new Date()) && tiempoCarrera(c) > 0 && n0(c.distancia) > 0);
+const carrerasProximas = () => vivos("carreras").filter(c => !esMarcaManual(c) && c.fecha && c.fecha > iso(new Date())).sort((a, b) => a.fecha.localeCompare(b.fecha));
 // Forma: media ponderada de las mejores sesiones de las últimas 12 semanas; lo reciente pesa más (vida media 6 semanas)
 function calcularForma() {
   const hoy = new Date();
@@ -3982,7 +4042,8 @@ const textoObjetivo = o => !o ? "" : (o.suave ? "obj. suave ~" + fmtTiempo(o.rit
 // Mejores marcas por distancia: exactas o, dentro de una serie algo más larga, a su ritmo medio
 function marcasDe(tipo) {
   const lista = seriesVivas().filter(s => hecha(s) && !s.calentamiento && tipoDe(s.ejercicio_id) === tipo && n0(s.distancia) > 0 && n0(s.tiempo) > 0 && !fueraDeMarcas(s))
-    .concat(tipo === "carrera" ? carrerasHechas().map(c => ({ fecha: c.fecha, distancia: n0(c.distancia), tiempo: tiempoCarrera(c), carrera: true })) : []);   // las carreras oficiales son marcas reales
+    .concat(tipo === "carrera" ? carrerasHechas().map(c => ({ fecha: c.fecha, distancia: n0(c.distancia), tiempo: tiempoCarrera(c), carrera: true })) : [])
+    .concat(tipo === "carrera" ? marcasManuales().map(c => ({ fecha: c.fecha, distancia: n0(c.distancia), tiempo: n0(c.tiempo), manual: true })) : []);   // las carreras oficiales son marcas reales
   return (tipo === "natacion" ? DIST_NADO : DIST_MARCAS).map(d => {
     let mejor = null;
     const evol = {};
@@ -3994,11 +4055,20 @@ function marcasDe(tipo) {
     return mejor ? { d, ...mejor, evol: Object.keys(evol).sort().map(f => ({ f, v: evol[f] })) } : null;
   }).filter(Boolean);
 }
+// Cada apartado de Marcas se pliega tocando su título (se recuerda en este dispositivo)
 function seccionMarcas(titulo) {
   const s = document.createElement("section");
-  s.className = "plan-sec";
+  const k = "s:" + titulo;
+  s.className = "plan-sec ms-plegable" + (marcasAbiertas[k] === false ? " plegada" : "");
   const h = document.createElement("h3");
-  h.textContent = titulo;
+  h.className = "ms-tit";
+  h.innerHTML = '<span class="flecha-dia" aria-hidden="true">▸</span><span></span>';
+  h.lastChild.textContent = titulo;
+  h.tabIndex = 0; h.setAttribute("role", "button");
+  h.setAttribute("aria-expanded", String(marcasAbiertas[k] !== false));
+  const alternar = () => { const pl = !s.classList.contains("plegada"); s.classList.toggle("plegada", pl); h.setAttribute("aria-expanded", String(!pl)); marcasAbiertas[k] = !pl; escribir("marcas-abiertas-v1", marcasAbiertas); };
+  h.addEventListener("click", alternar);
+  h.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); alternar(); } });
   s.appendChild(h);
   return s;
 }
@@ -4123,6 +4193,47 @@ function editarPulso() {
 // Mis carreras: próximas (objetivo y cuenta atrás) y hechas por distancia, con la mejor (PB), su evolución y previsto frente a real
 const DIST_CARRERA = [[2000, "2 km"], [5000, "5 km"], [10000, "10 km"], [21097, "Media maratón (21,1 km)"], [42195, "Maratón (42,2 km)"]];
 let distCarreraGraf = 0;
+let marcaEdit = null;
+function abrirMarcaManual(c) {
+  marcaEdit = c ? { ...c } : null;
+  const t = c ? n0(c.tiempo) : 0;
+  $("mmDist").value = c ? (n0(c.distancia) >= 1000 ? num(n0(c.distancia) / 1000) + " km" : n0(c.distancia) + " m") : "";
+  $("mmMin").value = c ? Math.floor(t / 60) : "";
+  $("mmSeg").value = c ? num(Math.round((t - Math.floor(t / 60) * 60) * 10) / 10) : "";
+  $("mmFecha").value = c ? c.fecha : iso(new Date());
+  $("mmNota").value = c ? c.notas || "" : "";
+  $("mmAviso").textContent = "";
+  $("mmBorrar").hidden = !c;
+  $("dlgMarca").showModal();
+  if (!c) $("mmDist").focus();
+}
+// «2 km», «2k», «100 m», «21,1 km», «400»: sin unidad, menos de 50 son km
+function leerDistMarca(txt) {
+  const m = String(txt || "").trim().toLowerCase().replace(",", ".").match(/^(\d+(?:\.\d+)?)\s*(km|k|m|metros)?$/);
+  if (!m) return 0;
+  const v = parseFloat(m[1]);
+  return Math.round(m[2] === "km" || m[2] === "k" || (!m[2] && v < 50) ? v * 1000 : v);
+}
+$("mmGuardar").addEventListener("click", () => {
+  const d = leerDistMarca($("mmDist").value), mi = parseInt($("mmMin").value || "0", 10), se = parseFloat(($("mmSeg").value || "0").replace(",", "."));
+  const t = (mi || 0) * 60 + (se || 0), aviso = x => { $("mmAviso").textContent = x; };
+  if (!(d > 0)) { aviso("Pon la distancia: 2 km, 100 m, 400…"); $("mmDist").focus(); return; }
+  if (isNaN(mi) || isNaN(se) || se >= 60 || !(t > 0)) { aviso("Pon el tiempo: minutos y segundos (los segundos pueden llevar décimas: 13,2)."); $("mmMin").focus(); return; }
+  if (!$("mmFecha").value) { aviso("Pon la fecha."); return; }
+  const base = marcaEdit || { id: nuevoId(), lugar: "", chip: 0, pos_general: 0, total_general: 0, pos_categoria: 0, total_categoria: 0, desnivel_pos: 0, fc_media: 0, enlace: "", previsto: 0, borrado: false };
+  cambiar("carreras", { ...base, nombre: "Marca " + nombreDist(d), categoria: "__marca", fecha: $("mmFecha").value, distancia: d, tiempo: Math.round(t * 10) / 10, notas: $("mmNota").value.trim().slice(0, 200) });
+  $("dlgMarca").close();
+  pintarMarcas();
+  setEstado("Marca guardada: " + nombreDist(d) + " en " + fmtMarca(t));
+});
+$("mmBorrar").addEventListener("click", () => {
+  if (!marcaEdit) return;
+  const antes = { ...db.carreras[marcaEdit.id] };
+  cambiar("carreras", { ...antes, borrado: true });
+  $("dlgMarca").close();
+  pintarMarcas();
+  avisoDeshacer("Marca borrada", [["carreras", antes]]);
+});
 function seccionCarreras() {
   const s = seccionMarcas("Mis carreras");
   const cab = s.querySelector("h3");
@@ -4259,7 +4370,8 @@ function marcasFuerza(cont) {
     const s = seccionMarcas(region);
     s.appendChild(tablaSimple(["Ejercicio", "Récord", "1RM est.", "Fecha"], deRegion.map(({ e, st }) => {
       const m = st.mejor || st.mejorReps;
-      return { celdas: [e.nombre, m ? (st.mejor ? serieTexto(m) : n0(m.reps) + (n0(m.reps) === 1 ? " rep" : " reps")) : "—", st.mejorRm ? num(Math.round(rm(st.mejorRm))) + " kg" : "—", m ? fechaCorta(m.fecha) : ""], alPulsar: () => abrirDetalle(e.id) };
+      const sinPeso = m && !st.mejor ? (st.medida === "tiempo" ? fmtSegs(n0(m.tiempo)) : n0(m.reps) + (n0(m.reps) === 1 ? " rep" : " reps")) + (n0(m.peso) > 0 ? " · " + num(m.peso) + " kg" : "") + (m.por_lado ? " por lado" : "") : "";
+      return { celdas: [e.nombre, m ? (st.mejor ? serieTexto(m) : sinPeso) : "—", st.mejorRm ? num(Math.round(rm(st.mejorRm))) + " kg" : "—", m ? fechaCorta(m.fecha) : ""], alPulsar: () => abrirDetalle(e.id) };
     })));
     caja.appendChild(s);
   });
@@ -4352,7 +4464,6 @@ function pintarMarcas() {
   marcasFuerza(raiz);
   marcasBilbo(raiz);
   const cont = apartadoMarcas(raiz, "carrera", "Carrera");
-  cont.appendChild(seccionCarreras());
   const { forma: f, carga } = rendimiento();
   const s1 = seccionMarcas("Forma en carrera");
   if (!f) s1.appendChild(nota("Apunta series o rodajes de carrera con metros y tiempo para estimar tu forma, tus marcas previstas y tus ritmos."));
@@ -4372,25 +4483,42 @@ function pintarMarcas() {
     s2.appendChild(tablaSimple(["Distancia", "Según VDOT", "Ritmo", ref ? "Riegel (desde " + nombreDist(ref.d) + ")" : "Riegel", "Real"],
       [1000, 2000, 5000, 10000, 21097, 42195].map(d => {
         const t = tiempoPrevisto(f.vdot, d), real = marcas.find(m => m.d === d);
-        return { celdas: [nombreDist(d), fmtTiempo(t), fmtTiempo(t / d * 1000) + "/km", ref ? fmtTiempo(ref.t * Math.pow(d / ref.d, 1.06)) : "—", real ? fmtTiempo(real.t) + (real.exacta ? "" : " *") : "—"] };
+        return { celdas: [nombreDist(d), fmtTiempo(t), fmtTiempo(t / d * 1000) + "/km", ref ? fmtTiempo(ref.t * Math.pow(d / ref.d, 1.06)) : "—", real ? fmtMarca(real.t) + (real.exacta ? "" : " *") : "—"] };
       })));
     s2.appendChild(nota("«Real»: tu mejor marca en esa distancia (* sacada de una serie algo más larga, a su ritmo medio). En 1 y 2 km la predicción es más aproximada: la fórmula de Daniels es menos fiable en esfuerzos de menos de 5 minutos."));
     const s3 = seccionMarcas("Ritmos de entrenamiento");
     s3.appendChild(tablaSimple(["Zona", "Por km", "Por 400 m"], ZONAS.map(([n, fr]) => { const r = ritmoZona(f.vdot, fr) * (1 + carga.ajuste); return { celdas: [n, fmtTiempo(r), fmtTiempo(r * 0.4)] }; })));
     s3.appendChild(nota("Cada serie de carrera planificada muestra su objetivo calculado con todo el entrenamiento de ese día (series, bloques, volumen y recuperaciones) y se ajusta según cómo te van saliendo."));
-    cont.append(s1, s2, s3);
+    cont.append(s1, seccionCarreras(), s2, s3);
   }
-  if (!f) cont.appendChild(s1);
+  if (!f) cont.append(s1, seccionCarreras());
 
   const piscina = apartadoMarcas(raiz, "natacion", "Piscina", marcasDe("natacion").length);
   if (!marcasDe("natacion").length) piscina.appendChild(nota("Cuando apuntes series de natación con metros y tiempo, aquí verás tus mejores marcas en 50, 100, 200, 400, 800 y 1500 m y su evolución."));
   [["carrera", "Mejores marcas de carrera", 1000, "/km", cont], ["natacion", "Mejores marcas en piscina", 100, "/100 m", piscina]].forEach(([tipo, titulo, por, suf, destino]) => {
     const marcas = marcasDe(tipo);
-    if (!marcas.length) return;
+    if (!marcas.length && tipo !== "carrera") return;
     const s = seccionMarcas(titulo);
+    if (tipo === "carrera") {
+      const b = document.createElement("button");
+      b.type = "button"; b.className = "nav-btn"; b.textContent = "+ Marca";
+      b.title = "Añadir una marca sin que sea una carrera (un 2 km, un 100 m…)";
+      b.addEventListener("click", () => abrirMarcaManual());
+      const fila = document.createElement("div");
+      fila.className = "sec-cab";
+      s.querySelector("h3").before(fila);
+      fila.append(s.querySelector("h3"), b);
+      const mm = marcasManuales().sort((a, b2) => b2.fecha.localeCompare(a.fecha));
+      if (!marcas.length) { s.appendChild(nota("Apunta series con metros y tiempo, tus carreras o una marca suelta con «+ Marca» (un 2 km, un 100 m…) y aquí verás tus mejores marcas.")); destino.appendChild(s); return; }
+      if (mm.length) setTimeout(() => {
+        const t = document.createElement("p"); t.className = "bc-t"; t.textContent = "Marcas añadidas a mano";
+        s.appendChild(t);
+        s.appendChild(tablaSimple(["Distancia", "Tiempo", "Fecha", "Nota"], mm.map(c => ({ celdas: [nombreDist(n0(c.distancia)), fmtMarca(n0(c.tiempo)), fechaCorta(c.fecha), c.notas || "—"], alPulsar: () => abrirMarcaManual(c) }))));
+      }, 0);
+    }
     const sel = marcas.find(m => tipo + m.d === distGrafica) || marcas.slice().sort((x, y) => y.evol.length - x.evol.length)[0];
     s.appendChild(tablaSimple(["Distancia", "Tiempo", "Ritmo", "Fecha"], marcas.map(m => ({
-      celdas: [nombreDist(m.d) + (m.exacta ? "" : " *"), fmtTiempo(m.t), fmtTiempo(m.t / m.d * por) + suf, fechaCorta(m.fecha)],
+      celdas: [nombreDist(m.d) + (m.exacta ? "" : " *"), fmtMarca(m.t), fmtTiempo(m.t / m.d * por) + suf, fechaCorta(m.fecha)],
       activa: m === sel, alPulsar: () => { distGrafica = tipo + m.d; pintarMarcas(); }
     }))));
     if (marcas.some(m => !m.exacta)) s.appendChild(nota("* Sacada de una serie algo más larga, a su ritmo medio."));
@@ -4398,7 +4526,7 @@ function pintarMarcas() {
     tit.className = "bc-t";
     tit.textContent = "Evolución · " + nombreDist(sel.d);
     const g = document.createElement("div");
-    g.innerHTML = grafica(sel.evol, v => fmtTiempo(v));
+    g.innerHTML = grafica(sel.evol, v => fmtMarca(v));
     s.append(tit, g, nota("Toca otra distancia para ver su evolución. En esta gráfica, más abajo es más rápido."));
     destino.appendChild(s);
   });
@@ -4625,23 +4753,44 @@ function quitarMesoDelCalendario(mesoId) {
 }
 // Rellena el calendario: cada semana, cada día con sus plantillas; la progresión suma kg cada semana
 // y las semanas de descarga bajan la carga o el número de series
-function aplicarMeso(m) {
-  quitarMesoDelCalendario(m.id);
+// Sin duplicar nunca: cada sesión del plan (semana, plantilla) que ya esté en el calendario —en su día o movida a
+// otro, hecha o pendiente— se respeta; solo se crean las que faltan. «rehacer» quita antes lo pendiente
+function aplicarMeso(m, rehacer) {
+  if (rehacer) quitarMesoDelCalendario(m.id);
   const lunes = deIso(m.inicio);
-  let total = 0;
+  const ya = seriesVivas().filter(s => s.meso_id === m.id);
+  const semanaDe = f => Math.floor((deIso(f) - lunes) / (7 * 864e5));
+  // Huecos del plan por plantilla y semana, y sesiones que ya hay (una por día y entreno)
+  const huecos = {}, hay = {};
   for (let w = 0; w < m.semanas; w++) {
     const diasSemana = (m.dias || {})["s" + (w + 1)] || m.dias || {};
-    for (let d = 0; d < 7; d++) {
-      const fecha = iso(sumarDias(lunes, w * 7 + d));
-      (diasSemana[d] || []).forEach(pid => {
-        const p = db.plantillas[pid];
-        if (!p || p.borrado) return;
-        const items = esDescarga(m, w) ? descargarItems(p.items || [], m.descarga, w * n0(m.progresion)) : p.items || [];
-        pegarItems(fecha, items, p.nombre, m.id, esDescarga(m, w) ? 0 : w * n0(m.progresion));
-        total += contarSeries(items);
-      });
-    }
+    for (let d = 0; d < 7; d++) (diasSemana[d] || []).forEach(pid => { const p = db.plantillas[pid]; if (p && !p.borrado) (huecos[pid + "|" + w] = huecos[pid + "|" + w] || []).push(d); });
   }
+  const pidDe = nombre => Object.keys(db.plantillas).find(id => !db.plantillas[id].borrado && db.plantillas[id].nombre === nombre);
+  new Set(ya.map(s => s.fecha + "|" + (s.grupo || ""))).forEach(k => {
+    const [f, g] = [k.slice(0, 10), k.slice(11)], pid = pidDe(g), w = semanaDe(f);
+    if (pid) (hay[pid] = hay[pid] || []).push({ w, d: (deIso(f).getDay() + 6) % 7 });
+  });
+  let total = 0;
+  Object.keys(db.plantillas).forEach(pid => {
+    const p = db.plantillas[pid];
+    if (p.borrado) return;
+    const sesiones = (hay[pid] || []).slice();
+    // Primero las que siguen en su semana; las movidas a otra semana cubren los huecos que falten
+    const faltan = [];
+    for (let w = 0; w < m.semanas; w++) {
+      const dias = huecos[pid + "|" + w] || [];
+      let enSemana = sesiones.filter(x => x.w === w);
+      enSemana.slice(0, dias.length).forEach(x => sesiones.splice(sesiones.indexOf(x), 1));
+      const libres = dias.filter(d => !enSemana.some(x => x.d === d));
+      for (let k = 0; k < dias.length - Math.min(dias.length, enSemana.length); k++) faltan.push({ w, d: libres[k] !== undefined ? libres[k] : dias[k] });
+    }
+    faltan.slice(sesiones.length).forEach(({ w, d }) => {
+      const items = esDescarga(m, w) ? descargarItems(p.items || [], m.descarga, w * n0(m.progresion)) : p.items || [];
+      pegarItems(iso(sumarDias(lunes, w * 7 + d)), items, p.nombre, m.id, esDescarga(m, w) ? 0 : w * n0(m.progresion));
+      total += contarSeries(items);
+    });
+  });
   return total;
 }
 $("mesoGuardar").addEventListener("click", () => {
@@ -4651,13 +4800,58 @@ $("mesoGuardar").addEventListener("click", () => {
 });
 $("mesoAplicar").addEventListener("click", () => {
   const m = leerMeso(); if (!m) return;
-  cambiar("mesociclos", m, true);
-  const n = aplicarMeso(m);
-  persistir();
-  $("dlgMeso").close();
-  setEstado("Mesociclo aplicado: " + n + " series planificadas");
-  desplazamiento = Math.round((lunesDe(deIso(m.inicio)) - lunesDe(new Date())) / (7 * 864e5));
-  verPestana("semana");
+  const fin = iso(sumarDias(deIso(m.inicio), n0(m.semanas) * 7));
+  const ya = seriesVivas().filter(s => s.meso_id === m.id);
+  const otros = vivos("mesociclos").filter(o => o.id !== m.id && o.inicio && o.inicio < fin && iso(sumarDias(deIso(o.inicio), n0(o.semanas) * 7)) > m.inicio && seriesVivas().some(s => s.meso_id === o.id && s.fecha >= m.inicio && s.fecha < fin));
+  const aplicar = rehacer => {
+    const antes = new Map(seriesVivas().filter(s => s.meso_id === m.id).map(s => [s.id, { ...s }]));
+    cambiar("mesociclos", m, true);
+    const n = aplicarMeso(m, rehacer);
+    persistir();
+    $("dlgMeso").close();
+    // Deshacer: vuelve lo que había (lo pendiente quitado) y quita lo nuevo
+    const ahora = seriesVivas().filter(s => s.meso_id === m.id);
+    const deshacer = [...antes.values()].filter(s => !db.series[s.id] || db.series[s.id].borrado).map(s => ["series", s])
+      .concat(ahora.filter(s => !antes.has(s.id)).map(s => ["series", { ...s, borrado: true }]));
+    desplazamiento = Math.round((lunesDe(deIso(m.inicio)) - lunesDe(new Date())) / (7 * 864e5));
+    verPestana("semana");
+    avisoDeshacer(n ? "Mesociclo en el calendario: " + n + " series nuevas" : "No faltaba ninguna sesión: el calendario ya estaba completo", deshacer.length ? deshacer : null);
+  };
+  const conSolape = rehacer => !otros.length ? aplicar(rehacer) : abrirMenu("Se cruza con otro mesociclo", "En esas fechas ya tienes «" + otros.map(o => o.nombre).join("», «") + "» en el calendario. Si sigues, los dos quedarán juntos esos días.", [
+    { texto: "Aplicar igualmente", accion: () => aplicar(rehacer) },
+    { texto: "Cancelar", accion: () => {} }
+  ]);
+  if (!ya.length) { conSolape(false); return; }
+  const hechas = new Set(ya.filter(hecha).map(s => s.fecha + "|" + s.grupo)).size, total = new Set(ya.map(s => s.fecha + "|" + s.grupo)).size;
+  abrirMenu("Este mesociclo ya está en el calendario", total + (total === 1 ? " sesión" : " sesiones") + (hechas ? " (" + hechas + (hechas === 1 ? " hecha)" : " hechas)") : "") + ". No se duplica nada: lo que hayas movido de día o cambiado a mano se respeta.", [
+    { texto: "Completar solo lo que falte (recomendado)", accion: () => conSolape(false) },
+    { texto: "Rehacer lo pendiente según el plan", peligro: true, confirmar: "Pulsa otra vez: lo pendiente vuelve a los días del plan (lo hecho no se toca y se puede deshacer)", accion: () => conSolape(true) }
+  ]);
+});
+// Añadir un mesociclo a una lista: sus entrenamientos en el orden de la semana; si cada semana es distinta, una
+// cabecera por semana («Meso · Semana 2»). Si ya estaba en esa lista, pregunta antes de repetirlo
+function anadirMesoALista(m, l) {
+  const pref = "«" + m.nombre + "»";
+  const porSemana = Object.keys(m.dias || {}).some(k => /^s\d+$/.test(k));
+  const semana = w => { const ds = porSemana ? (m.dias["s" + (w + 1)] || {}) : (m.dias || {}); const out = []; for (let d = 0; d < 7; d++) (ds[d] || []).forEach(pid => { if (db.plantillas[pid] && !db.plantillas[pid].borrado) out.push(pid); }); return out; };
+  const nuevos = [];
+  if (porSemana) for (let w = 0; w < n0(m.semanas); w++) { const ps = semana(w); if (!ps.length) continue; nuevos.push({ sep: nuevoId(), titulo: pref + " · Semana " + (w + 1) + (esDescarga(m, w) ? " (descarga)" : "") }, ...ps); }
+  else { const ps = semana(0); if (ps.length) nuevos.push({ sep: nuevoId(), titulo: pref + " · " + n0(m.semanas) + " semanas" }, ...ps); }
+  if (!nuevos.length) { avisoDeshacer("Este mesociclo no tiene entrenamientos en sus días: añádelos primero", null); return; }
+  const meter = () => {
+    const fresca = db.listas[l.id], antes = { ...fresca };
+    cambiar("listas", { ...fresca, items: (fresca.items || []).concat(nuevos) });
+    pintarListas();
+    avisoDeshacer(pref + " añadido a la lista «" + l.nombre + "» (" + nuevos.filter(x => typeof x === "string").length + " entrenamientos)", [["listas", antes]]);
+  };
+  const ya = (db.listas[l.id].items || []).some(x => esSep(x) && (x.titulo || "").startsWith(pref));
+  if (ya) abrirMenu("Ya está en esta lista", pref + " ya está en «" + l.nombre + "». ¿Lo añado otra vez?", [{ texto: "Añadir otra vez", accion: meter }, { texto: "Cancelar", accion: () => {} }]);
+  else meter();
+}
+$("mesoALista").addEventListener("click", () => {
+  const m = leerMeso(); if (!m) return;
+  cambiar("mesociclos", m);
+  elegirLista("¿En qué lista añado «" + m.nombre + "»?", l => anadirMesoALista(db.mesociclos[m.id] || m, l));
 });
 $("mesoQuitar").addEventListener("click", () => {
   const n = quitarMesoDelCalendario(mesoEdit.id);
@@ -5486,6 +5680,108 @@ NOTA: Para nivel intermedio. Sube 2,5 kg cuando completes todas las series.
 - BLOQUE x4: Series 200 m [carrera] 200m | Trote de recuperación [carrera] 200m
 ## Rodaje @ Sábado
 - Rodaje [carrera]: 1x45min`;
+// ---------- Prompt basado en un mesociclo, una lista o tus últimas semanas ----------
+// Resume lo anterior como texto corto para la otra IA: estructura (días, partes, ejercicios y series) y cómo progresaste
+function lineasItemsIA(items) {
+  const out = []; let parte = null;
+  items.forEach(it => {
+    const sec = it.seccion || "";
+    if (sec !== parte) { if (sec) out.push("### " + sec); parte = sec; }
+    if (it.bloque) out.push("- BLOQUE x" + Math.max(1, ...(it.tramos || []).map(t => t.series.length)) + ": " + (it.tramos || []).map(t => nombreEj(t.ejercicio_id) + " [" + tipoDe(t.ejercicio_id) + "] " + textoValor(t.series[0] || {}, tipoDe(t.ejercicio_id))).join(" | "));
+    else if (ejercicioVivo(it.ejercicio_id)) out.push("- " + nombreEj(it.ejercicio_id) + " [" + tipoDe(it.ejercicio_id) + "]: " + resumenSeriesRutina(it.series, tipoDe(it.ejercicio_id)) + (it.series[0] && it.series[0].nota ? " nota: " + it.series[0].nota : ""));
+  });
+  return out;
+}
+// Sesiones de una semana a partir de sus series (por día y entreno)
+function sesionesDeSeries(series) {
+  const out = [];
+  [...new Set(series.map(s => s.fecha))].sort().forEach(f => {
+    const delDia = series.filter(s => s.fecha === f).sort(ordenSerie);
+    [...new Set(delDia.map(s => s.grupo || ""))].forEach(g => {
+      out.push("## " + (g || "Sesión") + " @ " + diaSemana(f));
+      out.push(...lineasItemsIA(itemsDe(delDia.filter(s => (s.grupo || "") === g))));
+    });
+  });
+  return out;
+}
+// Cómo progresó cada ejercicio de fuerza: la primera y la última vez que lo hiciste
+function progresionDeSeries(series) {
+  const hechas = series.filter(s => hecha(s) && tipoDe(s.ejercicio_id) === "fuerza");
+  const ejs = [...new Set(hechas.map(s => s.ejercicio_id))].slice(0, 16);
+  return ejs.map(id => {
+    const deEj = hechas.filter(s => s.ejercicio_id === id), fechas = [...new Set(deEj.map(s => s.fecha))].sort();
+    const txt = f => resumenSeriesRutina(deEj.filter(s => s.fecha === f).sort(ordenSerie).map(valores), "fuerza");
+    return "- " + nombreEj(id) + ": " + (fechas.length > 1 ? fechaCorta(fechas[0]) + " " + txt(fechas[0]) + " → " + fechaCorta(fechas[fechas.length - 1]) + " " + txt(fechas[fechas.length - 1]) : fechaCorta(fechas[0]) + " " + txt(fechas[0]));
+  });
+}
+function referenciaIA(val) {
+  if (!val) return null;
+  if (val.startsWith("m:")) {
+    const m = db.mesociclos[val.slice(2)];
+    if (!m || m.borrado) return null;
+    const ss = seriesVivas().filter(s => s.meso_id === m.id);
+    const sem1 = m.inicio ? ss.filter(s => s.fecha < iso(sumarDias(lunesDe(deIso(m.inicio)), 7))) : [];
+    return { titulo: "Mi mesociclo anterior «" + m.nombre + "» (" + n0(m.semanas) + " semanas" + (m.inicio ? " desde el " + fechaCorta(m.inicio) : "") + (n0(m.progresion) ? ", +" + num(m.progresion) + " kg por semana" : "") + ")",
+      estructura: sesionesDeSeries(sem1.length ? sem1 : ss.slice(0, 60)), progreso: progresionDeSeries(ss), notas: m.notas || "" };
+  }
+  if (val.startsWith("l:")) {
+    const l = db.listas[val.slice(2)];
+    if (!l || l.borrado) return null;
+    const lineas = [];
+    let sepAnt = null;
+    recorrerLista(l).forEach(({ p, sep }) => {
+      if (sep && sep !== sepAnt) { lineas.push("SEMANA/BLOQUE: " + (sep.titulo || "")); sepAnt = sep; }
+      lineas.push("## " + p.nombre, ...lineasItemsIA(p.items || []));
+    });
+    const ids = new Set(entrenosDeLista(l).flatMap(p => (p.items || []).flatMap(it => it.bloque ? (it.tramos || []).map(t => t.ejercicio_id) : [it.ejercicio_id])));
+    const hace = iso(sumarDias(new Date(), -84));
+    return { titulo: "Mi lista de entrenamientos «" + l.nombre + "»", estructura: lineas.slice(0, 140), progreso: progresionDeSeries(seriesVivas().filter(s => ids.has(s.ejercicio_id) && s.fecha >= hace)) };
+  }
+  const n = val === "u8" ? 8 : 4, desde = iso(sumarDias(new Date(), -7 * n)), hoy = iso(new Date());
+  const ss = seriesVivas().filter(s => s.fecha >= desde && s.fecha <= hoy && hecha(s));
+  // La estructura: la semana más reciente con entrenamientos
+  const ult = ss.length ? iso(lunesDe(deIso(ss.map(s => s.fecha).sort().pop()))) : "";
+  return { titulo: "Lo que he entrenado las últimas " + n + " semanas", estructura: sesionesDeSeries(ss.filter(s => s.fecha >= ult)), progreso: progresionDeSeries(ss) };
+}
+const MODOS_REF = {
+  variantes: "Mantén la estructura (días, tipo de sesión, partes, número de ejercicios y volumen parecidos), pero cambia los ejercicios por VARIANTES que trabajen el mismo patrón de movimiento y los mismos músculos: otro agarre, implemento, ángulo o versión unilateral (por ejemplo press banca → press inclinado con mancuernas, sentadilla → sentadilla frontal o búlgara, remo con barra → remo en polea o con mancuerna). Ajusta las cargas e intensidades a partir de mis resultados.",
+  progresar: "Continúa la progresión con los mismos ejercicios principales: sube cargas, repeticiones o series según lo que hice; si algún ejercicio se estancó, cámbialo por una variante parecida.",
+  nuevo: "Hazme algo con otro enfoque, sin repetir los ejercicios principales, usando lo anterior para saber de dónde parto (nivel, volumen que tolero y cargas)."
+};
+function bloqueReferenciaIA() {
+  const ref = referenciaIA($("iaRef").value);
+  if (!ref) return [];
+  const out = ["Toma como referencia " + ref.titulo.charAt(0).toLowerCase() + ref.titulo.slice(1) + ". " + MODOS_REF[$("iaRefModo").value || "variantes"]];
+  if (ref.notas) out.push("Notas que tenía: " + ref.notas);
+  if (ref.estructura.length) out.push("Estructura de referencia:", ...ref.estructura);
+  else out.push("(No hay entrenamientos apuntados en esa referencia.)");
+  if (ref.progreso.length) out.push("Cómo me fue (primera → última vez):", ...ref.progreso);
+  return out.concat("");
+}
+// Opciones de «Basado en»: tus mesociclos, tus listas y tus últimas semanas
+function pintarRefIA() {
+  const sel = $("iaRef"), antes = sel.value;
+  sel.textContent = "";
+  const op = (v, t) => { const o = document.createElement("option"); o.value = v; o.textContent = t; sel.appendChild(o); };
+  op("", "Nada: desde cero");
+  vivos("mesociclos").sort((a, b) => (b.inicio || "").localeCompare(a.inicio || "")).forEach(m => op("m:" + m.id, "Mesociclo · " + m.nombre + (m.inicio ? " (" + fechaCorta(m.inicio) + ")" : "")));
+  vivos("listas").forEach(l => op("l:" + l.id, "Lista · " + l.nombre));
+  op("u4", "Mis últimas 4 semanas");
+  op("u8", "Mis últimas 8 semanas");
+  sel.value = [...sel.options].some(o => o.value === antes) ? antes : "";
+  $("iaRefModoL").hidden = !sel.value;
+}
+$("iaRef").addEventListener("change", () => {
+  // Un mesociclo de referencia propone sus semanas y días
+  const v = $("iaRef").value;
+  if (v.startsWith("m:") && db.mesociclos[v.slice(2)]) {
+    const m = db.mesociclos[v.slice(2)], dd = [...new Set(seriesVivas().filter(s => s.meso_id === m.id).map(s => diaSemana(s.fecha)))];
+    if (n0(m.semanas)) $("iaSemanas").value = n0(m.semanas);
+    if (dd.length) $("iaDias").value = dd.length;
+  }
+  pintarCamposIA();
+});
+$("iaRefModo").addEventListener("change", pintarCamposIA);
 function textoPrompt() {
   if (docIA) return textoPromptDocumento();
   if ($("iaModo").value === "sesion") return textoPromptSesion();
@@ -5511,7 +5807,7 @@ function textoPrompt() {
     molestiasActivas().length && "Molestias o lesiones que tengo ahora (adapta el plan para no agravarlas): " + molestiasActivas().map(m => m.zona + (m.descripcion ? " (" + m.descripcion + ")" : "")).join("; "),
     corre && f && "Mis ritmos de carrera actuales por km: " + ZONAS.map(([n, fr]) => n.split(" (")[0] + " " + fmtTiempo(ritmoZona(f.vdot, fr))).join(", ") + " (VDOT " + num(Math.round(f.vdot)) + "). Usa estos ritmos."
   ].filter(Boolean);
-  return ["Actúa como entrenador. Diséñame un plan de entrenamiento con estos datos:", ...datos.map(d => "- " + d), "",
+  return ["Actúa como entrenador. Diséñame un plan de entrenamiento con estos datos:", ...datos.map(d => "- " + d), "", ...bloqueReferenciaIA(),
     "Responde SOLO con el plan dentro de un bloque de código, sin texto fuera, en este formato exacto (una app lo lee automáticamente):",
     "```", EJEMPLO_IA, "```",
     "Reglas del formato:",
@@ -5547,7 +5843,7 @@ function textoPromptSesion() {
     molestiasActivas().length && "Molestias o lesiones que tengo ahora (adapta la sesión para no agravarlas): " + molestiasActivas().map(m => m.zona + (m.descripcion ? " (" + m.descripcion + ")" : "")).join("; "),
     esCarrera && f && "Mis ritmos de carrera actuales por km: " + ZONAS.map(([n, fr]) => n.split(" (")[0] + " " + fmtTiempo(ritmoZona(f.vdot, fr))).join(", ") + " (VDOT " + num(Math.round(f.vdot)) + "). Usa estos ritmos."
   ].filter(Boolean);
-  return ["Actúa como entrenador. Diséñame UN SOLO entrenamiento (una sesión) con estos datos:", ...datos.map(d => "- " + d), "",
+  return ["Actúa como entrenador. Diséñame UN SOLO entrenamiento (una sesión) con estos datos:", ...datos.map(d => "- " + d), "", ...bloqueReferenciaIA(),
     "Responde SOLO con la sesión dentro de un bloque de código, sin texto fuera, en este formato exacto (una app lo lee automáticamente):",
     "```", EJEMPLO_SESION_IA, "```",
     "Reglas del formato:",
@@ -5632,6 +5928,8 @@ function pintarCamposIA() {
   $("iaCamposSesion").hidden = !sesion;
   $("iaCamposCarrera").hidden = !carrera;
   $("iaSesOtroL").hidden = $("iaSesTipo").value !== "otro";
+  $("iaRefCaja").hidden = !!docIA;
+  pintarRefIA();
   $("iaTexto").value = textoPrompt();
 }
 let rutinaIA = null;
@@ -5679,7 +5977,16 @@ $("iaCopiar").addEventListener("click", () => {
   });
 });
 $("iaRevisar").addEventListener("click", () => {
-  const r = leerRutina($("iaRespuesta").value);
+  // Si se pega el propio prompt (lleva un ejemplo dentro), la app leería el ejemplo: se avisa en vez de importarlo
+  const txt = $("iaRespuesta").value;
+  if (/Reglas del formato:/.test(txt) && /Responde SOLO con/.test(txt)) {
+    rutinaIA = null;
+    $("iaVistaTit").textContent = "";
+    $("iaError").textContent = "Esto es el prompt, no la respuesta: pégalo en ChatGPT, Claude u otra IA y pega aquí lo que te conteste (empieza por «RUTINA:»).";
+    pintarVistaIA();
+    return;
+  }
+  const r = leerRutina(txt);
   rutinaIA = r.error ? null : r;
   $("iaError").textContent = r.error || "";
   $("iaVistaTit").textContent = r.error ? "" : r.nombre;
@@ -6697,7 +7004,7 @@ $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); 
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
 // VERSION_APP es interna (sube en cada publicación para que los móviles se actualicen); la que se ve es siempre la 26
-const VERSION_APP = "v129" + (BETA ? " beta" : "");
+const VERSION_APP = "v137" + (BETA ? " beta" : "");
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";

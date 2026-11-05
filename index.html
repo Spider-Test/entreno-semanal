@@ -277,9 +277,9 @@
     <textarea id="txtInput" rows="3" maxlength="300" aria-label="Descripción" placeholder="Tempo 3-2-1-2 · banda roja · EEP 2"></textarea>
     <p id="txtAyuda" class="menu-det"></p>
     <div class="d-botones">
-      <button value="quitar" class="nav-btn peligro-txt" formnovalidate>Quitar</button>
-      <button value="" class="nav-btn" formnovalidate>Cancelar</button>
-      <button value="ok" class="anadir">Guardar</button>
+      <button type="button" class="nav-btn peligro-txt" data-cerrar="quitar">Quitar</button>
+      <button type="button" class="nav-btn" data-cerrar="">Cancelar</button>
+      <button value="ok" class="anadir" data-enter>Guardar</button>
     </div>
   </form>
 </dialog>
@@ -289,8 +289,8 @@
     <input id="nomInput" aria-label="Nombre" autocomplete="off" enterkeyhint="done">
     <p id="nomAyuda" class="menu-det"></p>
     <div class="d-botones">
-      <button value="" class="nav-btn" formnovalidate>Cancelar</button>
-      <button value="ok" class="anadir">Guardar</button>
+      <button type="button" class="nav-btn" data-cerrar="">Cancelar</button>
+      <button value="ok" class="anadir" data-enter>Guardar</button>
     </div>
   </form>
 </dialog>
@@ -350,6 +350,7 @@
       <button type="button" class="anadir" id="mesoAplicar">Guardar y rellenar calendario</button>
     </div>
     <div class="d-botones">
+      <button type="button" class="nav-btn" id="mesoALista">Añadir a una lista…</button>
       <button type="button" class="nav-btn" id="mesoCompartir">Compartir con un amigo…</button>
       <button type="button" class="enlace" id="mesoQuitar">Quitar sus series planificadas del calendario</button>
       <button type="button" class="peligro" id="mesoBorrar">Eliminar mesociclo</button>
@@ -391,6 +392,16 @@
       <label class="campo">¿Qué quieres?
         <select id="iaModo"><option value="plan">Plan de varias semanas o mesociclo</option><option value="sesion">Entrenamiento suelto (una sesión)</option></select>
       </label>
+      <div class="fila" id="iaRefCaja">
+        <label class="campo">Basado en (opcional) <select id="iaRef"><option value="">Nada: desde cero</option></select></label>
+        <label class="campo" id="iaRefModoL" hidden>¿Cómo?
+          <select id="iaRefModo">
+            <option value="variantes">Mismo esquema, con variantes de ejercicios</option>
+            <option value="progresar">Seguir progresando con los mismos ejercicios</option>
+            <option value="nuevo">Otro enfoque, sin repetir los principales</option>
+          </select>
+        </label>
+      </div>
       <div id="iaCamposPlan">
         <div class="fila">
           <label class="campo">Objetivo
@@ -480,6 +491,16 @@
   <div class="d-cuerpo ayuda">
     <p>Toca cada apartado para verlo. Puedes volver aquí cuando quieras con el botón <b>?</b> de arriba. ¿Echas algo en falta o algo no va bien? Envíanos una sugerencia:</p>
     <details class="novedades" open><summary>Novedades · versión 26</summary>
+      <p><b>Enter guarda:</b> al escribir un nombre (una lista, su semana o bloque, una parte, una plantilla…) pulsar Enter ya guarda; antes se descartaba. Igual en las demás ventanas con campos (marca, carrera, mesociclo, molestia, esfuerzo, contraseña); en la ficha del ejercicio, Enter confirma el campo.</p>
+      <p><b>Marcas sueltas de carrera:</b> en Marcas → Carrera → «Mejores marcas de carrera», el botón <b>«+ Marca»</b> apunta un tiempo que no es una carrera (un test de 2 km, un 100 m en pista…) con minutos y segundos, también con décimas (13,2). Cuentan en tus mejores marcas y salen en su propia lista; tócala para corregirla o borrarla.</p>
+      <p><b>Marcas más exactas:</b> los tiempos ya no se redondean (salen las décimas cuando las hay) y hay mejores marcas también en 100, 300, 500, 600, 700 y 900 m. «Mis carreras» va ahora debajo de «Forma en carrera», y cada apartado de Marcas (previstas, ritmos, mejores marcas, fuerza…) se pliega tocando su título.</p>
+      <p><b>Récord de los isométricos:</b> en Marcas → Fuerza, los ejercicios que van por tiempo (plancha lateral…) muestran su mejor tiempo en vez de «0 reps».</p>
+      <p><b>Tus ejercicios más usados, primero:</b> al añadir un ejercicio, la lista va del que más has usado al que menos (en cuántos días lo has hecho), con el número de veces al lado. Cada usuario ve el orden de sus propios entrenamientos, y con el filtro de tipo (fuerza, carrera…) el orden es el de ese tipo.</p>
+      <p><b>Menos botones a la vista:</b> en cada día, entreno y parte, los botones de añadir (ejercicio, bloque, parte, entreno) están recogidos en un solo <b>«＋ Añadir»</b>. Tócalo y se despliegan; se vuelven a recoger al elegir o al tocar fuera. Donde aún no hay nada salen ya desplegados.</p>
+      <p><b>Mesociclo a una lista:</b> en la ventana del mesociclo, «Añadir a una lista…» mete sus entrenamientos en la lista que elijas (o en una nueva), con una cabecera «Mesociclo · N semanas»; si cada semana es distinta, una cabecera por semana. Si ya estaba en esa lista, te pregunta antes de repetirlo, y se puede deshacer.</p>
+      <p><b>Mesociclos sin duplicados:</b> si le das a «Aplicar al calendario» a un mesociclo que ya está puesto, ya no se duplica: te pregunta si <b>completar solo lo que falte</b> (respeta las sesiones que hayas movido de día o cambiado) o <b>rehacer lo pendiente según el plan</b> (pide confirmar; lo hecho no se toca). Si se cruza con otro mesociclo en esas fechas, te avisa antes. Todo se puede deshacer.</p>
+      <p><b>Aviso al pegar el prompt por error:</b> si en «Respuesta de la IA» pegas el prompt en vez de lo que contestó la IA, la app te avisa (antes leía el ejemplo que lleva dentro y salía «Fuerza y carrera 3 días»).</p>
+      <p><b>Crear con IA basado en lo anterior:</b> en «Crear con IA», elige <b>Basado en</b>: un mesociclo, una lista o tus últimas 4 u 8 semanas, y <b>¿Cómo?</b>: mismo esquema con <b>variantes de ejercicios</b>, seguir progresando con los mismos, u otro enfoque. El prompt lleva un resumen (días, partes, ejercicios y series, y cómo progresaste de la primera a la última vez) para que la otra IA lo tenga de referencia.</p>
       <p><b>Crear con IA, mejor calentamiento:</b> el texto que se copia para la IA pide ahora dividir cada sesión en partes y meter en el calentamiento movilidad de las articulaciones que vas a trabajar (además de bici, activación o series de aproximación si encajan), y estiramientos en la vuelta a la calma. También admite ventanas de repeticiones como 4x8-12.</p>
       <p><b>Mover entre entrenos del mismo día:</b> arrastra un ejercicio o un bloque con ≡ hasta otro entreno del día: el hueco te enseña dónde cae (encima del título del entreno lo pone el primero). Una parte entera se pasa con su ⋯ → «Mover la parte a otro entreno…».</p>
       <p><b>Ya no aparece un entreno nuevo al añadir:</b> los botones de abajo del día (+ Ejercicio, + Bloque, + Parte) añadían siempre a un «Entreno 1» sin nombre, aunque tu entreno se llamase distinto, y por eso salía uno nuevo. Ahora van a tu entreno y, si hay varios, te preguntan a cuál. Las partes no tienen límite.</p>
@@ -743,6 +764,28 @@
     <div class="cal-grid" id="calDias"></div>
     <p class="menu-det nota">● entrenamiento hecho · ◐ a medias · ○ planificado. Toca un día para ir a él.</p>
     <div class="d-botones"><button type="button" class="nav-btn" id="calHoy">Ir a hoy</button></div>
+  </div>
+</dialog>
+
+<dialog id="dlgMarca" aria-label="Marca">
+  <form method="dialog" class="d-cab">
+    <h3 class="d-tit">Marca</h3>
+    <button class="cerrar" aria-label="Cerrar">✕</button>
+  </form>
+  <div class="d-cuerpo">
+    <p class="menu-det" style="padding:0">Un tiempo suelto que no es una carrera: un test de 2 km, un 100 m en pista… Cuenta en tus mejores marcas.</p>
+    <label class="campo">Distancia <input id="mmDist" placeholder="2 km, 100 m, 400…" autocomplete="off" inputmode="decimal"></label>
+    <div class="fila">
+      <label class="campo">Minutos <input id="mmMin" inputmode="numeric" placeholder="6" autocomplete="off"></label>
+      <label class="campo">Segundos <input id="mmSeg" inputmode="decimal" placeholder="45 o 13,2" autocomplete="off"></label>
+    </div>
+    <label class="campo">Fecha <input id="mmFecha" type="date"></label>
+    <label class="campo">Nota (opcional) <input id="mmNota" placeholder="Pista, test, con viento…" autocomplete="off"></label>
+    <p id="mmAviso" class="aviso" role="status"></p>
+    <div class="d-botones">
+      <button type="button" class="peligro" id="mmBorrar" hidden>Borrar</button>
+      <button type="button" class="anadir" id="mmGuardar">Guardar marca</button>
+    </div>
   </div>
 </dialog>
 

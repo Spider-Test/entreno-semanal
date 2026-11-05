@@ -1347,6 +1347,22 @@ h1 { color: var(--titulo); }
 .bloque-vacio { border-style: dashed !important; }
 .bloque-vacio .bv-txt { margin: 4px 0; font-size: 13px; color: var(--muted); }
 
+/* «＋ Añadir» plegable */
+.add-fila.plegada > .add-ej { display: none !important; }
+.add-toggle { flex: 1; grid-column: 1 / -1; margin: 0; background: none; border: 1px dashed var(--line); border-radius: 8px; color: var(--muted); font-size: 13px; font-weight: 600; padding: 5px 8px; text-align: center; cursor: pointer; }
+.add-toggle[hidden] { display: none !important; }
+.add-toggle:hover { color: var(--accent); border-color: var(--accent); }
+.add-parte .add-toggle { color: var(--pc); border-color: color-mix(in srgb, var(--pc) 40%, var(--line)); }
+.add-fila.plegada { margin-top: 4px; margin-bottom: 4px; }
+
+.op-uso { float: right; padding-left: 8px; line-height: 1.6; font-size: 12px; color: var(--muted); font-weight: 500; white-space: nowrap; }
+
+/* Apartados de Marcas plegables */
+.ms-tit { cursor: pointer; display: flex; align-items: center; gap: 6px; -webkit-user-select: none; user-select: none; }
+.ms-plegable:not(.plegada) .ms-tit .flecha-dia { transform: rotate(90deg); }
+.ms-plegable.plegada > :not(.ms-tit):not(.sec-cab) { display: none !important; }
+.ms-plegable.plegada > .sec-cab > :not(.ms-tit) { display: none; }
+
 /* Arrastrar un ejercicio o bloque encima de la cabecera de una parte: entra en ella (como una carpeta) */
 .parte-cab { transition: transform 0.15s, box-shadow 0.15s; }
 .parte-cab.zona-destino { transform: scale(1.03); box-shadow: 0 0 0 3px var(--pc), 0 6px 18px rgba(0, 0, 0, 0.18); }
