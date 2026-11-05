@@ -2011,10 +2011,12 @@ function bloque(dia, id, series, grupo, parte) {
     foto = "";   // lo que quedó escrito se guardará al salir
   }
   if (!series.length && foto === null) tomarFoto();
-  // Cancelar: se descarta lo escrito y queda como estaba (con series, se cierra; recién añadido, se vacía)
+  // Cancelar, como en otras apps: un ejercicio recién añadido (sin series) se quita; uno que ya existía se queda
+  // tal cual estaba, sin aplicar cambios, y sale del modo edición
   b.querySelector(".cancelar-form").addEventListener("click", () => {
     foto = null;
     delete borradores[dia.id + "|" + (grupo || "") + "|" + id + "|" + (parte || "")];
+    if (!series.length) { quitarEspera(dia.id, id); avisoDeshacer((ej.nombre || "Ejercicio") + " quitado", null); }
     pintarBloques(true);
   });   // ejercicio recién añadido: al salir, si has escrito algo, se crean sus series
   [fa, fb, fc, vecesEl].forEach(x => x.addEventListener("input", guardarBor));
@@ -5985,7 +5987,7 @@ $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); 
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
 // VERSION_APP es interna (sube en cada publicación para que los móviles se actualicen); la que se ve es siempre la 26
-const VERSION_APP = "v114" + (BETA ? " beta" : "");
+const VERSION_APP = "v115" + (BETA ? " beta" : "");
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";
