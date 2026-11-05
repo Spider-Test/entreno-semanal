@@ -1691,6 +1691,7 @@ function bloque(dia, id, series, grupo, parte) {
   const ponerModoForm = m => {
     modoForm = m;
     b.querySelector(".veces-izq").hidden = m !== "grupo";
+    if (m !== "grupo" && extrasEl) extrasEl.textContent = "";
     cambiarEl.hidden = true;
     const ce = b.querySelector(".cambiar-ej-btn"); if (ce) ce.hidden = !(m === "grupo" && series.length);
     if (m !== "editar") boton.textContent = m === "grupo" ? "OK" : "+ Añadir serie";
@@ -1703,17 +1704,60 @@ function bloque(dia, id, series, grupo, parte) {
     abrirForm();
     ponerModoForm("grupo");
     const efect = series.filter(x => !x.calentamiento), ref = efect.find(x => !hecha(x)) || efect[efect.length - 1] || series[0];
-    if (ref) rellenarCon(ref, true);
+    if (ref) rellenarCon(efect[0] || ref, true);
     vecesEl.value = efect.length || 1;
+    pintarFilas(efect.map(x => ({ r: enTiempo() ? segTxt(x.tiempo) : (n0(x.reps) || ""), kg: n0(x.pct) > 0 && !x.ciclo_id ? num(x.pct) : (pesoMostrado(x) > 0 ? num(pesoMostrado(x)) : ""), hecha: hecha(x) })));
     otroEj.textContent = "";
     vivos("ejercicios").filter(e => tipoDe(e.id) === tipo).sort((x, y) => x.nombre.localeCompare(y.nombre, "es")).forEach(e => otroEj.add(new Option(e.nombre, e.id, e.id === id, e.id === id)));
     fa.focus();
     tomarFoto();
   }
   b.abrirEdicion = abrirGrupo;
+  // ---- Filas por serie (solo fuerza) ----
+  let extrasEl = null;
+  function pintarFilas(valores) {
+    if (!extrasEl) return;
+    const n = modoForm === "grupo" ? Math.min(50, Math.max(1, parseInt(vecesEl.value, 10) || 1)) : 1;
+    const previas = [...extrasEl.children].map(row => ({ r: row.querySelector(".r-reps").value, kg: row.querySelector(".r-kg").value, auto: row.hasAttribute("data-auto"), hecha: row.dataset.hecha }));
+    extrasEl.textContent = "";
+    b.querySelector(".ns-principal").classList.toggle("con-num", n > 1);
+    for (let k = 1; k < n; k++) {
+      const p = valores ? valores[k] : previas[k - 1];
+      const val = p || { r: fb.value, kg: fa.value, auto: true };
+      const row = document.createElement("div");
+      row.className = "fila-x";
+      row.innerHTML = '<span class="fx-n"></span><input class="r-reps" autocomplete="off"><span class="fx-u"></span><input class="r-kg" inputmode="decimal" autocomplete="off"><span class="fx-u fx-kg"></span>';
+      row.querySelector(".fx-n").textContent = k + 1;
+      const ir = row.querySelector(".r-reps"), ik = row.querySelector(".r-kg");
+      ir.value = val.r; ik.value = val.kg;
+      ir.inputMode = enTiempo() ? "decimal" : "numeric";
+      ir.placeholder = enMax() ? "máx" : enTiempo() ? "seg" : "reps"; ir.disabled = enMax();
+      ik.placeholder = enPct ? "%" : "kg";
+      row.querySelector(".fx-u").textContent = enTiempo() ? "s" : "reps";
+      row.querySelector(".fx-kg").textContent = enPct ? "%" : "kg";
+      if (val.auto) row.setAttribute("data-auto", "");
+      if (val.hecha) { row.dataset.hecha = "1"; ir.disabled = ik.disabled = true; row.title = "Serie hecha: se edita tocándola"; }
+      [ir, ik].forEach(x => x.addEventListener("input", () => row.removeAttribute("data-auto")));
+      extrasEl.appendChild(row);
+    }
+  }
+  // Valores de la serie k (0 = la fila de arriba)
+  function valoresFila(k, v) {
+    if (!extrasEl || k <= 0) return v;
+    const row = extrasEl.children[k - 1];
+    if (!row) return v;
+    const out = { ...v }, r = row.querySelector(".r-reps").value.trim(), kg = row.querySelector(".r-kg").value.trim();
+    if (kg !== "") { const x = parseFloat(kg.replace(",", ".")); if (x >= 0) { out.pct = enPct ? x : 0; out.peso = enPct ? kgDePct(id, x) : x; } }
+    if (!enMax() && r !== "") {
+      if (enTiempo()) { const t = leerSegs(r); if (t > 0) out.tiempo = t; }
+      else { const n = parseInt(r, 10); if (n > 0) out.reps = n; }
+    }
+    return out;
+  }
   // Guardado automático: al editar series que ya existen, si sales del formulario con algo cambiado, se guarda solo (como pulsar OK)
   let foto = null;
-  const valoresForm = () => [fa.value, fb.value, fc.value, vecesEl.value, otroEj.value, ...[...formEl.querySelectorAll("input[type=checkbox]")].map(x => x.checked)].join("|");
+  const valoresForm = () => [fa.value, fb.value, fc.value, vecesEl.value, otroEj.value, ...[...formEl.querySelectorAll("input[type=checkbox]")].map(x => x.checked), ...[...formEl.querySelectorAll(".filas-extra input")].map(x => x.value)].join("|");
+  const hayDatoForm = () => mov || dist ? !!(fa.value.trim() || fb.value.trim()) : !!(fb.value.trim() || (b.querySelector(".es-max") || {}).checked || (b.querySelector(".es-bilbo") || {}).checked);
   function tomarFoto() { foto = valoresForm(); }
   formEl.addEventListener("focusout", ev => {
     const dentro = el => !!el && (formEl.contains(el) || !!(el.closest && el.closest(".veces-cab") && b.contains(el)));
@@ -1722,7 +1766,7 @@ function bloque(dia, id, series, grupo, parte) {
       if (formEl.hidden || dentro(document.activeElement) || !b.isConnected) return;
       // Te vas a otro sitio sin pulsar OK: si has escrito algo válido se guarda solo; si no has cambiado nada, se cierra
       const cambiado = foto !== null && valoresForm() !== foto;
-      const hayDato = mov || dist ? !!(fa.value.trim() || fb.value.trim()) : !!(fb.value.trim() || (b.querySelector(".es-max") || {}).checked);
+      const hayDato = hayDatoForm();
       if (cambiado && hayDato) { foto = null; formEl.requestSubmit(); return; }
       if (series.length && (modoForm === "editar" || modoForm === "grupo" || modoForm === "una") && !cambiado) { delete borradores[dia.id + "|" + (grupo || "") + "|" + id + "|" + (parte || "")]; pintarBloques(true); }
     }, 200);
@@ -1786,6 +1830,14 @@ function bloque(dia, id, series, grupo, parte) {
     if (antesDe) antesDe.before(vz); else cab.appendChild(vz);
     vz.addEventListener("focusout", ev => { if (!formEl.contains(ev.relatedTarget)) formEl.dispatchEvent(new FocusEvent("focusout", { relatedTarget: ev.relatedTarget })); });
     fila.classList.add("fila-fuerza");
+    // Una fila por serie (pirámides, series distintas): la 1.ª es la de arriba; las demás la siguen hasta que las cambias
+    extrasEl = document.createElement("div");
+    extrasEl.className = "filas-extra";
+    fila.after(extrasEl);
+    vecesEl.addEventListener("input", () => pintarFilas(null));
+    [fa, fb].forEach(x => x.addEventListener("input", () => extrasEl.querySelectorAll(".fila-x[data-auto]").forEach(row => {
+      row.querySelector(".r-reps").value = fb.value; row.querySelector(".r-kg").value = fa.value;
+    })));
   }
   if (opsF && filaDesc) {
     filaDesc.classList.add("desc-en-ops"); opsF.appendChild(filaDesc);
@@ -1943,6 +1995,8 @@ function bloque(dia, id, series, grupo, parte) {
     li.querySelector(".sv").setAttribute("aria-label", (planificada ? "Completar" : "Editar") + " serie " + numero + ": " + serieTexto(s));
     li.querySelector(".sv").addEventListener("click", () => {
       if (li.dataset.deslizado) return;
+      // Había algo a medias (una serie nueva o un cambio): se guarda antes, para no perderlo
+      if (!formEl.hidden && foto !== null && valoresForm() !== foto && hayDatoForm() && editando !== s) { foto = null; formEl.requestSubmit(); return; }
       abrirForm();
       ponerModoForm("editar");
       editando = s;
@@ -2055,6 +2109,8 @@ function bloque(dia, id, series, grupo, parte) {
         else { v.tiempo = leerSegs(fb.value); if (!(v.tiempo > 0)) { fb.focus(); return null; } }
       } else if (enMax() || /^\s*(m[aá]x|amrap|fallo)/i.test(fb.value)) {
         v.reps = 0; v.max_reps = true;   // máximas repeticiones
+      } else if (chkBilbo && chkBilbo.checked && !fb.value.trim()) {
+        v.reps = 0;   // Bilbo: se planifica «reps máx» y al hacerla se apuntan las que salieron
       } else {
         v.reps = parseInt(fb.value, 10);
         if (!(v.reps > 0)) { fb.focus(); return null; }
@@ -2085,12 +2141,12 @@ function bloque(dia, id, series, grupo, parte) {
     const letraNueva = series.length ? series.some(x => x.letra_nueva) : !!esperaLetra[dia.id + "|" + id];
     if (esperaLetra[dia.id + "|" + id]) { delete esperaLetra[dia.id + "|" + id]; escribir("espera-letra-v1", esperaLetra); }
     if (esperaNota[dia.id + "|" + id]) { delete esperaNota[dia.id + "|" + id]; escribir("espera-nota-v1", esperaNota); }
-    const nueva = k => ({ id: nuevoId(), fecha: dia.id, ejercicio_id: id, orden: Date.now() + k, grupo, seccion: parte || "", meso_id: "", bloque_id: "", ronda: 0, borrado: false, calentamiento: false, nota: notaNueva, letra_nueva: letraNueva, ...v, hecha: nuevaHecha });
+    const nueva = (k, vk) => ({ id: nuevoId(), fecha: dia.id, ejercicio_id: id, orden: Date.now() + k, grupo, seccion: parte || "", meso_id: "", bloque_id: "", ronda: 0, borrado: false, calentamiento: false, nota: notaNueva, letra_nueva: letraNueva, ...(vk || v), hecha: nuevaHecha });
     if (modoForm === "una" || !series.length) {
       const n = modoForm === "una" ? 1 : Math.min(50, Math.max(1, parseInt(vecesEl.value, 10) || 1));
       if (!series.length) {
         // Delante del ejercicio que tenga detrás (el «orden» de la primera serie lo coloca colocarPrimeraSerie)
-        for (let k = 0; k < n; k++) cambiar("series", nueva(k), true);
+        for (let k = 0; k < n; k++) cambiar("series", nueva(k, valoresFila(k, v)), true);
       } else {
         const ultimo = Math.max(...series.map(x => n0(x.orden)));
         cambiar("series", { ...nueva(0), orden: ultimo + 0.5 }, true);
@@ -2107,10 +2163,10 @@ function bloque(dia, id, series, grupo, parte) {
     const aplicar = borrarHechas => {
       const deshacer = series.map(x => ["series", { ...x }]);
       const nuevas = [];
-      pend.forEach(x => cambiar("series", { ...x, ...v, hecha: false }, true));
+      pend.forEach(x => cambiar("series", { ...x, ...valoresFila(efect.indexOf(x), v), hecha: false }, true));
       if (objetivo > efect.length) {
         const ultimo = Math.max(...series.map(x => n0(x.orden)));
-        for (let k = 0; k < objetivo - efect.length; k++) { const f = { ...nueva(k), orden: ultimo + (k + 1) / 100, hecha: false }; nuevas.push(f); cambiar("series", f, true); }
+        for (let k = 0; k < objetivo - efect.length; k++) { const f = { ...nueva(k, valoresFila(efect.length + k, v)), orden: ultimo + (k + 1) / 100, hecha: false }; nuevas.push(f); cambiar("series", f, true); }
       } else if (objetivo < efect.length) {
         let sobran = efect.length - objetivo;
         const quitar = pend.slice().reverse().concat(borrarHechas ? hechas.slice().reverse() : []);
@@ -5988,7 +6044,7 @@ $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); 
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
 // VERSION_APP es interna (sube en cada publicación para que los móviles se actualicen); la que se ve es siempre la 26
-const VERSION_APP = "v116" + (BETA ? " beta" : "");
+const VERSION_APP = "v117" + (BETA ? " beta" : "");
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";
