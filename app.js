@@ -5524,7 +5524,8 @@ function asaArrastre(el, hermanos, alSoltar, nombre, zonas) {
       const { arriba, abajo } = bordes();
       if (dedoY < arriba + 48) scrollBy(0, -Math.min(14, arriba + 48 - dedoY));
       else if (dedoY > abajo - 48) scrollBy(0, Math.min(14, dedoY - (abajo - 48)));
-      const dy = dedoY + scrollY - inicioY, centro = cajas[idx].top + cajas[idx].alto / 2 + dy;
+      // Se decide con el dedo/ratón (no con el centro de lo arrastrado): así un entreno alto se mueve igual de fácil arriba y abajo
+      const dy = dedoY + scrollY - inicioY, centro = dedoY + scrollY;
       destino = idx;
       // ¿El dedo está encima de una zona? Entonces se resalta y los demás no se apartan
       const z = zl.find(x => { const r = x.getBoundingClientRect(); return dedoY >= r.top - 6 && dedoY <= r.bottom + 6; }) || null;
@@ -5987,7 +5988,7 @@ $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); 
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
 // VERSION_APP es interna (sube en cada publicación para que los móviles se actualicen); la que se ve es siempre la 26
-const VERSION_APP = "v115" + (BETA ? " beta" : "");
+const VERSION_APP = "v116" + (BETA ? " beta" : "");
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";
