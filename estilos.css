@@ -1321,6 +1321,11 @@ h1 { color: var(--titulo); }
 .tramo .tr-modo { flex: none; }
 .tramo .tr-calc { margin: 0; font-size: 13px; color: var(--muted); text-align: right; }
 
+/* Arrastre con hueco: lo arrastrado flota y un hueco marca dónde cae */
+.arrastre-fijo { z-index: 1000 !important; pointer-events: none; box-shadow: 0 12px 32px rgba(0, 0, 0, 0.25); }
+.hueco-arrastre { flex: none; box-sizing: border-box; border: 2px dashed var(--accent); border-radius: 10px; background: var(--accent-soft); margin: 4px 0; }
+.hueco-arrastre.oculto { visibility: hidden; }
+
 /* Arrastrar un ejercicio o bloque encima de la cabecera de una parte: entra en ella (como una carpeta) */
 .parte-cab { transition: transform 0.15s, box-shadow 0.15s; }
 .parte-cab.zona-destino { transform: scale(1.03); box-shadow: 0 0 0 3px var(--pc), 0 6px 18px rgba(0, 0, 0, 0.18); }

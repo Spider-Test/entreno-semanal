@@ -1115,15 +1115,24 @@ function ponerParte(dia, grupo, clave, espera, x) {
   // La parte que se queda sin nada no desaparece: queda vacía para poder volver a llenarla
   if (antes && antes !== x) { const k = dia.id + "|" + grupo; if (!(partesVacias[k] || []).includes(antes)) (partesVacias[k] = partesVacias[k] || []).push(antes); guardarSesiones(); }
   if (espera) { if (x) esperaParte[dia.id + "|" + clave] = x; else delete esperaParte[dia.id + "|" + clave]; guardarSesiones(); }
-  else { seriesDeItem(dia.id, grupo, clave).forEach(sr => cambiar("series", { ...sr, seccion: x }, true)); persistir(); }
+  else {
+    // Si en esa parte ya está el mismo ejercicio, este pasa como otra tarjeta (copia) en vez de juntarse con él
+    let copia;
+    if (!clave.startsWith("b:")) {
+      const ej = ejDeClave(clave), mias = seriesDeItem(dia.id, grupo, clave);
+      const usadas = seriesDelDia(dia.id).filter(sr => !mias.includes(sr) && sr.ejercicio_id === ej && !sr.bloque_id && (sr.grupo || "") === grupo && (sr.seccion || "") === x).map(sr => n0(sr.copia) > 1 ? n0(sr.copia) : 1);
+      const mia = mias.length && n0(mias[0].copia) > 1 ? n0(mias[0].copia) : 1;
+      if (usadas.includes(mia)) copia = Math.max(...usadas) + 1;
+    }
+    seriesDeItem(dia.id, grupo, clave).forEach(sr => cambiar("series", { ...sr, seccion: x, ...(copia ? { copia } : {}) }, true)); persistir();
+  }
 }
 // Pasar un ejercicio o bloque a otra parte del mismo entreno
 function moverAParte(dia, grupo, clave, espera) {
   const actual = espera ? esperaParte[dia.id + "|" + clave] || "" : (seriesDeItem(dia.id, grupo, clave)[0] || {}).seccion || "";
   const destinos = nombresPartes(dia.id, grupo).concat(actual ? [""] : []).filter((x, i, a) => x !== actual && a.indexOf(x) === i);
   abrirMenu("¿A qué parte?", "", destinos.map(x => ({ texto: x || "Sin parte", accion: () => {
-    if (espera) { if (x) esperaParte[dia.id + "|" + clave] = x; else delete esperaParte[dia.id + "|" + clave]; guardarSesiones(); }
-    else { seriesDeItem(dia.id, grupo, clave).forEach(sr => cambiar("series", { ...sr, seccion: x }, true)); persistir(); }
+    ponerParte(dia, grupo, clave, espera, x);
     pintarDia(dia);
   } })));
 }
@@ -1510,11 +1519,16 @@ function pintarDiaSinAncla(dia) {
     });
     // Ejercicios (también los que aún no tienen series) y bloques se mueven dentro de la sesión, en un único orden
     const movibles = () => [...caja.querySelectorAll(":scope > .bloque[data-clave], :scope > .parte-caja > .bloque[data-clave], :scope > .parte-caja > .letra-caja > .bloque[data-clave]")];
-    const soltar = (n, movido) => {
+    const soltar = (n, movido, destParte) => {
+      // Las series de cada elemento se toman antes de cambiar de parte (su clave cambia) y se releen al final
+      const idsDe = n.filter(x => !x.dataset.espera).map(x => seriesDeItem(dia.id, g.nombre, x.dataset.clave).map(sr => sr.id));
       // Si al arrastrar queda entre los ejercicios de otra parte, pasa a esa parte (la del de encima o, si es el primero, la del de debajo)
       // Solo cambia de parte si queda rodeado por otra (entre dos ejercicios de ella); en un borde conserva la suya,
       // así un ejercicio suelto puede quedar debajo de la última parte
-      if (movido && caja.querySelector(":scope > .parte-caja")) {
+      if (movido && destParte !== undefined) {
+        // Arrastre con hueco: la parte es la del sitio donde se ha soltado (o suelto, entre partes)
+        if (destParte !== (movido.dataset.parte || "")) ponerParte(dia, g.nombre, movido.dataset.clave, !!movido.dataset.espera, destParte);
+      } else if (movido && caja.querySelector(":scope > .parte-caja")) {
         const i = n.indexOf(movido), propia = movido.dataset.parte || "";
         const pa = n[i - 1] ? n[i - 1].dataset.parte || "" : null, pb = n[i + 1] ? n[i + 1].dataset.parte || "" : null;
         const dest = pa !== null && pb !== null && pa !== propia && pb !== propia ? pa : propia;
@@ -1530,7 +1544,7 @@ function pintarDiaSinAncla(dia) {
       // El orden entre los que aún no tienen series sale de su lista: se guarda tal como han quedado
       const ordenEsp = n.filter(x => x.dataset.espera).map(x => x.dataset.clave);
       if (ordenEsp.length > 1 && enEspera[dia.id]) { enEspera[dia.id] = ordenEsp.concat(enEspera[dia.id].filter(x => !ordenEsp.includes(x))); guardarEspera(); }
-      reordenar(n.filter(x => !x.dataset.espera).map(x => seriesDeItem(dia.id, g.nombre, x.dataset.clave)), "Ejercicio movido");
+      reordenar(idsDe.map(l => l.map(i => db.series[i]).filter(Boolean)), "Ejercicio movido");
       pintarBloques(true);
     };
     const mover = (el, paso) => {
@@ -1560,7 +1574,7 @@ function pintarDiaSinAncla(dia) {
         soltar(l);
         setEstado((clave.startsWith("b:") ? "Bloque" : nombre) + " movido a «" + dest + "»");
       } };
-      if (movibles().length > 1 || zonasParte.lista().length) el.querySelector(".bloque-cab").appendChild(asaArrastre(el, movibles, soltar, nombre, zonasParte));
+      if (movibles().length > 1 || zonasParte.lista().length) el.querySelector(".bloque-cab").appendChild(asaArrastreDia(el, caja, movibles, soltar, nombre, zonasParte));
       if (clave.startsWith("b:")) return;
       const m = document.createElement("button");
       m.type = "button"; m.className = "menu-btn"; m.textContent = "⋯";
@@ -5812,6 +5826,117 @@ function asaArrastre(el, hermanos, alSoltar, nombre, zonas) {
   return asa;
 }
 
+// Arrastrar un ejercicio o bloque dentro de su entreno: lo arrastrado sigue al dedo y un hueco marca dónde caerá.
+// Los demás no cambian de parte: solo se apartan dentro de la suya para dejar sitio. El hueco puede ir:
+// entre dos ejercicios, al principio de una parte (mitad de abajo de su título), al final (mitad de arriba de su
+// «+ Ejercicio») o suelto entre dos partes (mitad de arriba del título de la de abajo, o de abajo del «+ Ejercicio» de la de arriba)
+function asaArrastreDia(el, caja, hermanos, alSoltar, nombre, zonas) {
+  const asa = asaArrastre(el, hermanos, alSoltar, nombre, zonas);   // teclado (flechas) como siempre
+  const nuevo = asa.cloneNode(true);
+  nuevo.addEventListener("click", e => e.stopPropagation());
+  nuevo.addEventListener("touchstart", e => e.preventDefault(), { passive: false });
+  nuevo.addEventListener("keydown", e => asa.dispatchEvent(new KeyboardEvent("keydown", { key: e.key, bubbles: false, cancelable: true })) || e.preventDefault());
+  nuevo.addEventListener("pointerdown", e => {
+    if (e.button > 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    ultimoTocado = null;
+    try { nuevo.setPointerCapture(e.pointerId); } catch {}
+    arrastreActivo = true;
+    const r0 = el.getBoundingClientRect(), y0 = e.clientY;
+    const ph = document.createElement("div");
+    ph.className = "hueco-arrastre";
+    ph.style.height = r0.height + "px";
+    el.before(ph);
+    el.classList.add("arrastrando", "arrastre-fijo");
+    Object.assign(el.style, { position: "fixed", left: r0.left + "px", top: r0.top + "px", width: r0.width + "px", margin: "0" });
+    const zl = zonas ? zonas.lista().filter(z => z.closest(".bloque-rep")) : [];
+    let dedoY = e.clientY, ultY = e.clientY, dir = 1, pendiente = false, vivo = true, zona = null, cand = null, candDesde = 0, tZona = 0;
+    const bordes = () => {
+      let arriba = 0, abajo = innerHeight;
+      document.querySelectorAll(".cabecera, .tabbar").forEach(b => {
+        const pos = getComputedStyle(b).position;
+        if (pos !== "sticky" && pos !== "fixed") return;
+        const r = b.getBoundingClientRect();
+        if (r.height && r.top < innerHeight / 2) arriba = Math.max(arriba, r.bottom); else if (r.height) abajo = Math.min(abajo, r.top);
+      });
+      return { arriba, abajo };
+    };
+    // Los que se apartan lo hacen con una transición corta (FLIP)
+    const moverHueco = hacer => {
+      const vis = [...caja.querySelectorAll(".bloque[data-clave], .parte-cab, .add-fila, .letra-cab")].filter(x => x !== el);
+      const antes = vis.map(x => x.getBoundingClientRect().top);
+      hacer();
+      vis.forEach((x, k) => {
+        const d = antes[k] - x.getBoundingClientRect().top;
+        if (!d) return;
+        x.style.transition = "none"; x.style.transform = "translate3d(0," + d + "px,0)";
+        requestAnimationFrame(() => { x.style.transition = "transform 0.15s ease"; x.style.transform = ""; });
+      });
+    };
+    const colocar = (ref, donde) => {   // donde: "antes" | "despues"
+      if (donde === "antes" ? ref.previousElementSibling === ph : ref.nextElementSibling === ph) return;
+      moverHueco(() => donde === "antes" ? ref.before(ph) : ref.after(ph));
+    };
+    const pintar = () => {
+      pendiente = false;
+      if (!vivo) return;
+      const { arriba, abajo } = bordes();
+      if (dedoY < arriba + 48) scrollBy(0, -Math.min(14, arriba + 48 - dedoY));
+      else if (dedoY > abajo - 48) scrollBy(0, Math.min(14, dedoY - (abajo - 48)));
+      el.style.top = (r0.top + dedoY - y0) + "px";
+      // Soltar encima del título de un bloque (quedándose un momento) mete el ejercicio en él
+      const zc = zl.find(x => { const r = x.getBoundingClientRect(); return dedoY >= r.top && dedoY <= r.bottom; }) || null;
+      if (zc !== cand) { cand = zc; candDesde = Date.now(); }
+      const z = cand && Date.now() - candDesde >= 450 ? cand : null;
+      if (cand && !z) { clearTimeout(tZona); tZona = setTimeout(pedir, 470 - (Date.now() - candDesde)); }
+      if (z !== zona) { if (zona) zona.classList.remove("zona-destino"); zona = z; if (zona) zona.classList.add("zona-destino"); el.classList.toggle("sobre-zona", !!zona); }
+      if (!zona) {
+        // Se mira con el borde de lo arrastrado: el de abajo al bajar, el de arriba al subir (igual de fácil en los dos sentidos)
+        const re = el.getBoundingClientRect(), y = dir > 0 ? re.bottom - 4 : re.top + 4;
+        const objetivos = [...caja.querySelectorAll(".bloque[data-clave], :scope > .parte-caja > .parte-cab, :scope > .parte-caja > .add-fila, .letra-caja > .letra-cab, :scope > .add-fila")]
+          .filter(x => x !== el && !el.contains(x) && x.offsetParent !== null);
+        const t = objetivos.find(x => { const r = x.getBoundingClientRect(); return y >= r.top && y <= r.bottom; });
+        if (t) {
+          const r = t.getBoundingClientRect(), arribaMitad = y < r.top + r.height / 2;
+          if (t.classList.contains("parte-cab")) arribaMitad ? colocar(t.parentElement, "antes") : colocar(t, "despues");
+          else if (t.classList.contains("letra-cab")) arribaMitad ? colocar(t.parentElement, "antes") : colocar(t, "despues");
+          else if (t.classList.contains("add-fila")) t.parentElement.classList.contains("parte-caja") ? (arribaMitad ? colocar(t, "antes") : colocar(t.parentElement, "despues")) : colocar(t, "antes");
+          else colocar(t, arribaMitad ? "antes" : "despues");
+        }
+      }
+      ph.classList.toggle("oculto", !!zona);
+      if (dedoY < arriba + 48 || dedoY > abajo - 48) pedir();
+    };
+    const pedir = () => { if (!pendiente) { pendiente = true; requestAnimationFrame(pintar); } };
+    const mover = ev => { dedoY = ev.clientY; if (dedoY !== ultY) { dir = dedoY > ultY ? 1 : -1; ultY = dedoY; } pedir(); };
+    const fin = ev => {
+      vivo = false;
+      clearTimeout(tZona);
+      arrastreActivo = false;
+      nuevo.removeEventListener("pointermove", mover);
+      nuevo.removeEventListener("pointerup", fin);
+      nuevo.removeEventListener("pointercancel", fin);
+      el.classList.remove("arrastrando", "arrastre-fijo", "sobre-zona");
+      ["position", "left", "top", "width", "margin"].forEach(k => { el.style[k] = ""; });
+      caja.querySelectorAll(".bloque[data-clave], .parte-cab, .add-fila, .letra-cab").forEach(x => { x.style.transition = ""; x.style.transform = ""; });
+      if (zona) zona.classList.remove("zona-destino");
+      if (ev.type !== "pointercancel" && zona) { ph.remove(); zonas.alSoltar(zona); return; }
+      const destParte = ph.closest(".parte-caja") ? ph.closest(".parte-caja").dataset.parte || "" : "";
+      const orden = [...caja.querySelectorAll(".bloque[data-clave], .hueco-arrastre")].filter(x => x !== el).map(x => x === ph ? el : x);
+      ph.remove();
+      const antes = hermanos();
+      const igual = antes.length === orden.length && antes.every((x, k) => x === orden[k]) && destParte === (el.dataset.parte || "");
+      if (ev.type === "pointercancel" || igual) { if (repintarLuego) pintarBloques(true); return; }
+      alSoltar(orden, el, destParte);
+    };
+    nuevo.addEventListener("pointermove", mover);
+    nuevo.addEventListener("pointerup", fin);
+    nuevo.addEventListener("pointercancel", fin);
+  });
+  return nuevo;
+}
+
 // ---------- Vista de un solo día ----------
 function abrirDia(id) {
   if (!id) return;
@@ -6233,7 +6358,7 @@ $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); 
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
 // VERSION_APP es interna (sube en cada publicación para que los móviles se actualicen); la que se ve es siempre la 26
-const VERSION_APP = "v122" + (BETA ? " beta" : "");
+const VERSION_APP = "v123" + (BETA ? " beta" : "");
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";
