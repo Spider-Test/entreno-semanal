@@ -3164,11 +3164,14 @@ let catAbiertas = leer("catalogo-abiertas-v1") || {};
 // en varias semanas. «siguiente» es la posición (contando solo entrenamientos) del que toca después, para rotar A, B, C…
 let listasAbiertas = leer("listas-abiertas-v1") || {};
 const esSep = x => !!(x && typeof x === "object" && x.sep);
+// Mesociclo (o fase) de una lista: agrupa todo lo que va debajo (semanas o bloques y entrenamientos) hasta el siguiente
+const esGrupoL = x => !!(x && typeof x === "object" && x.grupo);
 const entrenosDeLista = l => (l.items || []).filter(x => typeof x === "string").map(id => db.plantillas[id]).filter(p => p && !p.borrado);
 // Entrenamientos con su posición (k) y la semana/bloque a la que pertenecen
 function recorrerLista(l) {
   const out = []; let sep = null, k = 0;
   (l.items || []).forEach((x, i) => {
+    if (esGrupoL(x)) { sep = null; return; }
     if (esSep(x)) { sep = x; return; }
     const p = db.plantillas[x];
     if (p && !p.borrado) out.push({ p, k: k++, i, sep });
@@ -3238,9 +3241,10 @@ function pintarListas() {
     const nSem = (l.items || []).filter(esSep).length;
     const sec = document.createElement("section");
     sec.className = "cat-sec lista-sec" + (abierta ? "" : " cerrada");
-    sec.innerHTML = '<div class="lista-cab"><button type="button" class="sec-toggle"><span class="flecha-dia" aria-hidden="true">▸</span><h3></h3><span class="sec-n"></span></button><button type="button" class="menu-btn">⋯</button></div><div class="sec-cuerpo"><div class="sec-cuerpo-in"><div class="lista-ents"></div><div class="add-fila"><button type="button" class="add-ej">+ Entrenamiento</button><button type="button" class="add-ej">+ Bloque (semana, fase…)</button></div></div></div>';
+    sec.innerHTML = '<div class="lista-cab"><button type="button" class="sec-toggle"><span class="flecha-dia" aria-hidden="true">▸</span><h3></h3><span class="sec-n"></span></button><button type="button" class="menu-btn">⋯</button></div><div class="sec-cuerpo"><div class="sec-cuerpo-in"><div class="lista-ents"></div><div class="add-fila"><button type="button" class="add-ej">+ Entrenamiento</button><button type="button" class="add-ej">+ Bloque (semana, fase…)</button><button type="button" class="add-ej add-meso">+ Mesociclo</button></div></div></div>';
     sec.querySelector("h3").textContent = l.nombre;
-    sec.querySelector(".sec-n").textContent = "· " + rec.length + (nSem ? " · " + nSem + (nSem === 1 ? " bloque" : " bloques") : "");
+    const nGr = (l.items || []).filter(esGrupoL).length;
+    sec.querySelector(".sec-n").textContent = "· " + rec.length + (nGr ? " · " + nGr + (nGr === 1 ? " mesociclo" : " mesociclos") : "") + (nSem ? " · " + nSem + (nSem === 1 ? " bloque" : " bloques") : "");
     const boton = sec.querySelector(".sec-toggle"), cuerpo = sec.querySelector(".sec-cuerpo");
     boton.setAttribute("aria-expanded", String(abierta)); cuerpo.inert = !abierta;
     boton.addEventListener("click", () => {
@@ -3253,14 +3257,27 @@ function pintarListas() {
       const n = await pedirNombre("Nombre del bloque", "Semana " + (nSem + 1), "Por ejemplo «Semana 1», «Semana 4 · descarga», «Bloque de fuerza» o «Pretemporada». Dentro pondrás sus entrenamientos.");
       if (n) insertarEnLista(l, { sep: nuevoId(), titulo: n }, tras);
     };
+    // Mesociclo: sin ninguno aún, agrupa todo lo que ya hay; si ya hay, empieza uno nuevo al final (o donde se pida)
+    const nuevoGrupo = async tras => {
+      const its = db.listas[l.id].items || [], nG = its.filter(esGrupoL).length;
+      const n = await pedirNombre("Nombre del mesociclo", "Mesociclo " + (nG + 1), "Agrupa semanas o bloques: «Mesociclo 1», «Fase de base», «Pretemporada»… Lo que quede debajo va dentro, hasta el siguiente mesociclo.");
+      if (!n) return;
+      const pos = tras !== undefined ? tras : (nG ? its.length - 1 : -1);
+      const fresca = db.listas[l.id], its2 = (fresca.items || []).slice();
+      its2.splice(pos + 1, 0, { grupo: nuevoId(), titulo: n });
+      listasAbiertas[l.id] = true; escribir("listas-abiertas-v1", listasAbiertas);
+      guardarLista(fresca, { items: its2 });
+    };
     const [bEnt, bSem] = sec.querySelectorAll(":scope > .sec-cuerpo .add-fila > .add-ej");
     bEnt.addEventListener("click", () => anadir());
     bSem.addEventListener("click", () => nuevaSemana());
+    sec.querySelector(":scope > .sec-cuerpo .add-meso").addEventListener("click", () => nuevoGrupo());
     const menu = sec.querySelector(".lista-cab .menu-btn");
     menu.setAttribute("aria-label", "Opciones de la lista " + l.nombre);
     menu.addEventListener("click", () => abrirMenu(l.nombre, rec.length + (rec.length === 1 ? " entrenamiento" : " entrenamientos"), [
       { texto: "+ Añadir entrenamiento…", accion: () => anadir() },
       { texto: "+ Añadir bloque (semana, fase…)…", accion: () => nuevaSemana() },
+      { texto: (l.items || []).some(esGrupoL) ? "+ Añadir mesociclo…" : "Agrupar en un mesociclo…", accion: () => nuevoGrupo() },
       rec.length && { texto: "Poner el siguiente («" + rec[sig].p.nombre + "») en un día…", accion: () => ponerEntrenoDeLista(l, rec[sig].p, rec[sig].k) },
       { texto: "Cambiar nombre…", accion: async () => { const n = await pedirNombre("Nombre de la lista", l.nombre); if (n) guardarLista(db.listas[l.id], { nombre: n }); } },
       { texto: "Eliminar lista", peligro: true, confirmar: "Los entrenamientos siguen en tus plantillas", accion: () => {
@@ -3273,7 +3290,7 @@ function pintarListas() {
     if (!(l.items || []).length) caja.innerHTML = '<p class="vacio-lista">Lista vacía. Añade entrenamientos con «+ Entrenamiento» (o guarda un día desde su ⋯) y, si quieres, sepáralos en semanas o bloques con «+ Semana o bloque».</p>';
     // Todo (entrenamientos y separadores) se ordena junto con el asa ≡: lo que quede debajo de una semana pasa a ella
     // Entrenamientos: se ordenan junto a las cabeceras de bloque (así se pueden meter en otro bloque); solo los visibles
-    const hermanos = () => [...caja.querySelectorAll(".lista-ent, .lista-sep")].filter(x => x.offsetParent);
+    const hermanos = () => [...caja.querySelectorAll(".lista-ent, .lista-sep, .lista-gcab")].filter(x => x.offsetParent);
     const soltar = n => {
       const fresca = db.listas[l.id], items = fresca.items || [], actual = recorrerLista(fresca)[sig];
       // Lo que no se ve (bloques plegados o entrenos borrados) sigue pegado a su bloque; el resto, al final
@@ -3281,7 +3298,9 @@ function pintarListas() {
       n.forEach(y => {
         const i0 = +y.dataset.i;
         nuevo.push(items[i0]);
-        if (esSep(items[i0])) for (let j = i0 + 1; j < items.length && !esSep(items[j]); j++) if (!enN.has(j)) { nuevo.push(items[j]); usados.add(j); }
+        // Lo plegado va con su cabecera: un bloque, hasta el siguiente bloque o mesociclo; un mesociclo, hasta el siguiente mesociclo
+        if (esSep(items[i0])) for (let j = i0 + 1; j < items.length && !esSep(items[j]) && !esGrupoL(items[j]); j++) { if (!enN.has(j)) { nuevo.push(items[j]); usados.add(j); } }
+        if (esGrupoL(items[i0])) for (let j = i0 + 1; j < items.length && !esGrupoL(items[j]); j++) { if (!enN.has(j)) { nuevo.push(items[j]); usados.add(j); } }
       });
       const todo = nuevo.concat(items.filter((x, i) => !usados.has(i)));
       // El «siguiente» sigue siendo el mismo entrenamiento tras moverlo
@@ -3289,19 +3308,78 @@ function pintarListas() {
       const nuevoSig = pos < 0 ? 0 : nuevo.slice(0, pos).filter(y => typeof y === "string" && db.plantillas[y] && !db.plantillas[y].borrado).length;
       guardarLista(fresca, { items: todo, siguiente: Math.max(0, nuevoSig) });
     };
-    const finSeccion = i => { const its = l.items || []; let j = i; while (j + 1 < its.length && !esSep(its[j + 1])) j++; return j; };
-    // Bloques enteros: se mueven con su asa ≡ (todo lo que llevan dentro va con ellos)
-    const soltarBloques = n => {
-      const fresca = db.listas[l.id], its = fresca.items || [], primero = its.findIndex(esSep);
-      const antes = primero < 0 ? its.slice() : its.slice(0, primero);
-      const segs = n.map(b => { const i0 = +b.dataset.i; return its.slice(i0, finSeccion(i0) + 1); });
-      const todo = antes.concat(...segs);
+    const finSeccion = i => { const its = l.items || []; let j = i; while (j + 1 < its.length && !esSep(its[j + 1]) && !esGrupoL(its[j + 1])) j++; return j; };
+    const finGrupo = i => { const its = l.items || []; let j = i; while (j + 1 < its.length && !esGrupoL(its[j + 1])) j++; return j; };
+    // Bloques (o mesociclos) enteros: se mueven con su asa ≡ y todo lo que llevan dentro va con ellos. Cada uno ocupa
+    // el sitio de otro: así un bloque puede pasar a otro mesociclo y los mesociclos no se deshacen
+    const reordenarTramos = (n, esTramo, fin) => {
+      const fresca = db.listas[l.id], its = fresca.items || [];
+      const segs = n.map(b => { const i0 = +b.dataset.i; return its.slice(i0, fin(i0) + 1); });
+      const todo = []; let k2 = 0;
+      for (let j = 0; j < its.length;) { if (esTramo(its[j])) { todo.push(...(segs[k2++] || [])); j = fin(j) + 1; } else { todo.push(its[j]); j++; } }
+      return todo;
+    };
+    const soltarBloques = (n, grupos) => {
+      const fresca = db.listas[l.id];
+      const todo = grupos ? reordenarTramos(n, esGrupoL, finGrupo) : reordenarTramos(n, esSep, finSeccion);
       const actual = recorrerLista(fresca)[sig], idAct = actual ? actual.p.id : null;
       guardarLista(fresca, { items: todo, siguiente: 0 });
       if (idAct) { const nuevoK = recorrerLista(db.listas[l.id]).find(x => x.p.id === idAct); if (nuevoK) guardarLista(db.listas[l.id], { siguiente: nuevoK.k }); }
     };
-    let k = 0, destino = caja;
+    let k = 0, destino = caja, cajaG = caja;
     (l.items || []).forEach((x, i) => {
+      if (esGrupoL(x)) {
+        const g = document.createElement("div");
+        g.className = "lista-grupo";
+        g.dataset.i = i;
+        const claveG = "g|" + x.grupo, plegado = listasAbiertas[claveG] === false;
+        g.classList.toggle("lg-plegado", plegado);
+        const its = l.items || [], fin = finGrupo(i);
+        const nB = its.slice(i + 1, fin + 1).filter(esSep).length, nE = its.slice(i + 1, fin + 1).filter(y => typeof y === "string" && db.plantillas[y] && !db.plantillas[y].borrado).length;
+        const cab = document.createElement("div");
+        cab.className = "lista-gcab";
+        cab.dataset.i = i;
+        cab.innerHTML = '<button type="button" class="lg-toggle"><span class="flecha-dia" aria-hidden="true">▸</span><span class="lg-tit"></span><span class="ls-n"></span></button><button type="button" class="menu-btn">⋯</button>';
+        cab.querySelector(".lg-tit").textContent = x.titulo;
+        cab.querySelector(".ls-n").textContent = (nB ? nB + (nB === 1 ? " semana/bloque · " : " semanas/bloques · ") : "") + nE + (nE === 1 ? " entrenamiento" : " entrenamientos");
+        const tg = cab.querySelector(".lg-toggle");
+        tg.setAttribute("aria-expanded", String(!plegado));
+        tg.addEventListener("click", () => {
+          const pl = !g.classList.contains("lg-plegado");
+          g.classList.toggle("lg-plegado", pl); tg.setAttribute("aria-expanded", String(!pl));
+          listasAbiertas[claveG] = !pl; escribir("listas-abiertas-v1", listasAbiertas);
+        });
+        cab.querySelector(".menu-btn").setAttribute("aria-label", "Opciones de " + x.titulo);
+        cab.querySelector(".menu-btn").addEventListener("click", () => abrirMenu(x.titulo, cab.querySelector(".ls-n").textContent, [
+          { texto: "+ Semana o bloque en este mesociclo…", accion: () => nuevaSemana(finGrupo(i)) },
+          { texto: "+ Entrenamiento en este mesociclo…", accion: () => anadir(finGrupo(i)) },
+          { texto: "Cambiar nombre…", accion: async () => {
+            const n = await pedirNombre("Nombre del mesociclo", x.titulo);
+            if (!n) return;
+            guardarLista(db.listas[l.id], { items: (db.listas[l.id].items || []).map(y => esGrupoL(y) && y.grupo === x.grupo ? { ...y, titulo: n } : y) });
+          } },
+          { texto: "Duplicar (copia con sus semanas y entrenamientos)", accion: async () => {
+            const n = await pedirNombre("Nombre de la copia", /\d+/.test(x.titulo) ? x.titulo.replace(/\d+/, d => String(+d + 1)) : x.titulo + " (copia)");
+            if (!n) return;
+            const its2 = (db.listas[l.id].items || []).slice(), f2 = finGrupo(i);
+            const copia = its2.slice(i + 1, f2 + 1).map(y => esSep(y) ? { ...y, sep: nuevoId() } : y);
+            its2.splice(f2 + 1, 0, { grupo: nuevoId(), titulo: n }, ...copia);
+            guardarLista(db.listas[l.id], { items: its2 });
+          } },
+          { texto: "Quitar el mesociclo (sus semanas y entrenamientos se quedan)", accion: () => {
+            const fresca = db.listas[l.id], antes = [["listas", { ...fresca }]];
+            guardarLista(fresca, { items: (fresca.items || []).filter(y => !(esGrupoL(y) && y.grupo === x.grupo)) });
+            avisoDeshacer("Agrupación «" + x.titulo + "» quitada", antes);
+          } }
+        ]));
+        cab.appendChild(asaArrastre(g, () => [...caja.querySelectorAll(":scope > .lista-grupo")], n => soltarBloques(n, true), x.titulo));
+        const cuerpoG = document.createElement("div");
+        cuerpoG.className = "lg-cuerpo";
+        g.append(cab, cuerpoG);
+        caja.appendChild(g);
+        destino = cajaG = cuerpoG;
+        return;
+      }
       if (esSep(x)) {
         const fs = document.createElement("div");
         fs.className = "lista-sep";
@@ -3312,6 +3390,7 @@ function pintarListas() {
         fs.querySelector(".ls-n").textContent = ents + (ents === 1 ? " entrenamiento" : " entrenamientos");
         fs.querySelector(".menu-btn").addEventListener("click", () => abrirMenu(x.titulo, "", [
           { texto: "+ Añadir entrenamiento aquí…", accion: () => anadir(finSeccion(i)) },
+          { texto: "Empezar un mesociclo aquí (agrupa desde esta semana)…", accion: () => nuevoGrupo(i - 1) },
           { texto: "Duplicar (copia con los mismos entrenamientos)", accion: async () => {
             const n = await pedirNombre("Nombre de la copia", x.titulo.replace(/\d+/, d => String(+d + 1)) === x.titulo ? x.titulo + " (copia)" : x.titulo.replace(/\d+/, d => String(+d + 1)));
             if (!n) return;
@@ -3348,7 +3427,7 @@ function pintarListas() {
           caj.classList.toggle("lb-plegado", pl); tg.setAttribute("aria-expanded", String(!pl));
           listasAbiertas[claveB] = !pl; escribir("listas-abiertas-v1", listasAbiertas);
         });
-        fs.appendChild(asaArrastre(caj, () => [...caja.querySelectorAll(":scope > .lista-bloque")], soltarBloques, x.titulo));
+        fs.appendChild(asaArrastre(caj, () => [...caja.querySelectorAll(".lista-bloque")].filter(y => y.offsetParent), n => soltarBloques(n, false), x.titulo));
         const cuerpoB = document.createElement("div");
         cuerpoB.className = "lb-cuerpo";
         const add = document.createElement("div");
@@ -3356,7 +3435,7 @@ function pintarListas() {
         add.innerHTML = '<button type="button" class="add-ej">+ Entrenamiento en este bloque</button>';
         add.firstChild.addEventListener("click", () => anadir(finSeccion(i)));
         caj.append(fs, cuerpoB, add);
-        caja.appendChild(caj);
+        cajaG.appendChild(caj);
         destino = cuerpoB;
         return;
       }
@@ -4835,8 +4914,9 @@ function anadirMesoALista(m, l) {
   const porSemana = Object.keys(m.dias || {}).some(k => /^s\d+$/.test(k));
   const semana = w => { const ds = porSemana ? (m.dias["s" + (w + 1)] || {}) : (m.dias || {}); const out = []; for (let d = 0; d < 7; d++) (ds[d] || []).forEach(pid => { if (db.plantillas[pid] && !db.plantillas[pid].borrado) out.push(pid); }); return out; };
   const nuevos = [];
-  if (porSemana) for (let w = 0; w < n0(m.semanas); w++) { const ps = semana(w); if (!ps.length) continue; nuevos.push({ sep: nuevoId(), titulo: pref + " · Semana " + (w + 1) + (esDescarga(m, w) ? " (descarga)" : "") }, ...ps); }
-  else { const ps = semana(0); if (ps.length) nuevos.push({ sep: nuevoId(), titulo: pref + " · " + n0(m.semanas) + " semanas" }, ...ps); }
+  if (porSemana) for (let w = 0; w < n0(m.semanas); w++) { const ps = semana(w); if (!ps.length) continue; nuevos.push({ sep: nuevoId(), titulo: "Semana " + (w + 1) + (esDescarga(m, w) ? " (descarga)" : "") }, ...ps); }
+  else { const ps = semana(0); if (ps.length) nuevos.push(...ps); }
+  if (nuevos.length) nuevos.unshift({ grupo: nuevoId(), titulo: m.nombre + " · " + n0(m.semanas) + " semanas" });
   if (!nuevos.length) { avisoDeshacer("Este mesociclo no tiene entrenamientos en sus días: añádelos primero", null); return; }
   const meter = () => {
     const fresca = db.listas[l.id], antes = { ...fresca };
@@ -4844,7 +4924,7 @@ function anadirMesoALista(m, l) {
     pintarListas();
     avisoDeshacer(pref + " añadido a la lista «" + l.nombre + "» (" + nuevos.filter(x => typeof x === "string").length + " entrenamientos)", [["listas", antes]]);
   };
-  const ya = (db.listas[l.id].items || []).some(x => esSep(x) && (x.titulo || "").startsWith(pref));
+  const ya = (db.listas[l.id].items || []).some(x => (esSep(x) && (x.titulo || "").startsWith(pref)) || (esGrupoL(x) && (x.titulo || "").startsWith(m.nombre + " · ")));
   if (ya) abrirMenu("Ya está en esta lista", pref + " ya está en «" + l.nombre + "». ¿Lo añado otra vez?", [{ texto: "Añadir otra vez", accion: meter }, { texto: "Cancelar", accion: () => {} }]);
   else meter();
 }
@@ -5493,6 +5573,7 @@ function guardarRutina(r, comoMeso, inicio, semanas, enLista) {
   // En una lista de entrenamientos: si el plan cambia cada semana, cada semana va en su bloque
   if (enLista) {
     const fresca = db.listas[enLista.id], items = (fresca.items || []).slice();
+    if (r.multi) items.push({ grupo: nuevoId(), titulo: r.nombre });
     porSemana.forEach((ids, w) => { if (r.multi) items.push({ sep: nuevoId(), titulo: "Semana " + (w + 1) }); items.push(...ids); });
     cambiar("listas", { ...fresca, items }, true);
     listasAbiertas[fresca.id] = true; escribir("listas-abiertas-v1", listasAbiertas);
@@ -7004,7 +7085,7 @@ $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); 
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
 // VERSION_APP es interna (sube en cada publicación para que los móviles se actualicen); la que se ve es siempre la 26
-const VERSION_APP = "v137" + (BETA ? " beta" : "");
+const VERSION_APP = "v138" + (BETA ? " beta" : "");
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";

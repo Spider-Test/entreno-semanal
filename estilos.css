@@ -1363,6 +1363,18 @@ h1 { color: var(--titulo); }
 .ms-plegable.plegada > :not(.ms-tit):not(.sec-cab) { display: none !important; }
 .ms-plegable.plegada > .sec-cab > :not(.ms-tit) { display: none; }
 
+/* Listas: mesociclos que agrupan semanas o bloques */
+.lista-grupo { border: 2px solid var(--accent); border-radius: 12px; margin: 8px 0; background: color-mix(in srgb, var(--accent) 5%, var(--card)); }
+.lista-gcab { display: flex; align-items: center; gap: 6px; padding: 8px 10px; }
+.lg-toggle { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; background: none; border: 0; padding: 0; text-align: left; cursor: pointer; color: inherit; }
+.lg-tit { font-family: var(--display); font-weight: 700; font-size: 16px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--accent); }
+.lista-grupo:not(.lg-plegado) .lg-toggle .flecha-dia { transform: rotate(90deg); }
+.lg-cuerpo { padding: 0 8px 8px; display: flex; flex-direction: column; gap: 6px; }
+.lg-toggle { flex-wrap: wrap; row-gap: 0; }
+.lg-toggle .ls-n { flex-basis: 100%; padding-left: 20px; font-size: 12px; color: var(--muted); }
+@media (max-width: 760px) { .lg-cuerpo { padding: 0 4px 6px; } .lista-gcab { padding: 8px 6px; } .lista-grupo { border-width: 1.5px; } }
+.lista-grupo.lg-plegado .lg-cuerpo { display: none; }
+
 /* Arrastrar un ejercicio o bloque encima de la cabecera de una parte: entra en ella (como una carpeta) */
 .parte-cab { transition: transform 0.15s, box-shadow 0.15s; }
 .parte-cab.zona-destino { transform: scale(1.03); box-shadow: 0 0 0 3px var(--pc), 0 6px 18px rgba(0, 0, 0, 0.18); }
