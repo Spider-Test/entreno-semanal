@@ -1052,8 +1052,10 @@ function cabeceraParte(dia, grupo, p, color, nNombradas, partes, seriesItem) {
     const k = partes.indexOf(p);
     const mover = paso => {
       // Reordena las partes repartiendo los «orden» existentes en el nuevo orden de partes
-      const orden = partes.slice(), j = k + paso;
-      if (j < 1 || j >= orden.length) return;   // la parte sin nombre va siempre primero
+      const orden = partes.slice();
+      let j = k + paso;
+      while (j >= 0 && j < orden.length && !orden[j].nombre) j += paso;   // los ejercicios sueltos se quedan en su sitio
+      if (j < 0 || j >= orden.length) return;
       [orden[k], orden[j]] = [orden[j], orden[k]];
       const vacias = partesVacias[dia.id + "|" + grupo] || [];
       if (vacias.length) partesVacias[dia.id + "|" + grupo] = orden.map(x => x.nombre).filter(n => vacias.includes(n));
@@ -1064,8 +1066,8 @@ function cabeceraParte(dia, grupo, p, color, nNombradas, partes, seriesItem) {
     abrirMenu(p.nombre, ss.length ? ss.length + (ss.length === 1 ? " serie" : " series") : "Parte vacía", [
       { texto: "+ Ejercicio en esta parte", accion: () => abrirSelector(dia, null, grupo, p.nombre) },
       { texto: "+ Bloque en esta parte", accion: () => abrirBloque(dia, grupo, p.nombre) },
-      nNombradas > 1 && k > 1 && { texto: "Subir parte", accion: () => mover(-1) },
-      nNombradas > 1 && k < partes.length - 1 && { texto: "Bajar parte", accion: () => mover(1) },
+      partes.slice(0, k).some(x => x.nombre) && { texto: "Subir parte", accion: () => mover(-1) },
+      partes.slice(k + 1).some(x => x.nombre) && { texto: "Bajar parte", accion: () => mover(1) },
       { texto: "Cambiar nombre…", accion: async () => {
         const n = await pedirNombre("Nombre de la parte", p.nombre);
         if (!n || n === p.nombre) return;
@@ -1404,9 +1406,15 @@ function pintarDiaSinAncla(dia) {
     // Partes opcionales del entreno (Calentamiento, Parte principal…): si no hay ninguna, todo va seguido como siempre
     const seriesItem = id => id.startsWith("b:") ? delDia.filter(s => s.bloque_id === id.slice(2)) : delDia.filter(s => claveSerie(s) === id && (s.grupo || "") === g.nombre);
     const parteDe = id => { const ss = seriesItem(id); return ss.length ? ss[0].seccion || "" : esperaParte[dia.id + "|" + id] || ""; };
-    const partes = [], parteDeNombre = n => partes.find(p => p.nombre === n) || partes[partes.push({ nombre: n, ids: [] }) - 1];
-    parteDeNombre("");
-    g.ids.forEach(id => parteDeNombre(parteDe(id)).ids.push(id));
+    // Cada parte con nombre va junta donde aparece su primer ejercicio; los sueltos (sin parte) se quedan en su sitio:
+    // arriba, entre partes o debajo de la última
+    const partes = [], parteDeNombre = n => partes.find(p => p.nombre && p.nombre === n) || partes[partes.push({ nombre: n, ids: [] }) - 1];
+    g.ids.forEach(id => {
+      const n = parteDe(id), u = partes[partes.length - 1];
+      if (n) parteDeNombre(n).ids.push(id);
+      else if (u && !u.nombre) u.ids.push(id);
+      else partes.push({ nombre: "", ids: [id] });
+    });
     (partesVacias[dia.id + "|" + g.nombre] || []).forEach(n => parteDeNombre(n));
     const conNombre = partes.filter(p => p.nombre);
     // Letras como en las hojas de entrenamiento: cada parte empieza una letra nueva (A, B…) y dentro de ella
@@ -1469,7 +1477,7 @@ function pintarDiaSinAncla(dia) {
         lc.className = "letra-caja";
         lc.dataset.letra = letra;
         const ss = items.flatMap(x => seriesItem(x.id));
-        const nombres = items.map(x => x.id.startsWith("b:") ? "Bloque" : nombreEj(x.id));
+        const nombres = items.map(x => x.id.startsWith("b:") ? "Bloque" : nombreEj(ejDeClave(x.id)));
         const cabL = document.createElement("button");
         cabL.type = "button"; cabL.className = "letra-cab";
         cabL.innerHTML = '<span class="flecha-dia" aria-hidden="true">▸</span><span class="etq-orden"></span><span class="l-nombres"></span><span class="g-prog"></span>';
@@ -1504,9 +1512,13 @@ function pintarDiaSinAncla(dia) {
     const movibles = () => [...caja.querySelectorAll(":scope > .bloque[data-clave], :scope > .parte-caja > .bloque[data-clave], :scope > .parte-caja > .letra-caja > .bloque[data-clave]")];
     const soltar = (n, movido) => {
       // Si al arrastrar queda entre los ejercicios de otra parte, pasa a esa parte (la del de encima o, si es el primero, la del de debajo)
+      // Solo cambia de parte si queda rodeado por otra (entre dos ejercicios de ella); en un borde conserva la suya,
+      // así un ejercicio suelto puede quedar debajo de la última parte
       if (movido && caja.querySelector(":scope > .parte-caja")) {
-        const i = n.indexOf(movido), ref = n[i - 1] || n[i + 1], dest = ref ? ref.dataset.parte || "" : movido.dataset.parte || "";
-        if (dest !== (movido.dataset.parte || "")) ponerParte(dia, g.nombre, movido.dataset.clave, !!movido.dataset.espera, dest);
+        const i = n.indexOf(movido), propia = movido.dataset.parte || "";
+        const pa = n[i - 1] ? n[i - 1].dataset.parte || "" : null, pb = n[i + 1] ? n[i + 1].dataset.parte || "" : null;
+        const dest = pa !== null && pb !== null && pa !== propia && pb !== propia ? pa : propia;
+        if (dest !== propia) ponerParte(dia, g.nombre, movido.dataset.clave, !!movido.dataset.espera, dest);
       }
       // Los que aún no tienen series recuerdan delante de qué quedan; los demás reparten su «orden»
       n.forEach((x, k) => {
@@ -1636,7 +1648,7 @@ function bloque(dia, id, series, grupo, parte, copia) {
       '<button type="button" class="enlace desmarcar" hidden>↺ Marcar como pendiente</button>' +
     '</form>';
   const nom = b.querySelector(".ej-nombre");
-  nom.textContent = (ej.nombre || "Sin nombre") + (copia > 1 ? " (" + copia + ")" : "");
+  nom.textContent = (ej.nombre || "Sin nombre") + (copia > 1 && !parte ? " (" + copia + ")" : "");
   nom.appendChild(etiquetaTipo(tipo));
   if (ej.video_url) {
     // «▶ vídeo» despliega el vídeo debajo del nombre, sin salir del día
@@ -5727,7 +5739,7 @@ function asaArrastre(el, hermanos, alSoltar, nombre, zonas) {
     ultimoTocado = null;   // al arrastrar, lo movido va a su nuevo sitio: no se «sujeta» la pantalla
     const lista = hermanos(), idx = lista.indexOf(el), zl = zonas ? zonas.lista() : [];
     if ((lista.length < 2 && !zl.length) || idx < 0) return;
-    let zona = null;
+    let zona = null, cand = null, candDesde = 0, tZona = 0;
     try { asa.setPointerCapture(e.pointerId); } catch {}
     arrastreActivo = true;
     const y0 = scrollY, cajas = lista.map(x => { const r = x.getBoundingClientRect(); return { top: r.top + y0, alto: r.height }; });
@@ -5753,19 +5765,22 @@ function asaArrastre(el, hermanos, alSoltar, nombre, zonas) {
       const { arriba, abajo } = bordes();
       if (dedoY < arriba + 48) scrollBy(0, -Math.min(14, arriba + 48 - dedoY));
       else if (dedoY > abajo - 48) scrollBy(0, Math.min(14, dedoY - (abajo - 48)));
-      // Se decide con el dedo/ratón (no con el centro de lo arrastrado): así un entreno alto se mueve igual de fácil arriba y abajo
-      const dy = dedoY + scrollY - inicioY, centro = dedoY + scrollY;
+      // Cambia de sitio cuando el borde de lo arrastrado (el de abajo al bajar, el de arriba al subir) pasa la mitad del otro: igual de fácil en los dos sentidos
+      const dy = dedoY + scrollY - inicioY, arribaEl = cajas[idx].top + dy, abajoEl = arribaEl + cajas[idx].alto;
       destino = idx;
       // ¿El dedo está encima de una zona? Entonces se resalta y los demás no se apartan
-      const z = zl.find(x => { const r = x.getBoundingClientRect(); return dedoY >= r.top - 6 && dedoY <= r.bottom + 6; }) || null;
+      const zc = zl.find(x => { const r = x.getBoundingClientRect(); return dedoY >= r.top && dedoY <= r.bottom; }) || null;
+      if (zc !== cand) { cand = zc; candDesde = Date.now(); }
+      const z = cand && Date.now() - candDesde >= 450 ? cand : null;
+      if (cand && !z) { clearTimeout(tZona); tZona = setTimeout(pedir, 470 - (Date.now() - candDesde)); }
       if (z !== zona) { if (zona) zona.classList.remove("zona-destino"); zona = z; if (zona) zona.classList.add("zona-destino"); el.classList.toggle("sobre-zona", !!zona); }
       lista.forEach((x, k) => {
         if (k === idx) return;
         if (zona) { x.style.transform = ""; return; }
         const medio = cajas[k].top + cajas[k].alto / 2;
         let mueve = 0;
-        if (k < idx && centro < medio) { mueve = paso; destino--; }
-        else if (k > idx && centro > medio) { mueve = -paso; destino++; }
+        if (k < idx && arribaEl < medio) { mueve = paso; destino--; }
+        else if (k > idx && abajoEl > medio) { mueve = -paso; destino++; }
         x.style.transform = mueve ? "translate3d(0," + mueve + "px,0)" : "";
       });
       el.style.transform = "translate3d(0," + dy + "px,0)";
@@ -5775,6 +5790,7 @@ function asaArrastre(el, hermanos, alSoltar, nombre, zonas) {
     const mover = ev => { dedoY = ev.clientY; pedir(); };
     const fin = ev => {
       vivo = false;
+      clearTimeout(tZona);
       arrastreActivo = false;
       asa.removeEventListener("pointermove", mover);
       asa.removeEventListener("pointerup", fin);
@@ -6217,7 +6233,7 @@ $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); 
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
 // VERSION_APP es interna (sube en cada publicación para que los móviles se actualicen); la que se ve es siempre la 26
-const VERSION_APP = "v121" + (BETA ? " beta" : "");
+const VERSION_APP = "v122" + (BETA ? " beta" : "");
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";
