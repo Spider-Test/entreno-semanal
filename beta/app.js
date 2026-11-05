@@ -4789,7 +4789,7 @@ async function cambiarPerfil(uid, cambios, aviso) {
 }
 function avisoUsuarios() {
   const n = usuarios.filter(u => !u.aprobado).length;
-  $("tabPlan").querySelector("span").textContent = n ? "Plan · " + n : "Plan";
+  $("tabPlan").querySelector("span").textContent = n ? "Ajustes · " + n : "Ajustes";
   $("tabPlan").classList.toggle("con-aviso", n > 0);
 }
 
@@ -5071,6 +5071,7 @@ $("calAnt").addEventListener("click", () => { mesCal = new Date(mesCal.getFullYe
 $("calSig").addEventListener("click", () => { mesCal = new Date(mesCal.getFullYear(), mesCal.getMonth() + 1, 1); pintarCalendario(); });
 $("calHoy").addEventListener("click", () => irAFecha(iso(new Date())));
 
+let subVistaOrganizar = leer("organizar-vista-v1") || "listas";
 const VISTAS = { semana: "vistaSemana", ejercicios: "vistaEjercicios", listas: "vistaListas", plan: "vistaPlan", marcas: "vistaMarcas" };
 const TABS = { semana: "tabSemana", ejercicios: "tabEjercicios", listas: "tabListas", plan: "tabPlan", marcas: "tabMarcas" };
 function verPestana(cual) {
@@ -5080,11 +5081,14 @@ function verPestana(cual) {
     $(VISTAS[k]).hidden = k !== cual;
     $(TABS[k]).setAttribute("aria-selected", String(k === cual));
   });
+  $("organizarNav").hidden = cual !== "listas";
+  if (cual === "plan") { $("vistaListas").hidden = true; mostrarGrupoPlan("cuenta"); }
+  else if (cual === "listas") mostrarSubVistaOrganizar(subVistaOrganizar);
   escribir("pestana-v1", cual);
   if (cual === "ejercicios") pintarCatalogo();
   else if (cual === "plan") { pintarPlan(); if (perfil && perfil.es_admin && sesion) { cargarPerfil().catch(() => {}); cargarInicios(); } }
   else if (cual === "marcas") pintarMarcas();
-  else if (cual === "listas") pintarListas();
+  else if (cual === "listas") { if (subVistaOrganizar === "listas") pintarListas(); else pintarPlan(); }
   else pintarSemana();
 }
 Object.keys(TABS).forEach(k => $(TABS[k]).addEventListener("click", () => verPestana(k)));
@@ -7173,7 +7177,7 @@ $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); 
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
 // VERSION_APP es interna (sube en cada publicación para que los móviles se actualicen); la que se ve es siempre la 26
-const VERSION_APP = "v143" + (BETA ? " beta" : "");
+const VERSION_APP = "v144" + (BETA ? " beta" : "");
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";
@@ -7938,20 +7942,31 @@ document.querySelectorAll("#vistaPlan > .plan-sec[data-sec]").forEach(sec => {
 });
 const GRUPOS_PLAN = {
   crear: ["importar", "ia", "compartido"],
-  entrenos: ["plantillas", "mesociclos", "rutinas", "molestias"],
-  cuenta: ["copia", "ajustes", "sugerencias", "usuarios"]
+  entrenos: ["plantillas", "mesociclos", "rutinas"],
+  cuenta: ["molestias", "copia", "ajustes", "sugerencias", "usuarios"]
 };
 function mostrarGrupoPlan(grupo) {
   const elegido = GRUPOS_PLAN[grupo] ? grupo : "crear";
   document.querySelectorAll("#vistaPlan > .plan-sec[data-sec]").forEach(sec => { sec.hidden = !GRUPOS_PLAN[elegido].includes(sec.dataset.sec); });
-  document.querySelectorAll(".plan-nav-btn[data-plan]").forEach(b => {
-    const activa = b.dataset.plan === elegido;
+  escribir("plan-grupo-v1", elegido);
+}
+function mostrarSubVistaOrganizar(vista) {
+  subVistaOrganizar = ["listas", "crear", "entrenos"].includes(vista) ? vista : "listas";
+  const esLista = subVistaOrganizar === "listas";
+  $("vistaListas").hidden = esLista ? false : true;
+  $("vistaPlan").hidden = esLista ? true : false;
+  if (!esLista) mostrarGrupoPlan(subVistaOrganizar);
+  document.querySelectorAll(".plan-nav-btn[data-organizar]").forEach(b => {
+    const activa = b.dataset.organizar === subVistaOrganizar;
     b.classList.toggle("activa", activa);
     b.setAttribute("aria-pressed", String(activa));
   });
-  escribir("plan-grupo-v1", elegido);
+  escribir("organizar-vista-v1", subVistaOrganizar);
 }
-document.querySelectorAll(".plan-nav-btn[data-plan]").forEach(b => b.addEventListener("click", () => mostrarGrupoPlan(b.dataset.plan)));
+document.querySelectorAll(".plan-nav-btn[data-organizar]").forEach(b => b.addEventListener("click", () => {
+  mostrarSubVistaOrganizar(b.dataset.organizar);
+  if (b.dataset.organizar === "listas") pintarListas(); else pintarPlan();
+}));
 mostrarGrupoPlan(leer("plan-grupo-v1") || "crear");
 $("buscarPlantilla").addEventListener("input", () => {
   const sec = $("buscarPlantilla").closest(".plan-sec");
