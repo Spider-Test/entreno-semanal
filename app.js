@@ -37,7 +37,7 @@ const escribir = (k, v) => {
 };
 // Datos de cada día que no son series (ejercicios añadidos aún sin series, entrenos y partes vacíos, su descripción,
 // su letra y su posición): se guardan en el día (tabla entrenos, columna extra) para verlos igual en todos los dispositivos
-const CLAVES_EXTRA = new Set(["bloques-v1", "sesiones-v1", "espera-grupo-v1", "partes-v1", "espera-parte-v1", "espera-nota-v1", "espera-letra-v1", "espera-antes-v1"]);
+const CLAVES_EXTRA = new Set(["bloques-vacios-v1", "bloques-v1", "sesiones-v1", "espera-grupo-v1", "partes-v1", "espera-parte-v1", "espera-nota-v1", "espera-letra-v1", "espera-antes-v1"]);
 if (BETA) { document.documentElement.classList.add("beta"); document.title = "Fuerza y Ritmo β"; document.querySelector('meta[name="apple-mobile-web-app-title"]').content = "Fuerza y Ritmo β"; }
 
 // Cada tabla se sincroniza igual: gana la edición más reciente de cada fila.
@@ -48,13 +48,13 @@ const TABLAS = {
   ciclos: { clave: "id", conflicto: "id", campos: ["id", "ejercicio_id", "numero", "rm_inicio", "peso_inicial", "incremento", "reps_reset", "importadas", "cerrado", "borrado", "actualizado"] },
   plantillas: { clave: "id", conflicto: "id", campos: ["id", "nombre", "items", "borrado", "actualizado"] },
   mesociclos: { clave: "id", conflicto: "id", campos: ["id", "nombre", "inicio", "semanas", "dias", "progresion", "descarga", "notas", "borrado", "actualizado"] },
-  series: { clave: "id", conflicto: "id", campos: ["id", "fecha", "ejercicio_id", "orden", "peso", "reps", "distancia", "tiempo", "descanso", "hecha", "grupo", "meso_id", "bloque_id", "ronda", "rec_dist", "pct", "ciclo_id", "calentamiento", "desnivel_pos", "desnivel_neg", "ritmo_ajustado", "fc_media", "fc_max", "cadencia", "fc_pico", "fc_hist", "seccion", "por_lado", "nota", "letra_nueva", "max_tiempo", "max_reps", "copia", "borrado", "actualizado"] },
+  series: { clave: "id", conflicto: "id", campos: ["id", "fecha", "ejercicio_id", "orden", "peso", "reps", "distancia", "tiempo", "descanso", "hecha", "grupo", "meso_id", "bloque_id", "ronda", "rec_dist", "pct", "ciclo_id", "calentamiento", "desnivel_pos", "desnivel_neg", "ritmo_ajustado", "fc_media", "fc_max", "cadencia", "fc_pico", "fc_hist", "seccion", "por_lado", "nota", "letra_nueva", "max_tiempo", "max_reps", "copia", "rango_min", "rango_max", "borrado", "actualizado"] },
   entrenos: { clave: "fecha", conflicto: "user_id,fecha", campos: ["fecha", "html", "texto", "rpe", "sensacion", "extra", "actualizado"] },
   molestias: { clave: "id", conflicto: "id", campos: ["id", "zona", "descripcion", "inicio", "estado", "borrado", "actualizado"] },
   listas: { clave: "id", conflicto: "id", campos: ["id", "nombre", "items", "siguiente", "borrado", "actualizado"], opcional: true },
   carreras: { clave: "id", conflicto: "id", campos: ["id", "nombre", "fecha", "lugar", "distancia", "tiempo", "chip", "pos_general", "total_general", "categoria", "pos_categoria", "total_categoria", "desnivel_pos", "fc_media", "notas", "enlace", "previsto", "borrado", "actualizado"] }
 };
-const DEFECTOS = { medida: "", lado: false, extra: {}, seccion: "", por_lado: false, nota: "", letra_nueva: false, max_tiempo: false, max_reps: false, fecha: null, lugar: "", categoria: "", enlace: "", fc_hist: [], tipo: "fuerza", hecha: true, grupo: "", meso_id: "", bloque_id: "", ciclo_id: "", importadas: [], cerrado: false, compartido: false, items: [], dias: {}, descarga: {}, zonas: [], calentamiento: false, inicio: null, zona: "", descripcion: "", estado: "activa", nombre: "", video_url: "", notas: "", html: "", texto: "", sensacion: "", borrado: false };
+const DEFECTOS = { medida: "", lado: false, extra: {}, seccion: "", por_lado: false, nota: "", letra_nueva: false, max_tiempo: false, max_reps: false, rango_min: 0, rango_max: 0, fecha: null, lugar: "", categoria: "", enlace: "", fc_hist: [], tipo: "fuerza", hecha: true, grupo: "", meso_id: "", bloque_id: "", ciclo_id: "", importadas: [], cerrado: false, compartido: false, items: [], dias: {}, descarga: {}, zonas: [], calentamiento: false, inicio: null, zona: "", descripcion: "", estado: "activa", nombre: "", video_url: "", notas: "", html: "", texto: "", sensacion: "", borrado: false };
 let sesion = leer("sesion-v1");                 // {access_token, refresh_token, expires_at, user_id, email}
 let perfil = leer("perfil-v1");                 // {aprobado, es_admin, email}
 let usuarios = leer("usuarios-v1") || [];        // solo para el administrador (se guarda para no verla vacía al abrir)
@@ -67,6 +67,9 @@ let gruposPlegados = leer("grupos-plegados-v1") || {};   // entrenos plegados de
 let sesionesVacias = leer("sesiones-v1") || {}, esperaGrupo = leer("espera-grupo-v1") || {};
 // Partes de cada entreno aún sin series (fecha|entreno -> nombres) y la parte de cada ejercicio añadido sin series (fecha|id -> parte)
 let partesVacias = leer("partes-v1") || {}, esperaParte = leer("espera-parte-v1") || {};
+// Bloques vacíos (aún sin ejercicios): «fecha|id» → { g: entreno, p: parte, r: rondas }. Se suben con el día como lo demás
+let bloquesVacios = leer("bloques-vacios-v1") || {};
+const guardarVacios = () => escribir("bloques-vacios-v1", bloquesVacios);
 const guardarSesiones = () => { escribir("sesiones-v1", sesionesVacias); escribir("espera-grupo-v1", esperaGrupo); escribir("partes-v1", partesVacias); escribir("espera-parte-v1", esperaParte); };
 // Nombres de las partes de un entreno: las que tienen series y las creadas vacías
 const nombresPartes = (fecha, grupo) => [...new Set(seriesDelDia(fecha).filter(s => (s.grupo || "") === grupo).map(s => s.seccion || "").concat(partesVacias[fecha + "|" + grupo] || []))];        // fecha -> ejercicios añadidos que aún no tienen series
@@ -193,7 +196,18 @@ function adivinarTipo(nombre) {
 }
 const hecha = s => s.hecha !== false;
 // Serie «al máximo» sin apuntar todavía (máx reps o máx tiempo): al hacerla hay que escribir lo que salió
-const esMaxSinDato = s => !s.ciclo_id && !(n0(s.reps) > 0) && !(n0(s.tiempo) > 0) && !(n0(s.distancia) > 0);   // las series planificadas tienen hecha = false
+const esMaxSinDato = s => !s.ciclo_id && !(n0(s.reps) > 0) && !(n0(s.tiempo) > 0) && !(n0(s.distancia) > 0);
+// Ventana de repeticiones («10-12», «20-25»; en el móvil también «10,12»): se planifica así y al hacerla se apuntan las que salieron
+function leerRango(txt) {
+  const m = String(txt || "").trim().match(/^(\d{1,3})\s*(?:-|–|—|a|\/|,|\.|\s)\s*(\d{1,3})\s*(?:reps?)?$/i);
+  if (!m) return null;
+  const a = +m[1], b = +m[2];
+  return a > 0 && b > a ? { min: a, max: b } : null;
+}
+const esRango = s => n0(s.rango_max) > n0(s.rango_min) && n0(s.rango_min) > 0;
+const rangoTxt = s => n0(s.rango_min) + "-" + n0(s.rango_max);
+// Series que piden un dato al marcarlas: «máx» sin registrar o ventana de reps pendiente
+const pideDato = s => esMaxSinDato(s) || (esRango(s) && !s.hecha);   // las series planificadas tienen hecha = false
 const rm = s => n0(s.reps) <= 1 ? n0(s.peso) : n0(s.peso) * (1 + n0(s.reps) / 30);    // 1RM estimado (Epley)
 const redondear = kg => Math.round(kg / 2.5) * 2.5;
 // 1RM de referencia: el que pongas en la ficha o, si no, el mejor estimado de tus series
@@ -346,6 +360,7 @@ function serieTexto(s) {
   if (s.max_tiempo) return "máx tiempo" + lado + (n0(s.tiempo) > 0 ? " (" + fmtSegs(s.tiempo) + kgTxt + ")" : peso);
   if (s.max_reps || (!s.ciclo_id && !(n0(s.reps) > 0) && !(n0(s.tiempo) > 0))) return "máx reps" + lado + (n0(s.reps) > 0 ? " (" + n0(s.reps) + kgTxt + ")" : peso);
   if (n0(s.tiempo) > 0 && !(n0(s.reps) > 0)) return fmtSegs(s.tiempo) + lado + peso;   // por tiempo: bici, plancha, isométricos…
+  if (esRango(s)) return hecha(s) ? reps + " reps" + lado + peso.replace(/^ \(/, " (de " + rangoTxt(s) + " · ").replace(/^$/, " (de " + rangoTxt(s) + ")") : rangoTxt(s) + " reps" + lado + peso;
   return (s.ciclo_id ? "Bilbo · " : "") + (reps === "máx" ? "máx reps" : reps + " reps") + lado + peso;
 }
 const descTexto = s => n0(s.rec_dist) > 0 ? "rec. " + fmtDist(s.rec_dist) : n0(s.descanso) > 0 ? "desc. " + fmtTiempo(s.descanso) : "";
@@ -514,13 +529,55 @@ function persistir() {
   clearTimeout(timerSync);
   timerSync = setTimeout(sincronizar, 1000);
 }
+// Historial para deshacer y rehacer (Ctrl/Cmd+Z, Ctrl/Cmd+Mayús+Z o Ctrl+Y): cada acción del usuario es un paso con
+// cómo estaban antes las filas que tocó. Solo cuenta lo que pasa justo después de tocar o teclear (no la sincronización)
+let historial = [], rehechos = [], pasoHist = null, sinHistorial = false, ultimoGesto = 0;
+["pointerdown", "keydown", "input", "change", "submit"].forEach(t => addEventListener(t, () => { ultimoGesto = Date.now(); }, true));
 function cambiar(tabla, fila, enLote) {
+  if (!sinHistorial && Date.now() - ultimoGesto < 3000) {
+    const k = fila[TABLAS[tabla].clave], antes = db[tabla][k];
+    if (!pasoHist) { pasoHist = []; historial.push(pasoHist); if (historial.length > 80) historial.shift(); rehechos = []; setTimeout(() => { pasoHist = null; }, 0); }
+    if (!pasoHist.some(x => x.t === tabla && x.k === k)) pasoHist.push({ t: tabla, k, antes: antes ? { ...antes } : null });
+  }
   fila.actualizado = new Date().toISOString();
   fila.sucio = true;
   versionDatos++;
   db[tabla][fila[TABLAS[tabla].clave]] = fila;
   if (!enLote) persistir();
 }
+// Aplica un paso del historial y devuelve el paso contrario (para rehacer o volver a deshacer)
+function aplicarPaso(paso) {
+  const contrario = paso.map(x => ({ t: x.t, k: x.k, antes: db[x.t][x.k] ? { ...db[x.t][x.k] } : null }));
+  sinHistorial = true;
+  paso.slice().reverse().forEach(x => {
+    const actual = db[x.t][x.k];
+    if (x.antes) { const c = { ...x.antes }; delete c.sucio; cambiar(x.t, c, true); }
+    else if (actual) cambiar(x.t, { ...actual, borrado: true }, true);
+  });
+  sinHistorial = false;
+  persistir();
+  pintarTodo();
+  if (ent) pintarEntreno();
+  return contrario;
+}
+function deshacerPaso(rehacer) {
+  const de = rehacer ? rehechos : historial, a = rehacer ? historial : rehechos;
+  const paso = de.pop();
+  if (!paso) { avisoDeshacer(rehacer ? "Nada que rehacer" : "Nada que deshacer", null); return; }
+  a.push(aplicarPaso(paso));
+  avisoDeshacer(rehacer ? "↷ Rehecho" : "↶ Deshecho · " + (/Mac|iP/.test(navigator.platform) ? "⌘⇧Z" : "Ctrl+Y") + " para rehacer", null);
+}
+addEventListener("keydown", e => {
+  if (!(e.metaKey || e.ctrlKey) || e.altKey) return;
+  const k = e.key.toLowerCase();
+  if (k !== "z" && k !== "y") return;
+  // Escribiendo en un campo, el deshacer es el del propio texto
+  const t = e.target;
+  if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+  if ($("login") && !$("login").hidden) return;
+  e.preventDefault();
+  deshacerPaso(k === "y" || e.shiftKey);
+});
 function mezclar(tabla, f) {
   const k = f[TABLAS[tabla].clave], local = db[tabla][k];
   const tr = Date.parse(f.actualizado), tl = local ? Date.parse(local.actualizado) : 0;
@@ -540,7 +597,7 @@ function mezclar(tabla, f) {
 function extraDe(f) {
   const pre = f + "|";
   const sub = o => { const r = {}; Object.keys(o || {}).filter(k => k.startsWith(pre)).sort().forEach(k => { r[k.slice(pre.length)] = o[k]; }); return r; };
-  const e = { e: enEspera[f] || [], s: sesionesVacias[f] || [], g: sub(esperaGrupo), p: sub(partesVacias), pa: sub(esperaParte), n: sub(esperaNota), l: sub(esperaLetra), a: sub(esperaAntes) };
+  const e = { e: enEspera[f] || [], s: sesionesVacias[f] || [], g: sub(esperaGrupo), p: sub(partesVacias), pa: sub(esperaParte), n: sub(esperaNota), l: sub(esperaLetra), a: sub(esperaAntes), bv: sub(bloquesVacios) };
   Object.keys(e).forEach(k => { if (Array.isArray(e[k]) ? !e[k].length : !Object.keys(e[k]).length) delete e[k]; });
   return e;
 }
@@ -551,7 +608,8 @@ function aplicarExtra(f, e) {
   const poner = (o, datos) => { Object.keys(o).forEach(k => { if (k.startsWith(pre)) delete o[k]; }); Object.keys(datos || {}).forEach(k => { o[pre + k] = datos[k]; }); };
   if ((e.e || []).length) enEspera[f] = e.e.slice(); else delete enEspera[f];
   if ((e.s || []).length) sesionesVacias[f] = e.s.slice(); else delete sesionesVacias[f];
-  poner(esperaGrupo, e.g); poner(partesVacias, e.p); poner(esperaParte, e.pa); poner(esperaNota, e.n); poner(esperaLetra, e.l); poner(esperaAntes, e.a);
+  poner(esperaGrupo, e.g); poner(partesVacias, e.p); poner(esperaParte, e.pa); poner(esperaNota, e.n); poner(esperaLetra, e.l); poner(esperaAntes, e.a); poner(bloquesVacios, e.bv);
+  guardarVacios();
   escribir("bloques-v1", enEspera); guardarSesiones(); escribir("espera-nota-v1", esperaNota); escribir("espera-letra-v1", esperaLetra); escribir("espera-antes-v1", esperaAntes);
   aplicandoExtra = false;
 }
@@ -563,7 +621,7 @@ function marcarExtra() {
   timerExtra = setTimeout(() => {
     if (!sesion) return;
     const fechas = new Set([...Object.keys(enEspera), ...Object.keys(sesionesVacias)]);
-    [esperaGrupo, partesVacias, esperaParte, esperaNota, esperaLetra, esperaAntes].forEach(o => Object.keys(o || {}).forEach(k => fechas.add(k.split("|")[0])));
+    [esperaGrupo, partesVacias, esperaParte, esperaNota, esperaLetra, esperaAntes, bloquesVacios].forEach(o => Object.keys(o || {}).forEach(k => fechas.add(k.split("|")[0])));
     Object.values(db.entrenos).forEach(x => { if (x.extra && Object.keys(x.extra).length) fechas.add(x.fecha); });
     let hay = false;
     fechas.forEach(f => {
@@ -913,7 +971,7 @@ document.addEventListener("selectionchange", () => {
 const seriesDelDia = fecha => (indiceSeries().porFecha[fecha] || []).slice();
 // Convierte series en una lista de ejercicios con sus series (para copiar o guardar como plantilla)
 // Los bloques se guardan como tramos con una serie por ronda: { bloque: true, tramos: [{ ejercicio_id, series: [ronda 1, ronda 2…] }] }
-const valores = s => ({ peso: n0(s.peso), reps: s.ciclo_id ? 0 : n0(s.reps), distancia: n0(s.distancia), tiempo: n0(s.tiempo), descanso: n0(s.descanso), rec_dist: n0(s.rec_dist), pct: n0(s.pct), bilbo: !!s.ciclo_id, calentamiento: !!s.calentamiento, por_lado: !!s.por_lado, nota: s.nota || "", letra_nueva: !!s.letra_nueva, max_tiempo: !!s.max_tiempo, max_reps: !!s.max_reps });
+const valores = s => ({ peso: n0(s.peso), reps: s.ciclo_id ? 0 : n0(s.reps), distancia: n0(s.distancia), tiempo: n0(s.tiempo), descanso: n0(s.descanso), rec_dist: n0(s.rec_dist), pct: n0(s.pct), bilbo: !!s.ciclo_id, calentamiento: !!s.calentamiento, por_lado: !!s.por_lado, nota: s.nota || "", letra_nueva: !!s.letra_nueva, max_tiempo: !!s.max_tiempo, max_reps: !!s.max_reps, rango_min: n0(s.rango_min), rango_max: n0(s.rango_max) });
 function itemsDe(series) {
   const items = [], bloques = {};
   series.forEach(s => {
@@ -941,7 +999,7 @@ function pegarItems(fecha, items, grupo, mesoId, masKg) {
   const nueva = (ejercicio_id, v, extra) => cambiar("series", Object.assign({
     id: nuevoId(), fecha, ejercicio_id, orden: orden++,
     peso: n0(v.peso) > 0 ? Math.max(0, n0(v.peso) + n0(masKg)) : 0, reps: n0(v.reps), distancia: n0(v.distancia), tiempo: n0(v.tiempo),
-    descanso: n0(v.descanso), rec_dist: n0(v.rec_dist), pct: n0(v.pct), ciclo_id: v.bilbo ? "auto" : "", calentamiento: !!v.calentamiento, por_lado: !!v.por_lado, nota: v.nota || "", letra_nueva: !!v.letra_nueva, max_tiempo: !!v.max_tiempo, max_reps: !!v.max_reps, hecha: false, meso_id: mesoId || "", bloque_id: "", ronda: 0, borrado: false
+    descanso: n0(v.descanso), rec_dist: n0(v.rec_dist), pct: n0(v.pct), ciclo_id: v.bilbo ? "auto" : "", calentamiento: !!v.calentamiento, por_lado: !!v.por_lado, nota: v.nota || "", letra_nueva: !!v.letra_nueva, max_tiempo: !!v.max_tiempo, max_reps: !!v.max_reps, rango_min: n0(v.rango_min), rango_max: n0(v.rango_max), hecha: false, meso_id: mesoId || "", bloque_id: "", ronda: 0, borrado: false
   }, extra), true);
   items.forEach(it => {
     const g = grupo !== undefined ? grupo : (it.grupo || "");
@@ -1376,6 +1434,11 @@ function pintarDiaSinAncla(dia) {
     const g = grupo(gn), antes = esperaAntes[dia.id + "|" + id], i = antes ? g.ids.indexOf(antes) : -1;
     if (i >= 0) g.ids.splice(i, 0, id); else g.ids.push(id);
   });
+  Object.keys(bloquesVacios).forEach(k => {
+    if (!k.startsWith(dia.id + "|")) return;
+    const bv = bloquesVacios[k], g = grupo(bv.g || "");
+    g.ids.push("v:" + k.slice(dia.id.length + 1));
+  });
   // Cada sesión va en su propio contenedor para poder moverla entera
   const conAsa = grupos.filter(g => g.nombre).length > 1 && grupos.length > 1;
   const varios = grupos.length > 1;   // varios entrenos el mismo día: cada uno en su caja, con su cabecera y sus botones
@@ -1395,7 +1458,7 @@ function pintarDiaSinAncla(dia) {
       {   // plegar o desplegar el entreno tocando su nombre
         // Varios entrenos en el día: cada uno se pliega o despliega tocando su nombre (se recuerda en este dispositivo)
         const clavePl = dia.id + "|" + g.nombre, tg = cab.querySelector(".g-toggle");
-        const nombres = [...new Set(g.ids.map(id => id.startsWith("b:") ? "Bloque" : nombreEj(ejDeClave(id))).filter(Boolean))];
+        const nombres = [...new Set(g.ids.map(id => id.startsWith("b:") || id.startsWith("v:") ? "Bloque" : nombreEj(ejDeClave(id))).filter(Boolean))];
         cab.querySelector(".g-res").textContent = nombres.slice(0, 3).join(", ") + (nombres.length > 3 ? "…" : "");
         const ponerPl = pl => { caja.classList.toggle("g-plegado", pl); tg.setAttribute("aria-expanded", String(!pl)); };
         ponerPl(!!gruposPlegados[clavePl]);
@@ -1414,7 +1477,7 @@ function pintarDiaSinAncla(dia) {
     }
     // Partes opcionales del entreno (Calentamiento, Parte principal…): si no hay ninguna, todo va seguido como siempre
     const seriesItem = id => id.startsWith("b:") ? delDia.filter(s => s.bloque_id === id.slice(2)) : delDia.filter(s => claveSerie(s) === id && (s.grupo || "") === g.nombre);
-    const parteDe = id => { const ss = seriesItem(id); return ss.length ? ss[0].seccion || "" : esperaParte[dia.id + "|" + id] || ""; };
+    const parteDe = id => { if (id.startsWith("v:")) return (bloquesVacios[dia.id + "|" + id.slice(2)] || {}).p || ""; const ss = seriesItem(id); return ss.length ? ss[0].seccion || "" : esperaParte[dia.id + "|" + id] || ""; };
     // Cada parte con nombre va junta donde aparece su primer ejercicio; los sueltos (sin parte) se quedan en su sitio:
     // arriba, entre partes o debajo de la última
     const partes = [], parteDeNombre = n => partes.find(p => p.nombre && p.nombre === n) || partes[partes.push({ nombre: n, ids: [] }) - 1];
@@ -1454,8 +1517,8 @@ function pintarDiaSinAncla(dia) {
       if (p.nombre) { letraN++; numN = 0; }
       const porLetra = [];   // [{ letra, els: [...] }] para agrupar B1, B2… en su desplegable
       p.ids.forEach((id, k) => {
-        const el = id.startsWith("b:") ? tarjetaBloque(dia, id.slice(2), seriesItem(id)) : bloque(dia, ejDeClave(id), seriesItem(id), g.nombre, p.nombre, copiaDeClave(id));
-        el.dataset.clave = id;
+        const el = id.startsWith("v:") ? tarjetaBloqueVacio(dia, id.slice(2)) : id.startsWith("b:") ? tarjetaBloque(dia, id.slice(2), seriesItem(id)) : bloque(dia, ejDeClave(id), seriesItem(id), g.nombre, p.nombre, copiaDeClave(id));
+        if (!id.startsWith("v:")) el.dataset.clave = id;   // el vacío no se arrastra: se le arrastran ejercicios encima
         if (p.nombre) {
           const nueva = k > 0 && letraNuevaDe(id);
           if (nueva) { letraN++; numN = 0; }
@@ -1486,7 +1549,7 @@ function pintarDiaSinAncla(dia) {
         lc.className = "letra-caja";
         lc.dataset.letra = letra;
         const ss = items.flatMap(x => seriesItem(x.id));
-        const nombres = items.map(x => x.id.startsWith("b:") ? "Bloque" : nombreEj(ejDeClave(x.id)));
+        const nombres = items.map(x => x.id.startsWith("b:") || x.id.startsWith("v:") ? "Bloque" : nombreEj(ejDeClave(x.id)));
         const cabL = document.createElement("button");
         cabL.type = "button"; cabL.className = "letra-cab";
         cabL.innerHTML = '<span class="flecha-dia" aria-hidden="true">▸</span><span class="etq-orden"></span><span class="l-nombres"></span><span class="g-prog"></span>';
@@ -1560,6 +1623,12 @@ function pintarDiaSinAncla(dia) {
       const zonasParte = { lista: () => [...caja.querySelectorAll(":scope > .parte-caja > .parte-cab")].filter(z => z.dataset.parte !== (el.dataset.parte || ""))
           .concat(clave.startsWith("b:") ? [] : [...caja.querySelectorAll(".bloque-rep > .bloque-cab")]), alSoltar: z => {
         // Soltado encima del título de un bloque: el ejercicio entra en él (una serie suya por ronda)
+        if (z.closest(".bloque-vacio")) {
+          const sueltas = espera ? [] : seriesDeItem(dia.id, g.nombre, clave).slice().sort((a, b) => a.orden - b.orden);
+          if (espera) quitarEspera(dia.id, clave);
+          meterEnVacio(dia, z.closest(".bloque-vacio").dataset.vacio, ej, sueltas);
+          return;
+        }
         if (z.closest(".bloque-rep")) {
           const bs = seriesDelDia(dia.id).filter(s => s.bloque_id === z.closest(".bloque-rep").dataset.clave.slice(2));
           const sueltas = espera ? [] : seriesDeItem(dia.id, g.nombre, clave).slice().sort((a, b) => a.orden - b.orden);
@@ -1734,7 +1803,7 @@ function bloque(dia, id, series, grupo, parte, copia) {
     const efect = series.filter(x => !x.calentamiento), ref = efect.find(x => !hecha(x)) || efect[efect.length - 1] || series[0];
     if (ref) rellenarCon(efect[0] || ref, true);
     vecesEl.value = efect.length || 1;
-    pintarFilas(efect.map(x => ({ r: enTiempo() ? segTxt(x.tiempo) : (n0(x.reps) || ""), kg: n0(x.pct) > 0 && !x.ciclo_id ? num(x.pct) : (pesoMostrado(x) > 0 ? num(pesoMostrado(x)) : ""), hecha: hecha(x) })));
+    pintarFilas(efect.map(x => ({ r: enTiempo() ? segTxt(x.tiempo) : esRango(x) && !hecha(x) ? rangoTxt(x) : (n0(x.reps) || ""), kg: n0(x.pct) > 0 && !x.ciclo_id ? num(x.pct) : (pesoMostrado(x) > 0 ? num(pesoMostrado(x)) : ""), hecha: hecha(x) })));
     otroEj.textContent = "";
     vivos("ejercicios").filter(e => tipoDe(e.id) === tipo).sort((x, y) => x.nombre.localeCompare(y.nombre, "es")).forEach(e => otroEj.add(new Option(e.nombre, e.id, e.id === id, e.id === id)));
     fa.focus();
@@ -1758,7 +1827,7 @@ function bloque(dia, id, series, grupo, parte, copia) {
       row.querySelector(".fx-n").textContent = k + 1;
       const ir = row.querySelector(".r-reps"), ik = row.querySelector(".r-kg");
       ir.value = val.r; ik.value = val.kg;
-      ir.inputMode = enTiempo() ? "decimal" : "numeric";
+      ir.inputMode = "decimal";
       ir.placeholder = enMax() ? "máx" : enTiempo() ? "seg" : "reps"; ir.disabled = enMax();
       ik.placeholder = enPct ? "%" : "kg";
       row.querySelector(".fx-u").textContent = enTiempo() ? "s" : "reps";
@@ -1778,7 +1847,8 @@ function bloque(dia, id, series, grupo, parte, copia) {
     if (kg !== "") { const x = parseFloat(kg.replace(",", ".")); if (x >= 0) { out.pct = enPct ? x : 0; out.peso = enPct ? kgDePct(id, x) : x; } }
     if (!enMax() && r !== "") {
       if (enTiempo()) { const t = leerSegs(r); if (t > 0) out.tiempo = t; }
-      else { const n = parseInt(r, 10); if (n > 0) out.reps = n; }
+      else if (leerRango(r)) { const g = leerRango(r); out.reps = g.min; out.rango_min = g.min; out.rango_max = g.max; }
+      else { const n = parseInt(r, 10); if (n > 0) { out.reps = n; out.rango_min = 0; out.rango_max = 0; } }
     }
     return out;
   }
@@ -1819,8 +1889,8 @@ function bloque(dia, id, series, grupo, parte, copia) {
     if (!chkT) return;
     chkT.checked = t;
     fb.placeholder = t ? "tiempo 45 s" : "reps";
-    fb.inputMode = t ? "decimal" : "numeric";
-    fb.setAttribute("aria-label", t ? "Tiempo: 45 son segundos, 2 min o 1,30" : "Repeticiones");
+    fb.inputMode = "decimal";   // con coma: «10,12» es una ventana de reps
+    fb.setAttribute("aria-label", t ? "Tiempo: 45 son segundos, 2 min o 1,30" : "Repeticiones (o una ventana: 10-12)");
     const por = fb.closest(".ns-fila").querySelector(".por"); if (por) por.textContent = t ? "·" : "×";
     marcarMedida();
   };
@@ -1965,6 +2035,7 @@ function bloque(dia, id, series, grupo, parte, copia) {
       if (n0(s.pct) > 0 && !s.ciclo_id) { ponerModo(true); fa.value = num(s.pct); }
       else { ponerModo(false); const kg = pesoMostrado(s); fa.value = kg > 0 ? num(kg) : ""; }
       fb.value = t ? segTxt(s.tiempo) : n0(s.reps) || "";
+      if (!t && esRango(s) && !hecha(s)) { fb.value = modoForm === "editar" ? "" : rangoTxt(s); if (modoForm === "editar") setTimeout(() => { fb.placeholder = rangoTxt(s) + ": ¿cuántas?"; }, 0); }
       if (b.querySelector(".por-lado")) b.querySelector(".por-lado").checked = !!s.por_lado || ladoDe(id);
       const esMax = !(n0(s.reps) > 0) && !(n0(s.tiempo) > 0) && !s.ciclo_id;
       // Completar una serie «máx» pendiente: se apunta lo que salió (reps o segundos)
@@ -2018,7 +2089,7 @@ function bloque(dia, id, series, grupo, parte, copia) {
       c.type = "button"; c.className = "marcar"; c.textContent = "";
       c.setAttribute("aria-label", "Marcar como hecha la serie " + numero);
       c.addEventListener("click", () => {
-        if (s.ciclo_id === "auto" || (tipo === "fuerza" && esMaxSinDato(s))) { li.querySelector(".sv").click(); return; }   // en Bilbo y en «máx» hay que apuntar lo que salió
+        if (s.ciclo_id === "auto" || (tipo === "fuerza" && pideDato(s))) { li.querySelector(".sv").click(); return; }   // en Bilbo y en «máx» hay que apuntar lo que salió
         marcarHecha(s, { ...s, hecha: true, peso: pesoMostrado(s) });
       });
       marca.replaceWith(c);
@@ -2052,7 +2123,7 @@ function bloque(dia, id, series, grupo, parte, copia) {
     if (prs.has(s.id)) { const p = document.createElement("span"); p.className = "pr"; p.textContent = "PR"; p.title = "Récord personal"; li.querySelector(".sv").after(p); }
     li.querySelector(".borrar").addEventListener("click", () => borrarSerie(s));
     // Deslizar: a la derecha la marca hecha; a la izquierda la borra (con Deshacer)
-    deslizable(li, planificada ? (s.ciclo_id !== "auto" && !(tipo === "fuerza" && esMaxSinDato(s)) ? () => marcarHecha(s, { ...s, hecha: true, peso: pesoMostrado(s) }) : null) : () => desmarcar(s), () => borrarSerie(s));
+    deslizable(li, planificada ? (s.ciclo_id !== "auto" && !(tipo === "fuerza" && pideDato(s)) ? () => marcarHecha(s, { ...s, hecha: true, peso: pesoMostrado(s) }) : null) : () => desmarcar(s), () => borrarSerie(s));
     li.dataset.sid = s.id;
     mantenerPulsado(li, () => { if (!selSeries) empezarSelSeries(dia, s.id); });   // mantener pulsada una serie: elegir varias para agruparlas
     if (series.length > 1) li.appendChild(asaArrastre(li, () => [...ol.querySelectorAll(":scope > li[data-sid]")], n => reordenar(n.map(x => [db.series[x.dataset.sid]]), "Serie movida"), "Serie " + (s.calentamiento ? "de calentamiento" : numero)));
@@ -2139,6 +2210,7 @@ function bloque(dia, id, series, grupo, parte, copia) {
       v.peso = enPct ? kgDePct(id, x) : x;
       v.ciclo_id = chkBilbo && chkBilbo.checked && ciclo ? ciclo.id : "";
       v.por_lado = !!(b.querySelector(".por-lado") || {}).checked || ladoDe(id);
+      v.rango_min = 0; v.rango_max = 0;
       if (!(x >= 0) || (enPct && !v.peso)) { fa.focus(); return null; }
       if (enTiempo()) {
         v.reps = 0; v.ciclo_id = "";
@@ -2148,6 +2220,9 @@ function bloque(dia, id, series, grupo, parte, copia) {
         v.reps = 0; v.max_reps = true;   // máximas repeticiones
       } else if (chkBilbo && chkBilbo.checked && !fb.value.trim()) {
         v.reps = 0;   // Bilbo: se planifica «reps máx» y al hacerla se apuntan las que salieron
+      } else if (leerRango(fb.value)) {
+        const g = leerRango(fb.value);
+        v.reps = g.min; v.rango_min = g.min; v.rango_max = g.max;   // ventana: queda pendiente hasta apuntar las que salieron
       } else {
         v.reps = parseInt(fb.value, 10);
         if (!(v.reps > 0)) { fb.focus(); return null; }
@@ -2164,7 +2239,9 @@ function bloque(dia, id, series, grupo, parte, copia) {
     delete borradores[dia.id + "|" + (grupo || "") + "|" + idK + "|" + (parte || "")];
     if (modoForm === "editar" && editando) {
       // Una serie concreta: se completa (o corrige) con lo escrito; hoy o antes queda hecha
-      const fila = { ...editando, ...v, hecha: dia.id <= iso(new Date()) };
+      const fila = { ...editando, ...v, hecha: dia.id <= iso(new Date()) && !(n0(v.rango_max) > 0) };
+      // Ventana pendiente: al apuntar las que salieron se conserva la ventana («11 reps de 10-12»)
+      if (esRango(editando) && !(n0(v.rango_max) > 0) && n0(v.reps) > 0) { fila.rango_min = editando.rango_min; fila.rango_max = editando.rango_max; }
       // Si era «al máximo», sigue siéndolo aunque ahora tenga lo que salió
       if (editando.max_tiempo && n0(fila.tiempo) > 0) fila.max_tiempo = true;
       if ((editando.max_reps || esMaxSinDato(editando) && !editando.max_tiempo) && n0(fila.reps) > 0) fila.max_reps = true;
@@ -2319,6 +2396,32 @@ function meterEnBloque(dia, seriesBloque, ejercicioId, sueltas) {
   pintarDia(dia);
   avisoDeshacer(nombreEj(ejercicioId) + " añadido al bloque (" + rondas.length + " rondas)", antes.concat(nuevas.map(f => ["series", { ...f, borrado: true }])));
 }
+// Bloque vacío: una caja «×N rondas» donde arrastrar (o añadir) ejercicios; con el primero pasa a ser un bloque normal
+function meterEnVacio(dia, vid, ejercicioId, sueltas) {
+  const bv = bloquesVacios[dia.id + "|" + vid];
+  if (!bv) return;
+  const rondas = Array.from({ length: Math.max(1, n0(bv.r)) }, (_, k) => ({ ronda: k + 1, grupo: bv.g || "", seccion: bv.p || "", meso_id: "", bloque_id: vid, letra_nueva: false }));
+  delete bloquesVacios[dia.id + "|" + vid];
+  guardarVacios();
+  meterEnBloque(dia, rondas, ejercicioId, sueltas);
+}
+function tarjetaBloqueVacio(dia, vid) {
+  const k = dia.id + "|" + vid, bv = bloquesVacios[k];
+  const c = document.createElement("div");
+  c.className = "bloque bloque-rep bloque-vacio";
+  c.dataset.vacio = vid;
+  c.innerHTML = '<div class="bloque-cab"><span class="br-tit"></span><span class="g-prog">vacío</span><button type="button" class="menu-btn" aria-label="Opciones del bloque vacío">⋯</button></div>' +
+    '<p class="bv-txt">Arrastra aquí ejercicios del entreno con ≡ (quédate un momento encima del título) o añádelos.</p><button type="button" class="add-ej bv-add">+ Añadir ejercicio al bloque</button>';
+  c.querySelector(".br-tit").textContent = "×" + n0(bv.r) + " rondas";
+  c.querySelector(".bv-add").addEventListener("click", () => abrirSelector(dia, id => meterEnVacio(dia, vid, id, null), bv.g || "", bv.p || ""));
+  const rondas = n => { bloquesVacios[k] = { ...bv, r: Math.max(1, Math.min(50, n)) }; guardarVacios(); pintarDia(dia); };
+  c.querySelector(".menu-btn").addEventListener("click", () => abrirMenu("Bloque vacío ×" + n0(bv.r), "", [
+    { texto: "Añadir una ronda", accion: () => rondas(n0(bv.r) + 1) },
+    n0(bv.r) > 1 && { texto: "Quitar una ronda", accion: () => rondas(n0(bv.r) - 1) },
+    { texto: "Quitar bloque vacío", peligro: true, accion: () => { delete bloquesVacios[k]; guardarVacios(); pintarDia(dia); } }
+  ]));
+  return c;
+}
 function tarjetaBloque(dia, bloqueId, series) {
   const rondas = [...new Set(series.map(s => n0(s.ronda)))].sort((a, b) => a - b);
   const primera = series.filter(s => n0(s.ronda) === rondas[0]).sort((a, b) => a.orden - b.orden);
@@ -2409,7 +2512,7 @@ function tarjetaBloque(dia, bloqueId, series) {
     const t = m === "t" || m === "maxt", mx = m === "maxr" || m === "maxt";
     form.dataset.isoT = t ? "1" : "";
     brMedida.textContent = NOMBRE_MEDIDA[m] + " ▾";
-    fb.inputMode = t ? "decimal" : "numeric";
+    fb.inputMode = "decimal";
     fb.placeholder = mx ? (completar ? (t ? "¿cuántos seg?" : "¿cuántas?") : "máx") : t ? "seg" : "reps";
     fb.setAttribute("aria-label", mx ? (t ? "Segundos que aguantaste (opcional)" : "Repeticiones que salieron (opcional)") : t ? "Tiempo: 45 son segundos" : "Repeticiones");
     c.querySelector(".por").textContent = t ? "·" : "×";
@@ -2461,7 +2564,7 @@ function tarjetaBloque(dia, bloqueId, series) {
     if (!dist && !mov) ponerBrM(s.max_tiempo || maxSin && isoT ? "maxt" : s.max_reps || maxSin ? "maxr" : isoT ? "t" : "reps", true);
     if (mov) { fa.value = n0(s.reps) || ""; fb.value = (n0(s.tiempo) > 0 ? (n0(s.tiempo) < 60 ? String(n0(s.tiempo)) : fmtTiempo(s.tiempo)) : ""); }
     else if (dist) { fa.value = distCampo(s.distancia); fb.value = n0(s.tiempo) > 0 ? fmtTiempo(s.tiempo) : ""; }
-    else { fa.value = pesoMostrado(s) > 0 ? num(pesoMostrado(s)) : ""; if (n0(s.pct) > 0 && !s.ciclo_id) fa.value = num(s.pct); fb.value = isoT ? (n0(s.tiempo) > 0 ? (n0(s.tiempo) < 60 ? String(n0(s.tiempo)) : fmtTiempo(s.tiempo)) : "") : n0(s.reps) || ""; }
+    else { fa.value = pesoMostrado(s) > 0 ? num(pesoMostrado(s)) : ""; if (n0(s.pct) > 0 && !s.ciclo_id) fa.value = num(s.pct); fb.value = isoT ? (n0(s.tiempo) > 0 ? (n0(s.tiempo) < 60 ? String(n0(s.tiempo)) : fmtTiempo(s.tiempo)) : "") : n0(s.reps) || ""; if (!isoT && esRango(s) && !hecha(s)) { fb.value = ""; fb.placeholder = rangoTxt(s) + ": ¿cuántas?"; } }
     fc.value = recTexto(s);
     const fuerza = !dist && !mov;
     form.classList.toggle("br-fuerza", fuerza);
@@ -2514,10 +2617,10 @@ function tarjetaBloque(dia, bloqueId, series) {
         const m = document.createElement("button");
         m.type = "button"; m.className = "marcar";
         m.setAttribute("aria-label", "Marcar como hecho: ronda " + r + ", " + nombreEj(s.ejercicio_id));
-        m.addEventListener("click", () => tipoDe(s.ejercicio_id) === "fuerza" && esMaxSinDato(s) ? editar(s, li) : marcarHecha(s, { ...s, hecha: true, peso: pesoMostrado(s) }));
+        m.addEventListener("click", () => tipoDe(s.ejercicio_id) === "fuerza" && pideDato(s) ? editar(s, li) : marcarHecha(s, { ...s, hecha: true, peso: pesoMostrado(s) }));
         li.querySelector(".n").replaceWith(m);
       } else li.querySelector(".n").replaceWith(botonHecha(s, "✓", "ronda " + r + ", " + nombreEj(s.ejercicio_id)));
-      deslizable(li, !hecha(s) ? (tipoDe(s.ejercicio_id) === "fuerza" && esMaxSinDato(s) ? null : () => marcarHecha(s, { ...s, hecha: true, peso: pesoMostrado(s) })) : () => desmarcar(s), null);
+      deslizable(li, !hecha(s) ? (tipoDe(s.ejercicio_id) === "fuerza" && pideDato(s) ? null : () => marcarHecha(s, { ...s, hecha: true, peso: pesoMostrado(s) })) : () => desmarcar(s), null);
       // El nombre del tramo solo si aporta algo: «Series 1000 m · 1000 m» se queda en «1000 m»
       const nomTramo = !distDeNombre(nombreEj(s.ejercicio_id)) ? nombreEj(s.ejercicio_id) + " · " : "";
       li.querySelector(".sv-p").textContent = nomTramo + serieTexto(s);
@@ -2596,14 +2699,17 @@ function tarjetaBloque(dia, bloqueId, series) {
         if (isNaN(fila.tiempo)) { fb.focus(); return; }
         if (m === "maxt") fila.max_tiempo = true;
       } else {
-        fila.tiempo = 0; fila.reps = txt.trim() ? parseInt(txt, 10) : 0;
+        const g = m === "reps" ? leerRango(txt) : null;
+        fila.tiempo = 0; fila.reps = g ? g.min : txt.trim() ? parseInt(txt, 10) : 0;
+        if (g) { fila.rango_min = g.min; fila.rango_max = g.max; fila.hecha = false; }   // escribir una ventana es planificar
+        else if (m !== "reps") { fila.rango_min = 0; fila.rango_max = 0; }
         if (m === "reps" && !(fila.reps > 0)) { fb.focus(); return; }
         if (isNaN(fila.reps)) { fb.focus(); return; }
         if (m === "maxr") fila.max_reps = true;
       }
     }
     if (!brTodas.hidden && brTodas.querySelector("input").checked) {
-      const copia = { peso: fila.peso, pct: fila.pct, reps: fila.reps, tiempo: fila.tiempo, distancia: fila.distancia, max_tiempo: !!fila.max_tiempo, max_reps: !!fila.max_reps, por_lado: !!fila.por_lado, descanso: fila.descanso, rec_dist: fila.rec_dist, ciclo_id: fila.ciclo_id || "" };
+      const copia = { peso: fila.peso, pct: fila.pct, reps: fila.reps, tiempo: fila.tiempo, distancia: fila.distancia, max_tiempo: !!fila.max_tiempo, max_reps: !!fila.max_reps, rango_min: n0(fila.rango_min), rango_max: n0(fila.rango_max), por_lado: !!fila.por_lado, descanso: fila.descanso, rec_dist: fila.rec_dist, ciclo_id: fila.ciclo_id || "" };
       series.filter(x => x.ejercicio_id === fila.ejercicio_id && x.id !== fila.id && !hecha(x)).forEach(x => cambiar("series", { ...x, ...copia }, true));
     }
     cambiar("series", fila);
@@ -2705,6 +2811,15 @@ $("blqAnadir").addEventListener("click", () => abrirSelector(diaBloque, id => {
     c: "" });   // la recuperación no se arrastra de otros días
   pintarTramos();
 }));
+$("blqVacio").addEventListener("click", () => {
+  const rondas = parseInt($("blqRondas").value, 10);
+  if (!(rondas >= 1 && rondas <= 50)) { $("blqAviso").textContent = "Las rondas deben estar entre 1 y 50."; return; }
+  bloquesVacios[diaBloque.id + "|" + nuevoId()] = { g: grupoBloque, p: parteBloque, r: rondas };
+  guardarVacios();
+  $("dlgBloque").close();
+  pintarDia(diaBloque);
+  setEstado("Bloque vacío ×" + rondas + " creado: arrastra ejercicios encima con ≡");
+});
 $("blqCrear").addEventListener("click", () => {
   const rondas = parseInt($("blqRondas").value, 10), aviso = $("blqAviso");
   if (!tramos.length) { aviso.textContent = "Añade al menos un tramo."; return; }
@@ -2734,7 +2849,9 @@ $("blqCrear").addEventListener("click", () => {
         if (esMx) v.max_tiempo = true;
         else { v.tiempo = leerSegs(t.b); if (!(v.tiempo > 0)) { aviso.textContent = "Pon los segundos del tramo " + (k + 1) + " (o «máx»)."; return; } }
       } else {
-        v.reps = esMx ? 0 : parseInt(t.b, 10);
+        const g = esMx ? null : leerRango(t.b);
+        v.reps = esMx ? 0 : g ? g.min : parseInt(t.b, 10);
+        if (g) { v.rango_min = g.min; v.rango_max = g.max; }
         if (esMx) v.max_reps = true;
         if (!(v.reps > 0) && !esMx) { aviso.textContent = "Pon las repeticiones del tramo " + (k + 1) + " (o «máx»)."; return; }
       }
@@ -4075,11 +4192,92 @@ function marcasFuerza(cont) {
   });
   caja.appendChild(nota("Toca un ejercicio para ver su gráfica e historial. La zona sale de las que trabaja el ejercicio (en su ficha)."));
 }
+// ---------- Registro de Bilbo (como la hoja de cálculo): un apartado en Marcas y una ventana por ejercicio ----------
+function marcasBilbo(cont) {
+  const ejs = [...new Set(vivos("ciclos").map(c => c.ejercicio_id))].filter(id => ejercicioVivo(id));
+  if (!ejs.length) return;
+  const caja = apartadoMarcas(cont, "bilbo", "Bilbo", ejs.length);
+  const s = seccionMarcas("Tus ciclos");
+  s.appendChild(tablaSimple(["Ejercicio", "Ciclo", "Próxima", "Récord 1RM"], ejs.map(id => {
+    const cs = vivos("ciclos").filter(c => c.ejercicio_id === id), act = cicloActivo(id);
+    const todas = cs.flatMap(sesionesBilbo), mr = todas.length ? Math.max(...todas.map(x => rmBilbo(x.peso, x.reps))) : 0;
+    return { celdas: [nombreEj(id), act ? "Ciclo " + act.numero + " · " + sesionesBilbo(act).length + " ses." : cs.length + (cs.length === 1 ? " ciclo" : " ciclos"),
+      act ? num(pesoBilbo(id)) + " kg × máx" : "—", mr ? num(Math.round(mr * 10) / 10) + " kg" : "—"], alPulsar: () => abrirRegistroBilbo(id) };
+  })));
+  caja.appendChild(s);
+  caja.appendChild(nota("Toca un ejercicio para ver su registro completo: cada ciclo con sus sesiones, el trabajo, el 1RM estimado, los acumulados y los récords."));
+}
+function abrirRegistroBilbo(id) {
+  $("bregTit").textContent = "Bilbo · " + nombreEj(id);
+  const cuerpo = $("bregCuerpo");
+  cuerpo.textContent = "";
+  const ciclos = vivos("ciclos").filter(c => c.ejercicio_id === id).sort((a, b) => n0(a.numero) - n0(b.numero));
+  const act = cicloActivo(id);
+  if (act) {
+    const p = document.createElement("p");
+    p.className = "breg-res";
+    p.textContent = "Ciclo " + act.numero + " en curso · próxima sesión: " + num(pesoBilbo(id)) + " kg × máx · empezó con 1RM " + num(act.rm_inicio) + " kg (" + num(act.peso_inicial) + " kg) · +" + num(act.incremento) + " kg por sesión · resetear al bajar a " + act.reps_reset + " reps";
+    cuerpo.appendChild(p);
+  }
+  // Récord de 1RM de cada ciclo, para ver la progresión de un vistazo
+  const porCiclo = ciclos.map(c => { const ss = sesionesBilbo(c); return { c, ss, mr: ss.length ? Math.max(...ss.map(x => rmBilbo(x.peso, x.reps))) : 0 }; });
+  const graf = document.createElement("div");
+  graf.className = "breg-graf";
+  const evol = porCiclo.flatMap(x => x.ss.filter(y => y.fecha).map(y => ({ v: Math.round(rmBilbo(y.peso, y.reps) * 10) / 10, f: y.fecha })));
+  if (evol.length >= 2) { const t = document.createElement("p"); t.className = "bc-t"; t.textContent = "1RM estimado por sesión"; graf.appendChild(t); const g = document.createElement("div"); g.innerHTML = grafica(evol, v => num(v) + " kg"); graf.appendChild(g); cuerpo.appendChild(graf); }
+  const fila = document.createElement("div");
+  fila.className = "breg-ciclos";
+  porCiclo.forEach(({ c, ss, mr }) => {
+    const col = document.createElement("section");
+    col.className = "breg-ciclo" + (c === act ? " activo" : "");
+    const h = document.createElement("h4");
+    h.textContent = "Ciclo " + c.numero + (c === act ? " · en curso" : "");
+    const sub = document.createElement("p");
+    sub.className = "menu-det";
+    sub.textContent = "1RM inicio " + num(c.rm_inicio) + " kg · +" + num(c.incremento) + " kg";
+    col.append(h, sub);
+    const t = document.createElement("table");
+    t.className = "tabla-bilbo";
+    t.innerHTML = "<thead><tr><th>Día</th><th>Fecha</th><th>Peso</th><th>Reps</th><th>Trabajo</th><th>1RM</th></tr></thead><tbody></tbody><tfoot></tfoot>";
+    const tb = t.querySelector("tbody"), mt = ss.length ? Math.max(...ss.map(x => x.peso * x.reps)) : 0;
+    const celdas = (vals, clases) => { const tr = document.createElement("tr"); vals.forEach((v, k) => { const td = document.createElement("td"); td.textContent = v; if (clases && clases[k]) td.className = clases[k]; tr.appendChild(td); }); return tr; };
+    ss.forEach((x, i) => {
+      const tr = x.peso * x.reps, e1 = rmBilbo(x.peso, x.reps);
+      tb.appendChild(celdas([i + 1, x.fecha ? fechaCorta(x.fecha) : "—", num(x.peso), x.reps, num(tr), num(Math.round(e1 * 10) / 10)], [0, 0, 0, 0, tr === mt ? "es-pr" : "", e1 === mr ? "es-pr" : ""]));
+    });
+    // Como en la hoja: las próximas sesiones del ciclo en curso, con el peso que toca
+    if (c === act) for (let k = 0; k < 4; k++) { const trp = celdas([ss.length + k + 1, "", num(n0(c.peso_inicial) + n0(c.incremento) * (ss.length + k)), "", "", ""]); trp.className = "breg-futura"; tb.appendChild(trp); }
+    const reps = ss.reduce((a, x) => a + x.reps, 0), trabajo = ss.reduce((a, x) => a + x.peso * x.reps, 0);
+    const tf = t.querySelector("tfoot");
+    const pieFila = (et, vals) => { const tr = celdas([et].concat(vals)); tr.firstChild.colSpan = 3; return tr; };
+    tf.appendChild(pieFila("Acumulado", [reps, num(trabajo), ""]));
+    tf.appendChild(pieFila("Récords", ["", mt ? num(mt) : "—", mr ? num(Math.round(mr * 10) / 10) : "—"]));
+    const sc = document.createElement("div");
+    sc.className = "tabla-scroll";
+    sc.appendChild(t);
+    col.appendChild(sc);
+    if (!ss.length) col.appendChild(nota("Aún sin sesiones."));
+    fila.appendChild(col);
+  });
+  cuerpo.appendChild(fila);
+  const pie = document.createElement("p");
+  pie.className = "menu-det";
+  pie.textContent = "Trabajo = peso × repeticiones. 1RM estimado = peso × reps × 0,03 + peso (la fórmula de tu hoja). Resaltados, los récords de cada ciclo; en gris, las próximas sesiones con el peso que toca.";
+  cuerpo.appendChild(pie);
+  const b = document.createElement("button");
+  b.type = "button"; b.className = "nav-btn"; b.textContent = "Ver la ficha del ejercicio";
+  b.addEventListener("click", () => { $("dlgBilboReg").close(); abrirDetalle(id); });
+  cuerpo.appendChild(b);
+  if (!$("dlgBilboReg").open) $("dlgBilboReg").showModal();
+  const ult = fila.lastElementChild;
+  if (ult) setTimeout(() => { fila.scrollLeft = fila.scrollWidth; }, 0);   // el ciclo más reciente a la vista
+}
 function pintarMarcas() {
   const raiz = $("marcasCont");
   raiz.textContent = "";
   marcasPulso(raiz);
   marcasFuerza(raiz);
+  marcasBilbo(raiz);
   const cont = apartadoMarcas(raiz, "carrera", "Carrera");
   cont.appendChild(seccionCarreras());
   const { forma: f, carga } = rendimiento();
@@ -4893,7 +5091,7 @@ function leerValor(txt, tipo) {
   else if ((m = tok.match(/^(\d+(?:\.\d+)?)(min|')$/))) v.tiempo = Math.round(parseFloat(m[1]) * 60);
   else if ((m = tok.match(/^(\d+)(s|seg|")$/))) v.tiempo = +m[1];
   else if (/^\d+[:'´’]\d{2}([:'´’]\d{2})?$/.test(tok)) v.tiempo = leerTiempo(tok);
-  else if ((m = tok.match(/^(\d+)(?:-\d+)?(?:reps?)?$/))) v.reps = +m[1];
+  else if ((m = tok.match(/^(\d+)(?:-(\d+))?(?:reps?)?$/))) { v.reps = +m[1]; if (m[2] && +m[2] > +m[1]) { v.rango_min = +m[1]; v.rango_max = +m[2]; } }
   else if (/^(m[aá]x|amrap|fallo)/.test(tok)) { v.reps = 0; if (/^\s*m[aá]x\s*(s\b|seg|tiempo)/i.test(t)) v.max_tiempo = true; else v.max_reps = true; }
   else return { error: "no entiendo «" + tok + "» (usa 8, máx, 400m, 40min o 3:30)" };
   if (tipo === "movilidad") {
@@ -6222,7 +6420,7 @@ function pintarEntreno() {
   const mov = tipo === "movilidad";
   ent.campos = dist ? (n0(s.distancia) > 0 ? ["m", "t"] : ["t", "m"]) : !mov && (n0(s.tiempo) > 0 || s.max_tiempo) && !(n0(s.reps) > 0) ? ["kg", "s"] : mov ? (n0(s.reps) > 0 || !(n0(s.tiempo) > 0) ? ["reps", "s"] : ["s", "reps"]) : ["kg", "reps"];
   const etiqueta = { kg: "Peso (kg)", reps: "Repeticiones" + (s.por_lado ? " por lado" : ""), m: enKm() ? "Kilómetros" : "Metros", t: "Tiempo", s: "Tiempo" + (s.por_lado ? " por lado" : "") + " (45 = segundos)" };
-  const valor = c => c === "kg" ? (kg ? num(kg) : "") : c === "reps" ? (s.ciclo_id === "auto" && !hecha(s) ? "" : n0(s.reps) || "")
+  const valor = c => c === "kg" ? (kg ? num(kg) : "") : c === "reps" ? ((s.ciclo_id === "auto" || esRango(s)) && !hecha(s) ? "" : n0(s.reps) || "")
     : c === "m" ? distCampo(s.distancia) : c === "s" ? (n0(s.tiempo) > 0 ? (n0(s.tiempo) < 60 ? String(n0(s.tiempo)) : fmtTiempo(s.tiempo)) : "") : n0(s.tiempo) ? fmtTiempo(s.tiempo) : "";
   [["enA", "enEtA"], ["enB", "enEtB"]].forEach(([inp, et], k) => {
     const c = ent.campos[k];
@@ -6232,7 +6430,7 @@ function pintarEntreno() {
     // En carrera, el ejemplo del tiempo es el objetivo de la serie (si lo hay), no un número cualquiera
     const obj = c === "t" && !hecha(s) ? objetivoSerie(s) : null;
     const esMaxE = !hecha(s) && !(n0(s.reps) > 0) && !(n0(s.tiempo) > 0);
-    $(inp).placeholder = c === "reps" && (s.ciclo_id || esMaxE) ? "máx: ¿cuántas?" : c === "s" ? (esMaxE ? "máx: ¿cuántos s?" : "45") : c === "t" ? (obj && obj.tiempo ? "obj. " + fmtTiempo(obj.tiempo) : "3:40") : "";
+    $(inp).placeholder = c === "reps" && esRango(s) && !hecha(s) ? rangoTxt(s) + ": ¿cuántas?" : c === "reps" && (s.ciclo_id || esMaxE) ? "máx: ¿cuántas?" : c === "s" ? (esMaxE ? "máx: ¿cuántos s?" : "45") : c === "t" ? (obj && obj.tiempo ? "obj. " + fmtTiempo(obj.tiempo) : "3:40") : "";
   });
   $("enHecha").textContent = hecha(s) ? "Guardar cambios" : "✓ Hecha";
   $("enDesmarcar").hidden = !hecha(s);
@@ -6375,7 +6573,7 @@ $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); 
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
 // VERSION_APP es interna (sube en cada publicación para que los móviles se actualicen); la que se ve es siempre la 26
-const VERSION_APP = "v125" + (BETA ? " beta" : "");
+const VERSION_APP = "v126" + (BETA ? " beta" : "");
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";

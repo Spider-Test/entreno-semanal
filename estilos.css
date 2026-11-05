@@ -1326,6 +1326,27 @@ h1 { color: var(--titulo); }
 .hueco-arrastre { flex: none; box-sizing: border-box; border: 2px dashed var(--accent); border-radius: 10px; background: var(--accent-soft); margin: 4px 0; }
 .hueco-arrastre.oculto { visibility: hidden; }
 
+/* Registro de Bilbo: los ciclos uno al lado del otro, como en la hoja */
+.dlg-ancho { width: min(1150px, calc(100vw - 24px)); max-width: none; }
+@media (min-width: 761px) { dialog.dlg-ancho { width: min(1150px, calc((100vw - 24px) / var(--zoom))); } }
+.breg-res { margin: 0 0 10px; font-size: 14px; }
+.breg-graf { max-width: 520px; margin-bottom: 10px; }
+.breg-ciclos { display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x proximity; padding-bottom: 6px; }
+.breg-ciclo { flex: 0 0 min(370px, 100%); min-width: 0; scroll-snap-align: start; border: 1px solid var(--line); border-radius: 12px; padding: 10px; background: var(--card); }
+.breg-ciclo.activo { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.breg-ciclo h4 { margin: 0; font-size: 15px; }
+.breg-ciclo .menu-det { margin: 2px 0 6px; }
+.breg-futura td { color: var(--muted); font-style: italic; }
+.breg-ciclo .tabla-bilbo { font-size: 13px; }
+.breg-ciclo .tabla-bilbo th, .breg-ciclo .tabla-bilbo td { padding: 5px 4px; white-space: nowrap; }
+@media (max-width: 420px) { .breg-ciclo { padding: 8px 6px; } .breg-ciclo .tabla-bilbo { font-size: 12px; } .breg-ciclo .tabla-bilbo th, .breg-ciclo .tabla-bilbo td { padding: 4px 3px; } }
+.tabla-bilbo tfoot td { font-weight: 700; border-bottom: 0; }
+.tabla-bilbo th:first-child, .tabla-bilbo td:first-child { text-align: left; }
+
+/* Bloque vacío */
+.bloque-vacio { border-style: dashed !important; }
+.bloque-vacio .bv-txt { margin: 4px 0; font-size: 13px; color: var(--muted); }
+
 /* Arrastrar un ejercicio o bloque encima de la cabecera de una parte: entra en ella (como una carpeta) */
 .parte-cab { transition: transform 0.15s, box-shadow 0.15s; }
 .parte-cab.zona-destino { transform: scale(1.03); box-shadow: 0 0 0 3px var(--pc), 0 6px 18px rgba(0, 0, 0, 0.18); }

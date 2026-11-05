@@ -307,6 +307,7 @@
     <label class="campo">Rondas (veces que se repite) <input id="blqRondas" type="number" min="1" max="50" inputmode="numeric"></label>
     <p id="blqAviso" class="aviso" role="status"></p>
     <div class="d-botones">
+      <button type="button" class="nav-btn" id="blqVacio" title="Un bloque sin ejercicios: luego arrastras ejercicios del entreno dentro con ≡">Crear vacío</button>
       <button type="button" class="anadir" id="blqCrear">Crear bloque</button>
     </div>
   </div>
@@ -479,6 +480,10 @@
   <div class="d-cuerpo ayuda">
     <p>Toca cada apartado para verlo. Puedes volver aquí cuando quieras con el botón <b>?</b> de arriba. ¿Echas algo en falta o algo no va bien? Envíanos una sugerencia:</p>
     <details class="novedades" open><summary>Novedades · versión 26</summary>
+      <p><b>Registro de Bilbo:</b> en <b>Marcas</b> hay un apartado <b>Bilbo</b> con tus ejercicios en ciclo. Toca uno y se abre su registro como en tu hoja: cada ciclo en su columna con día, fecha, peso, reps, trabajo y 1RM estimado, los acumulados, los récords y las próximas sesiones con el peso que toca, más la gráfica del 1RM.</p>
+      <p><b>Ventana de repeticiones:</b> escribe «10-12» (o «20-25», cualquiera; en el móvil también «10,12») en las reps de un ejercicio, de un bloque o de una fila y la app sabe que es una ventana. Al hacer la serie, toca su círculo y apunta las que salieron: queda «11 reps (de 10-12)».</p>
+      <p><b>Deshacer y rehacer en el ordenador:</b> <b>Ctrl+Z</b> (⌘Z en Mac) deshace lo último que hayas hecho (guardar, marcar, mover, borrar…) y <b>Ctrl+Y</b> o <b>Ctrl+Mayús+Z</b> (⌘⇧Z) lo rehace. Escribiendo en un campo, deshace el texto como siempre.</p>
+      <p><b>Bloque vacío:</b> en «+ Bloque», <b>Crear vacío</b> pone una caja ×N rondas sin ejercicios. Arrastra ejercicios del entreno encima de su título con ≡ (quédate un momento) o usa «+ Añadir ejercicio al bloque».</p>
       <p><b>Ejercicios sueltos debajo de una parte:</b> un ejercicio sin parte añadido después de una parte se queda abajo, donde lo pusiste, y lo puedes arrastrar arriba o abajo.</p>
       <p><b>Arrastrar con ≡, rehecho:</b> más fluido y sin moverse de lado al cogerlo (también en pantallas grandes de ordenador); lo que arrastras va pegado al dedo y un <b>hueco con borde de puntos</b> marca dónde caerá. Los demás ejercicios solo se apartan dentro de su parte: ya no se salen de ella. Para ponerlo al principio de una parte, pásalo por la mitad de abajo de su título; al final, por la mitad de arriba de su «+ Ejercicio». Para dejarlo <b>suelto entre dos partes</b>, déjalo justo encima del título de la parte de abajo. Meterlo en un bloque: quédate un momento encima del título del bloque.</p>
       <p><b>Cambiar de parte sin juntarse:</b> si pasas un ejercicio a una parte donde ya está el mismo ejercicio, queda como otra tarjeta con sus series en vez de mezclarse.</p>
@@ -542,6 +547,9 @@
       <p><b>Carrera y natación:</b> metros y tiempo. El botón <b>m</b> cambia a <b>min</b> si prefieres apuntar solo el tiempo.</p>
       <p>Los botones <b>−</b> y <b>+</b> suben o bajan el peso, las repeticiones, los metros (100 m) o el tiempo (5 s). En <b>Plan → Ajustes</b> eliges cuántos kilos sube cada toque (2,5 por defecto) y el peso de la barra; se guardan en cada dispositivo.</p>
       <p><b>Series y OK:</b> en fuerza, el número de <b>series</b> va junto al nombre del ejercicio; debajo, las <b>repeticiones</b> con su selector (Reps ▾: tiempo, máx…) y el <b>peso</b> con kg/%; y abajo, Por lado, el descanso y OK. Se guarda como «3 × 10 (100 kg)» y pulsa <b>OK</b>. Se crean todas de golpe y el ejercicio se pliega, limpio: «Press banca · 60 kg × 8 · ×4» con su progreso. Hoy y en días futuros quedan pendientes para marcarlas una a una; en días pasados se apuntan como hechas.</p>
+      <p><b>Ventana de reps:</b> «10-12» en las repeticiones (en el móvil, «10,12») planifica una ventana; al marcar la serie te pide las que hiciste.</p>
+      <p><b>Deshacer (ordenador):</b> Ctrl+Z / ⌘Z deshace y Ctrl+Y / ⌘⇧Z rehace.</p>
+      <p><b>Bloque vacío:</b> «+ Bloque» → «Crear vacío», y luego arrastra ejercicios encima de su título.</p>
       <p><b>Bloques (superseries, circuitos):</b> toca una serie de una ronda para cambiarla; con <b>kg/%</b> eliges kilos o % del 1RM y con «Igual en las otras rondas pendientes» se aplica a todas. Los descansos van en la serie de antes: en el ⋯ del bloque, «⏱ Descansos del bloque…» pone de una vez el de entre ejercicios, entre rondas o al terminar el bloque.</p>
       <p><b>Una fila por serie:</b> con 2 o más series sale una fila por cada una (2, 3, 4…) con sus reps y sus kilos, para pirámides o series descendentes. La 1 es la de arriba; las demás la copian hasta que las cambias. Las series ya hechas se ven en gris y se editan tocándolas.</p>
       <p><b>Editar el ejercicio entero:</b> toca su nombre (o <b>⋯ → Editar</b>). Puedes cambiar los valores de todas las series pendientes a la vez, el número <b>×N</b> (añade o quita series pendientes; si hubiera que quitar series hechas, te lo pregunta) o <b>cambiar el ejercicio</b> por otro del mismo tipo (por ejemplo, sentadilla → prensa) manteniendo las series. <b>OK</b> lo vuelve a plegar; tocar el nombre otra vez lo cierra sin guardar. Todo se puede deshacer.</p>
@@ -711,6 +719,14 @@
     <p class="aviso" id="claveAviso" role="status"></p>
     <div class="d-botones"><button type="button" class="anadir" id="claveGuardar">Guardar contraseña</button></div>
   </div>
+</dialog>
+
+<dialog id="dlgBilboReg" class="dlg-ancho" aria-label="Registro de Bilbo">
+  <form method="dialog" class="d-cab">
+    <h3 class="d-tit" id="bregTit">Bilbo</h3>
+    <button class="cerrar" aria-label="Cerrar">✕</button>
+  </form>
+  <div class="d-cuerpo" id="bregCuerpo"></div>
 </dialog>
 
 <dialog id="dlgCal" aria-label="Calendario">
