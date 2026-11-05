@@ -1375,6 +1375,11 @@ h1 { color: var(--titulo); }
 @media (max-width: 760px) { .lg-cuerpo { padding: 0 4px 6px; } .lista-gcab { padding: 8px 6px; } .lista-grupo { border-width: 1.5px; } }
 .lista-grupo.lg-plegado .lg-cuerpo { display: none; }
 
+/* Con una ventana abierta (ficha, menú, IA…) el fondo no se mueve: al llegar al final de la ventana el desplazamiento
+   no pasa a la página de detrás, y la página queda quieta mientras la ventana esté abierta */
+dialog, dialog .d-cuerpo, dialog .tabla-scroll, dialog .breg-ciclos, dialog .en-cuerpo { overscroll-behavior: contain; }
+html.con-ventana, html.con-ventana body { overflow: hidden; }
+
 /* Arrastrar un ejercicio o bloque encima de la cabecera de una parte: entra en ella (como una carpeta) */
 .parte-cab { transition: transform 0.15s, box-shadow 0.15s; }
 .parte-cab.zona-destino { transform: scale(1.03); box-shadow: 0 0 0 3px var(--pc), 0 6px 18px rgba(0, 0, 0, 0.18); }

@@ -573,7 +573,9 @@ function deshacerPaso(rehacer) {
   const paso = de.pop();
   if (!paso) { avisoDeshacer(rehacer ? "Nada que rehacer" : "Nada que deshacer", null); return; }
   a.push(aplicarPaso(paso));
-  avisoDeshacer(rehacer ? "↷ Rehecho" : "↶ Deshecho · " + (/Mac|iP/.test(navigator.platform) ? "⌘⇧Z" : "Ctrl+Y") + " para rehacer", null);
+  const mac = /Mac|iP/.test(navigator.platform);
+  avisoDeshacer(rehacer ? "↷ Rehecho" + (rehechos.length ? " · quedan " + rehechos.length + " por rehacer" : "") + " · " + (mac ? "⌘Z" : "Ctrl+Z") + " para deshacer"
+    : "↶ Deshecho" + (historial.length ? " · " + historial.length + " más por deshacer" : "") + " · " + (mac ? "⌘⇧Z" : "Ctrl+Y") + " para rehacer", null);
 }
 addEventListener("keydown", e => {
   if (!(e.metaKey || e.ctrlKey) || e.altKey) return;
@@ -632,6 +634,8 @@ function marcarExtra() {
     [esperaGrupo, partesVacias, esperaParte, esperaNota, esperaLetra, esperaAntes, bloquesVacios].forEach(o => Object.keys(o || {}).forEach(k => fechas.add(k.split("|")[0])));
     Object.values(db.entrenos).forEach(x => { if (x.extra && Object.keys(x.extra).length) fechas.add(x.fecha); });
     let hay = false;
+    // Guardado interno y automático: no es un paso que deshacer (si no, Ctrl+Z se «gastaba» en él y se perdía el rehacer)
+    const sinH = sinHistorial; sinHistorial = true;
     fechas.forEach(f => {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(f)) return;
       const e = extraDe(f), actual = (db.entrenos[f] || {}).extra || {};
@@ -640,6 +644,7 @@ function marcarExtra() {
       cambiar("entrenos", { ...previo, fecha: f, extra: e }, true);
       hay = true;
     });
+    sinHistorial = sinH;
     if (hay) persistir();
   }, 400);
 }
@@ -847,6 +852,14 @@ document.addEventListener("keydown", e => {
   e.preventDefault();
   if (b) b.click(); else t.blur();
 });
+// Fondo quieto mientras haya una ventana abierta (se mira cada vez que se abre o se cierra una)
+(() => {
+  const mirar = () => document.documentElement.classList.toggle("con-ventana", !!document.querySelector("dialog[open]"));
+  const obs = new MutationObserver(mirar);
+  document.querySelectorAll("dialog").forEach(d => { obs.observe(d, { attributes: true, attributeFilter: ["open"] }); d.addEventListener("close", mirar); });
+  // Las ventanas que se crean después (por si acaso) también
+  new MutationObserver(ms => ms.forEach(m => m.addedNodes.forEach(n => { if (n.tagName === "DIALOG") { obs.observe(n, { attributes: true, attributeFilter: ["open"] }); n.addEventListener("close", mirar); } }))).observe(document.body, { childList: true });
+})();
 function pedirNombre(titulo, valor, ayuda) {
   return new Promise(resolver => {
     const d = $("dlgNombre");
@@ -1332,11 +1345,51 @@ function moverADia(dia, grupo, f) {
   irADia(f);
   avisoDeshacer((grupo === null ? "Entrenamiento" : "«" + (grupo || "Entreno 1") + "»") + " movido al " + NOMBRES[(deIso(f).getDay() + 6) % 7].toLowerCase() + " " + fmt(deIso(f)), antes.length ? antes : null);
 }
+// Juntar dos entrenos del mismo día en uno («Pecho + Pierna»): primero los del primero y detrás los del segundo.
+// Partes con el mismo nombre se juntan; el mismo ejercicio en la misma parte queda como otra tarjeta (no se mezcla)
+function fusionarEntrenos(dia, primero, segundo, nombre) {
+  const delDia = seriesDelDia(dia.id), s1 = delDia.filter(s => (s.grupo || "") === primero), s2 = delDia.filter(s => (s.grupo || "") === segundo);
+  const antes = s1.concat(s2).map(s => ["series", { ...s }]);
+  const maxOrden = s1.length ? Math.max(...s1.map(s => n0(s.orden))) : 0;
+  s1.forEach(s => cambiar("series", { ...s, grupo: nombre }, true));
+  const usadas = {};
+  s1.filter(s => !s.bloque_id).forEach(s => { const k = s.ejercicio_id + "|" + (s.seccion || ""); (usadas[k] = usadas[k] || new Set()).add(n0(s.copia) > 1 ? n0(s.copia) : 1); });
+  const nuevaCopia = {};
+  s2.slice().sort((a, b) => n0(a.orden) - n0(b.orden)).forEach((s, i) => {
+    let extra = {};
+    if (!s.bloque_id) {
+      const k = s.ejercicio_id + "|" + (s.seccion || ""), mia = n0(s.copia) > 1 ? n0(s.copia) : 1, kc = k + "|" + mia;
+      if (nuevaCopia[kc] === undefined) nuevaCopia[kc] = usadas[k] && usadas[k].has(mia) ? Math.max(...usadas[k]) + 1 : 0;
+      if (nuevaCopia[kc]) { extra = { copia: nuevaCopia[kc] }; usadas[k].add(nuevaCopia[kc]); }
+    }
+    cambiar("series", { ...s, grupo: nombre, orden: maxOrden + 1 + i, ...extra }, true);
+  });
+  // Lo que vive fuera de las series: ejercicios sin series, entrenos y partes vacíos, bloques vacíos, plegados
+  const deUno = g => g === primero || g === segundo;
+  (enEspera[dia.id] || []).forEach(k => { if (deUno(esperaGrupo[dia.id + "|" + k] || "")) esperaGrupo[dia.id + "|" + k] = nombre; });
+  const pv = [...new Set((partesVacias[dia.id + "|" + primero] || []).concat(partesVacias[dia.id + "|" + segundo] || []))];
+  delete partesVacias[dia.id + "|" + primero]; delete partesVacias[dia.id + "|" + segundo];
+  if (pv.length) partesVacias[dia.id + "|" + nombre] = pv;
+  const sv = (sesionesVacias[dia.id] || []).filter(x => !deUno(x));
+  if (!s1.length && !s2.length && !pv.length) sv.push(nombre);
+  if (sv.length) sesionesVacias[dia.id] = sv; else delete sesionesVacias[dia.id];
+  Object.keys(bloquesVacios).forEach(k => { if (k.startsWith(dia.id + "|") && deUno(bloquesVacios[k].g || "")) bloquesVacios[k] = { ...bloquesVacios[k], g: nombre }; });
+  delete gruposPlegados[dia.id + "|" + primero]; delete gruposPlegados[dia.id + "|" + segundo]; delete gruposPlegados[dia.id + "|" + nombre];
+  escribir("grupos-plegados-v1", gruposPlegados);
+  guardarEspera(); guardarSesiones(); guardarVacios(); persistir();
+  pintarDia(dia);
+  avisoDeshacer("Entrenos juntados en «" + nombre + "»", antes.length ? antes : null);
+}
 function menuGrupo(dia, grupo) {
   const series = seriesDelDia(dia.id).filter(s => (s.grupo || "") === grupo);
   const nGrupos = new Set(seriesDelDia(dia.id).map(s => s.grupo || "")).size;
   abrirMenu(grupo, resumenItems(itemsDe(series)), [
     { texto: "📅 Mover a otro día…", accion: () => elegirDiaDestino(lunesDe(deIso(dia.id)), "¿A qué día muevo «" + (grupo || "Entreno 1") + "»?", f => moverADia(dia, grupo, f)) },
+    ...(() => { const otros = [...dia.bloquesEl.querySelectorAll(":scope > .grupo")].map(x => x.dataset.grupo || "").filter(x => x !== grupo);
+      return otros.length ? [{ texto: "🔗 Fusionar con otro entreno del día…", accion: () => abrirMenu("¿Con qué entreno lo junto?", "«" + (grupo || "Entreno 1") + "» va primero y el otro detrás, en un solo entreno", otros.map(x => ({ texto: x || "Entreno 1", accion: async () => {
+        const n = await pedirNombre("Nombre del entreno fusionado", (grupo || "Entreno 1") + " + " + (x || "Entreno 1"), "Por ejemplo «Pecho + Pierna». Sus ejercicios, bloques y partes pasan a ser un solo entreno.");
+        if (n) fusionarEntrenos(dia, grupo, x, n);
+      } }))) }] : []; })(),
     nGrupos > 1 && { texto: "Subir sesión", accion: () => moverGrupo(dia.id, grupo, -1) },
     nGrupos > 1 && { texto: "Bajar sesión", accion: () => moverGrupo(dia.id, grupo, 1) },
     series.filter(s => !s.bloque_id).length > 1 && { texto: "Seleccionar series para agrupar en bloque", accion: () => empezarSelSeries(dia) },
@@ -6631,8 +6684,20 @@ function asaArrastreDia(el, caja, hermanos, alSoltar, nombre, zonas) {
       vivo = false;
       clearTimeout(tZona); clearTimeout(tPl);
       arrastreActivo = false;
-      // Lo desplegado al pasar: donde ha caído se queda abierto; lo demás vuelve a plegarse
+      // Soltado justo encima del título de un entreno o parte plegados (sin esperar a que se abra): entra ahí, al final,
+      // y se despliega para que se vea
       let cambioPl = false;
+      if (ev.type !== "pointercancel" && !zona) {
+        const yF = dedoY + scrollY, cabF = pos.find(p => yF >= p.top && yF <= p.bottom && plegable(p.x));
+        if (cabF) {
+          const info = plegable(cabF.x), fin = info.cont.querySelector(":scope > .add-fila");
+          if (info.cls === "l-plegada") info.cont.appendChild(ph);
+          else if (fin) fin.before(ph); else info.cont.appendChild(ph);
+          info.cont.classList.remove(info.cls);
+          delete gruposPlegados[info.key]; cambioPl = true;
+        }
+      }
+      // Lo desplegado al pasar: donde ha caído se queda abierto; lo demás vuelve a plegarse
       abiertasTemp.forEach(info => {
         if (!zona && ev.type !== "pointercancel" && info.cont.contains(ph)) { delete gruposPlegados[info.key]; cambioPl = true; }
         else info.cont.classList.add(info.cls);
@@ -7085,7 +7150,7 @@ $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); 
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
 // VERSION_APP es interna (sube en cada publicación para que los móviles se actualicen); la que se ve es siempre la 26
-const VERSION_APP = "v138" + (BETA ? " beta" : "");
+const VERSION_APP = "v141" + (BETA ? " beta" : "");
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";
