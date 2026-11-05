@@ -1347,10 +1347,15 @@ function moverADia(dia, grupo, f) {
 }
 // Juntar dos entrenos del mismo día en uno («Pecho + Pierna»): primero los del primero y detrás los del segundo.
 // Partes con el mismo nombre se juntan; el mismo ejercicio en la misma parte queda como otra tarjeta (no se mezcla)
-function fusionarEntrenos(dia, primero, segundo, nombre) {
+function fusionarEntrenos(dia, primero, segundo, nombre, separarCalentamientos) {
   const delDia = seriesDelDia(dia.id), s1 = delDia.filter(s => (s.grupo || "") === primero), s2 = delDia.filter(s => (s.grupo || "") === segundo);
   const antes = s1.concat(s2).map(s => ["series", { ...s }]);
   const maxOrden = s1.length ? Math.max(...s1.map(s => n0(s.orden))) : 0;
+  const secciones1 = new Set(s1.map(s => s.seccion || "").concat(partesVacias[dia.id + "|" + primero] || []));
+  const renombrar = new Map();
+  if (separarCalentamientos) [...new Set(s2.map(s => s.seccion || "").concat(partesVacias[dia.id + "|" + segundo] || []))].forEach(sec => {
+    if (secciones1.has(sec) && /calentamiento/i.test(sec)) renombrar.set(sec, sec + " (" + (segundo || "Entreno 2") + ")");
+  });
   s1.forEach(s => cambiar("series", { ...s, grupo: nombre }, true));
   const usadas = {};
   s1.filter(s => !s.bloque_id).forEach(s => { const k = s.ejercicio_id + "|" + (s.seccion || ""); (usadas[k] = usadas[k] || new Set()).add(n0(s.copia) > 1 ? n0(s.copia) : 1); });
@@ -1362,18 +1367,27 @@ function fusionarEntrenos(dia, primero, segundo, nombre) {
       if (nuevaCopia[kc] === undefined) nuevaCopia[kc] = usadas[k] && usadas[k].has(mia) ? Math.max(...usadas[k]) + 1 : 0;
       if (nuevaCopia[kc]) { extra = { copia: nuevaCopia[kc] }; usadas[k].add(nuevaCopia[kc]); }
     }
-    cambiar("series", { ...s, grupo: nombre, orden: maxOrden + 1 + i, ...extra }, true);
+    cambiar("series", { ...s, seccion: renombrar.get(s.seccion || "") || s.seccion || "", grupo: nombre, orden: maxOrden + 1 + i, ...extra }, true);
   });
   // Lo que vive fuera de las series: ejercicios sin series, entrenos y partes vacíos, bloques vacíos, plegados
   const deUno = g => g === primero || g === segundo;
   (enEspera[dia.id] || []).forEach(k => { if (deUno(esperaGrupo[dia.id + "|" + k] || "")) esperaGrupo[dia.id + "|" + k] = nombre; });
-  const pv = [...new Set((partesVacias[dia.id + "|" + primero] || []).concat(partesVacias[dia.id + "|" + segundo] || []))];
+  const pv1 = partesVacias[dia.id + "|" + primero] || [], pv2 = (partesVacias[dia.id + "|" + segundo] || []).map(sec => renombrar.get(sec) || sec);
+  const pv = [...new Set(pv1.concat(pv2))];
   delete partesVacias[dia.id + "|" + primero]; delete partesVacias[dia.id + "|" + segundo];
   if (pv.length) partesVacias[dia.id + "|" + nombre] = pv;
   const sv = (sesionesVacias[dia.id] || []).filter(x => !deUno(x));
   if (!s1.length && !s2.length && !pv.length) sv.push(nombre);
   if (sv.length) sesionesVacias[dia.id] = sv; else delete sesionesVacias[dia.id];
-  Object.keys(bloquesVacios).forEach(k => { if (k.startsWith(dia.id + "|") && deUno(bloquesVacios[k].g || "")) bloquesVacios[k] = { ...bloquesVacios[k], g: nombre }; });
+  Object.keys(bloquesVacios).forEach(k => { if (k.startsWith(dia.id + "|") && deUno(bloquesVacios[k].g || "")) {
+    const eraSegundo = (bloquesVacios[k].g || "") === segundo;
+    bloquesVacios[k] = { ...bloquesVacios[k], g: nombre, p: eraSegundo ? (renombrar.get(bloquesVacios[k].p || "") || bloquesVacios[k].p || "") : bloquesVacios[k].p };
+  } });
+  if (renombrar.size) (enEspera[dia.id] || []).forEach(id => {
+    if ((esperaGrupo[dia.id + "|" + id] || "") !== segundo) return;
+    const k = dia.id + "|" + id, sec = esperaParte[k] || "";
+    if (renombrar.has(sec)) esperaParte[k] = renombrar.get(sec);
+  });
   delete gruposPlegados[dia.id + "|" + primero]; delete gruposPlegados[dia.id + "|" + segundo]; delete gruposPlegados[dia.id + "|" + nombre];
   escribir("grupos-plegados-v1", gruposPlegados);
   guardarEspera(); guardarSesiones(); guardarVacios(); persistir();
@@ -1387,8 +1401,18 @@ function menuGrupo(dia, grupo) {
     { texto: "📅 Mover a otro día…", accion: () => elegirDiaDestino(lunesDe(deIso(dia.id)), "¿A qué día muevo «" + (grupo || "Entreno 1") + "»?", f => moverADia(dia, grupo, f)) },
     ...(() => { const otros = [...dia.bloquesEl.querySelectorAll(":scope > .grupo")].map(x => x.dataset.grupo || "").filter(x => x !== grupo);
       return otros.length ? [{ texto: "🔗 Fusionar con otro entreno del día…", accion: () => abrirMenu("¿Con qué entreno lo junto?", "«" + (grupo || "Entreno 1") + "» va primero y el otro detrás, en un solo entreno", otros.map(x => ({ texto: x || "Entreno 1", accion: async () => {
-        const n = await pedirNombre("Nombre del entreno fusionado", (grupo || "Entreno 1") + " + " + (x || "Entreno 1"), "Por ejemplo «Pecho + Pierna». Sus ejercicios, bloques y partes pasan a ser un solo entreno.");
-        if (n) fusionarEntrenos(dia, grupo, x, n);
+        const hayCal1 = series.some(s => s.calentamiento || /calentamiento/i.test(s.seccion || "")) || (partesVacias[dia.id + "|" + grupo] || []).some(s => /calentamiento/i.test(s));
+        const delOtro = seriesDelDia(dia.id).filter(s => (s.grupo || "") === x);
+        const hayCal2 = delOtro.some(s => s.calentamiento || /calentamiento/i.test(s.seccion || "")) || (partesVacias[dia.id + "|" + x] || []).some(s => /calentamiento/i.test(s));
+        const nombrar = async separar => {
+          const n = await pedirNombre("Nombre del entreno fusionado", (grupo || "Entreno 1") + " + " + (x || "Entreno 1"), "Por ejemplo «Pecho + Pierna». Sus ejercicios, bloques y partes pasan a ser un solo entreno.");
+          if (n) fusionarEntrenos(dia, grupo, x, n, separar);
+        };
+        if (hayCal1 && hayCal2) abrirMenu("¿Qué hacemos con los calentamientos?", "Puedes juntarlos en una sola sección o conservarlos separados dentro del entreno fusionado.", [
+          { texto: "Unir los calentamientos", accion: () => nombrar(false) },
+          { texto: "Mantenerlos separados", accion: () => nombrar(true) }
+        ]);
+        else nombrar(false);
       } }))) }] : []; })(),
     nGrupos > 1 && { texto: "Subir sesión", accion: () => moverGrupo(dia.id, grupo, -1) },
     nGrupos > 1 && { texto: "Bajar sesión", accion: () => moverGrupo(dia.id, grupo, 1) },
@@ -7177,7 +7201,7 @@ $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); 
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
 // VERSION_APP es interna (sube en cada publicación para que los móviles se actualicen); la que se ve es siempre la 26
-const VERSION_APP = "v144" + (BETA ? " beta" : "");
+const VERSION_APP = "v145" + (BETA ? " beta" : "");
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";
