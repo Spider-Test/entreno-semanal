@@ -1314,9 +1314,10 @@ h1 { color: var(--titulo); }
 
 /* Bloques de fuerza: reps a la izquierda y kg o % a la derecha */
 .br-fuerza > .ns-fila:first-of-type .in-b, .tr-fuerza .in-b { order: 1; }
-.br-fuerza > .ns-fila:first-of-type .por, .tr-fuerza .por { order: 2; }
-.br-fuerza > .ns-fila:first-of-type .in-a, .tr-fuerza .in-a { order: 3; }
-.br-fuerza > .ns-fila:first-of-type .br-modo, .tr-fuerza .tr-modo { order: 4; }
+.br-fuerza > .ns-fila:first-of-type .br-medida, .tr-fuerza .tr-medida { order: 2; flex: none; height: 34px; }
+.br-fuerza > .ns-fila:first-of-type .por, .tr-fuerza .por { order: 3; }
+.br-fuerza > .ns-fila:first-of-type .in-a, .tr-fuerza .in-a { order: 4; }
+.br-fuerza > .ns-fila:first-of-type .br-modo, .tr-fuerza .tr-modo { order: 5; }
 .tramo .tr-modo { flex: none; }
 .tramo .tr-calc { margin: 0; font-size: 13px; color: var(--muted); text-align: right; }
 
