@@ -2362,3 +2362,9 @@ input:focus, textarea:focus, select:focus { border-color: var(--accent); box-sha
 }
 #vistaSemana .sem-resumenes > details.resumen-sem > .records { padding-left: 12px; padding-right: 12px; }
 #vistaSemana .sem-resumenes > details.resumen-sem > .molestias-semana { padding-left: 12px; padding-right: 12px; }
+
+/* El resumen de una letra solo hace falta mientras sus ejercicios están plegados. */
+#vistaSemana .letra-caja:not(.l-plegada) > .letra-cab .l-nombres { display: none !important; }
+#vistaSemana .letra-cab .g-prog { margin-left: auto; }
+/* Esta cubierta aparece únicamente cuando un día queda fijado al desplazarse. */
+#cubiertaDia { position: fixed; inset: 0 0 auto; width: 100%; background: var(--bg); z-index: 999; pointer-events: none; }
