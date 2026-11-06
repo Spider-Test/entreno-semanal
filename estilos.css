@@ -2340,9 +2340,13 @@ input:focus, textarea:focus, select:focus { border-color: var(--accent); box-sha
   #app .grupo:not(.g-plegado):not(:has(.parte-caja:not(.p-plegada))) > .grupo-cab,
   #app .parte-caja > .parte-cab,
   #app .parte-caja:not(.p-plegada) > .parte-cab {
-    position: static !important; top: auto !important; box-shadow: none;
+    position: static !important; top: auto !important;
+    /* Un elemento flex/grid conserva su capa aunque deje de ser sticky. */
+    z-index: auto !important; box-shadow: none;
   }
   #app #vistaSemana .dia { overflow: clip; }
+  /* Las capas internas del entrenamiento permanecen debajo de la fecha fija. */
+  #app #vistaSemana .dia-cuerpo { isolation: isolate; }
   #app #vistaSemana .dia:not(.plegado) > .dia-cab {
     position: sticky !important; top: var(--sticky-cabecera) !important; z-index: 15;
     background: var(--card) !important; background-image: none !important;
