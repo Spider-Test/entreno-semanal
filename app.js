@@ -494,14 +494,40 @@ function guardarSesion(j) {
   escribir("sesion-v1", sesion);
 }
 class SesionCaducada extends Error {}
+const refreshPromises = new Map();
 async function refrescar() {
-  const r = await fetch(SUPA + "/auth/v1/token?grant_type=refresh_token", {
-    method: "POST", headers: { apikey: CLAVE, "Content-Type": "application/json" },
-    body: JSON.stringify({ refresh_token: sesion.refresh_token })
-  });
-  if (r.status === 400 || r.status === 401) throw new SesionCaducada();
-  if (!r.ok) throw new Error("refresh " + r.status);
-  guardarSesion(await r.json());
+  const userId = sesion?.user_id;
+  if (!userId || !sesion?.refresh_token) throw new SesionCaducada();
+  if (refreshPromises.has(userId)) return refreshPromises.get(userId);
+
+  const promise = (async () => {
+    const refrescarBajoBloqueo = async () => {
+      if (!sesion || sesion.user_id !== userId) throw new SesionCaducada();
+      const guardada = leer("sesion-v1");
+      if (!guardada || guardada.user_id !== userId || !guardada.refresh_token) throw new SesionCaducada();
+      if (guardada.refresh_token !== sesion.refresh_token && guardada.expires_at * 1000 > Date.now() + 60000) {
+        sesion = guardada;
+        return;
+      }
+      const r = await fetch(SUPA + "/auth/v1/token?grant_type=refresh_token", {
+        method: "POST", headers: { apikey: CLAVE, "Content-Type": "application/json" },
+        body: JSON.stringify({ refresh_token: guardada.refresh_token })
+      });
+      if (r.status === 400 || r.status === 401) throw new SesionCaducada();
+      if (!r.ok) throw new Error("refresh " + r.status);
+      const vigente = leer("sesion-v1");
+      if (!sesion || sesion.user_id !== userId || !vigente || vigente.user_id !== userId || vigente.refresh_token !== guardada.refresh_token) throw new SesionCaducada();
+      guardarSesion(await r.json());
+    };
+    if (navigator.locks?.request) await navigator.locks.request("supabase-refresh-" + userId, refrescarBajoBloqueo);
+    else await refrescarBajoBloqueo();
+  })();
+  refreshPromises.set(userId, promise);
+  try {
+    await promise;
+  } finally {
+    if (refreshPromises.get(userId) === promise) refreshPromises.delete(userId);
+  }
 }
 async function api(ruta, opciones = {}, reintento = false) {
   if (sesion.expires_at * 1000 - 60000 < Date.now()) await refrescar();
@@ -5212,11 +5238,31 @@ $("claveGuardar").addEventListener("click", async () => {
     $("claveAviso").textContent = navigator.onLine === false ? "Necesitas conexión para cambiar la contraseña." : err.message;
   } finally { $("claveGuardar").disabled = false; }
 });
-function cerrarSesion(msg) {
-  sesion = null; escribir("sesion-v1", null);
+function mostrarLoginLocal(msg) {
+  sesion = null;
   $("app").hidden = true; $("pendiente").hidden = true; $("login").hidden = false;
   $("loginError").textContent = msg || "";
 }
+function cerrarSesion(msg) {
+  const accessToken = sesion?.access_token;
+  mostrarLoginLocal(msg);
+  escribir("sesion-v1", null);
+  if (accessToken) fetch(SUPA + "/auth/v1/logout?scope=local", {
+    method: "POST",
+    headers: { apikey: CLAVE, Authorization: "Bearer " + accessToken }
+  }).catch(() => {});
+}
+window.addEventListener("storage", e => {
+  if (e.key !== PREFIJO + "sesion-v1") return;
+  const actualizada = leer("sesion-v1");
+  if (!actualizada) {
+    if (sesion) mostrarLoginLocal("");
+  } else if (sesion?.user_id === actualizada.user_id) {
+    sesion = actualizada;
+  } else if (sesion) {
+    mostrarLoginLocal("");
+  }
+});
 $("salirBtn").addEventListener("click", () => {
   if (hayPendientes()) { setEstado("Hay cambios sin subir. Conéctate a internet antes de cerrar sesión.", true); return; }
   cerrarSesion("");
