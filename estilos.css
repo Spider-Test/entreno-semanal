@@ -2234,9 +2234,12 @@ input:focus, textarea:focus, select:focus { border-color: var(--accent); box-sha
   }
   @supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
     html.ios-instalada body::before {
-      background: color-mix(in srgb, var(--bg) 78%, transparent);
-      -webkit-backdrop-filter: blur(20px) saturate(140%);
-      backdrop-filter: blur(20px) saturate(140%);
+      background: color-mix(in srgb, var(--bg) 42%, transparent);
+      -webkit-backdrop-filter: blur(12px) saturate(135%);
+      backdrop-filter: blur(12px) saturate(135%);
+      /* La salida gradual evita un borde rectangular sobre el contenido. */
+      -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 18px), transparent);
+      mask-image: linear-gradient(to bottom, #000 calc(100% - 18px), transparent);
     }
   }
   @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
@@ -2244,6 +2247,8 @@ input:focus, textarea:focus, select:focus { border-color: var(--accent); box-sha
       background: var(--bg);
       -webkit-backdrop-filter: none;
       backdrop-filter: none;
+      -webkit-mask-image: none;
+      mask-image: none;
     }
   }
 }
