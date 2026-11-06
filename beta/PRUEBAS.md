@@ -1,7 +1,7 @@
 # Lista de pruebas antes de cada versión
 
-Se pasa entera en la **beta** (`https://spider-test.github.io/entreno-semanal/beta/`) antes de pasar nada a la principal.
-Usa una cuenta de pruebas o días sin datos reales: la beta comparte la base de datos con la principal.
+Se pasa entera en la **beta** (`https://spider-test.github.io/fuerza-y-ritmo/beta/`) antes de pasar nada a la principal.
+**No hagas pruebas que escriban datos hasta comprobar que `app.js` apunta al proyecto Supabase de pruebas aislado.** Esta copia conserva la conexión que ya traía y no se ha confirmado que sea el proyecto nuevo; la versión beta anterior compartía la base de datos con la principal.
 
 Apunta en cada versión: fecha, versión, dispositivo (iPhone / Mac / Android) y si pasa (✓) o falla (✗, con qué).
 
@@ -340,3 +340,12 @@ Si alguna cifra se multiplica por 3 o más en una versión nueva, revisar antes 
 ## v151 · Evitar ejercicios duplicados
 - [ ] Crear un ejercicio con el mismo nombre (ignorando mayúsculas, tildes y espacios) y el mismo tipo reutiliza el existente.
 - [ ] El mismo nombre con otro tipo sigue pudiendo crearse como entrada aparte.
+
+## v153–v154 · Navegación, descargas y tema oscuro (pendiente de prueba en móvil)
+- [ ] En un iPhone estrecho, abrir un día: el nombre y la fecha se ven completos; «Semana», anterior, «Hoy» y siguiente caben en una franja ordenada.
+- [ ] En el día de hoy, «Hoy» permanece visible; en otro día, tocar «Hoy» lleva al día actual.
+- [ ] Cambiar entre las cinco pestañas inferiores: el rótulo largo de Entrenamientos puede partirse limpiamente y la pestaña activa destaca sin desplazar los otros botones.
+- [ ] Marcas → Resumen descargable → Descargar resumen: ofrece HTML y PDF; HTML se descarga/compartir, PDF abre imprimir y permite guardar como PDF; cancelar la impresión no cambia datos.
+- [ ] En vistas previas de plantillas y entrenamientos, cada parte (calentamiento, principal, vuelta a la calma) se puede plegar y desplegar; ejercicios sin parte siguen visibles.
+- [ ] En modo oscuro, el acento de la app se ve verde salvia y el fondo/paneles conservan el contraste; comprobar texto, botones, días, resumen y pestaña activa.
+- [ ] En móvil, tirar hacia abajo desde el inicio de la página no arrastra la cabecera de la app ni activa el rebote de actualización; el scroll normal hacia arriba y abajo sigue funcionando.

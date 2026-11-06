@@ -1720,3 +1720,23 @@ input:focus, textarea:focus, select:focus { border-color: var(--accent); box-sha
   .tabbar button:focus-visible { outline: 2px solid var(--verde); outline-offset: 1px; }
 }
 
+/* Tema oscuro más sereno y sin el rebote de «tirar para actualizar» en móvil. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --accent: #86ad98;
+    --accent-soft: #20312b;
+    --verde: #92b8a2;
+    --marca: #86ad98;
+    --toast-acento: #5b8b70;
+    --p1: #86ad98;
+    --natacion: #69b6b3;
+    --pulso: #75b9b2;
+  }
+  body {
+    background: radial-gradient(ellipse at 50% -18%, color-mix(in srgb, var(--accent-soft) 30%, transparent), transparent 58%), var(--bg);
+  }
+}
+@media (max-width: 760px) {
+  html, body { overscroll-behavior-y: none; }
+}
+

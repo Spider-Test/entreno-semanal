@@ -12,6 +12,7 @@ El archivo `estilos.css` ya incluye los ajustes pedidos para la vista móvil:
 - Al abrir un día en Semana desde el móvil, el nombre y la fecha quedan completos en una línea; los accesos para volver a la semana, cambiar de día y saltar a Hoy quedan ordenados debajo.
 - Las partes de los entrenamientos se pueden plegar y desplegar en las vistas previas, también en carrera.
 - En Marcas, el resumen descargable queda plegado al entrar. Al descargar, se puede elegir HTML o abrir la impresión del navegador para guardar como PDF.
+- El tema oscuro usa un acento verde salvia más suave. En móvil se desactiva el rebote de sobre-desplazamiento que hacía bajar la cabecera al tirar desde arriba.
 - El acabado general ahora tiene sombras suaves en paneles, un fondo con halo de color muy sutil, franjas de color por categoría y estados de interacción más claros. Se respetan el modo oscuro, el contraste alto y la preferencia de movimiento reducido.
 - Pulsaciones y Bilbo usan colores más fáciles de distinguir en modo oscuro y claro.
 - Los valores de zonas de pulso y las próximas sesiones de Bilbo tienen más contraste en modo oscuro.
