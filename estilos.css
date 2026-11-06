@@ -2021,3 +2021,32 @@ input:focus, textarea:focus, select:focus { border-color: var(--accent); box-sha
   .tabbar button[aria-selected="true"] { color: var(--verde) !important; }
 }
 
+/* Barra inferior translúcida, con suficiente contraste para leer las cinco secciones. */
+@media (max-width: 760px) {
+  .tabbar {
+    background: linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--card) 78%, transparent),
+      color-mix(in srgb, var(--card) 91%, transparent)
+    ) !important;
+    border-color: color-mix(in srgb, var(--line) 75%, transparent) !important;
+    box-shadow: 0 12px 32px rgba(15, 28, 38, 0.16), inset 0 1px 0 color-mix(in srgb, var(--card) 82%, transparent);
+    -webkit-backdrop-filter: blur(24px) saturate(155%);
+    backdrop-filter: blur(24px) saturate(155%);
+  }
+  .tabbar button:not([aria-selected="true"]) { color: var(--muted) !important; }
+  .tabbar button[aria-selected="true"] { color: var(--verde) !important; }
+  .tabbar button span { white-space: nowrap; font-size: clamp(8px, 2.45vw, 10px); }
+
+  /* El selector secundario de Entrenamientos acompaña el contenido y no lo tapa al desplazarse. */
+  #organizarNav.organizar-nav {
+    position: static;
+    top: auto;
+    z-index: auto;
+    margin-bottom: 4px;
+    background: color-mix(in srgb, var(--card) 92%, transparent);
+    box-shadow: 0 2px 8px rgba(15, 28, 38, 0.06);
+  }
+  #vistaListas .lista-sec:not(.cerrada) > .lista-cab { top: var(--sticky-cabecera); }
+}
+
