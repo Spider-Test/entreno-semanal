@@ -17,6 +17,15 @@
 </head>
 <body>
 
+<section id="aperturaApp" class="apertura" hidden aria-hidden="true">
+  <svg class="logo-apertura" viewBox="72 48 368 250" role="img" aria-label="Fuerza y Ritmo">
+    <path class="logo-arco" d="M174 101 C208 71 304 71 338 101" />
+    <rect class="logo-pesa" x="92" y="174" width="42" height="102" rx="16" />
+    <rect class="logo-pesa" x="132" y="205" width="247" height="41" rx="20" />
+    <rect class="logo-pesa" x="378" y="174" width="42" height="102" rx="16" />
+  </svg>
+</section>
+
 <section id="login" hidden>
   <h1>Fuerza y Ritmo</h1>
   <p id="loginTexto">Entra con tu email y tu contraseña. Solo hace falta una vez en cada dispositivo.</p>
@@ -43,12 +52,11 @@
 <section id="app" hidden>
   <header class="cabecera">
     <h1>Fuerza y Ritmo</h1>
-    <button type="button" class="ayuda-btn" id="ayudaBtn" aria-label="Instrucciones de uso" title="Instrucciones de uso">?</button>
   </header>
   <nav class="tabbar" role="tablist" aria-label="Secciones">
     <button type="button" role="tab" id="tabSemana" aria-selected="true"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg><span>Semana</span></button>
     <button type="button" role="tab" id="tabEjercicios" aria-selected="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 7v10M17.5 7v10M3.5 9.5v5M20.5 9.5v5M6.5 12h11"/></svg><span>Ejercicios</span></button>
-    <button type="button" role="tab" id="tabListas" aria-selected="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6.5h11M9 12h11M9 17.5h11"/><path d="M4 6.5h.01M4 12h.01M4 17.5h.01" stroke-width="3" stroke-linecap="round"/></svg><span>Entrena<wbr>mientos</span></button>
+    <button type="button" role="tab" id="tabListas" aria-label="Entrenamientos" aria-selected="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6.5h11M9 12h11M9 17.5h11"/><path d="M4 6.5h.01M4 12h.01M4 17.5h.01" stroke-width="3" stroke-linecap="round"/></svg><span>Entrenos</span></button>
     <button type="button" role="tab" id="tabMarcas" aria-selected="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19.5h16M7 16.5v-5M12 16.5V6.5M17 16.5v-8"/></svg><span>Marcas</span></button>
     <button type="button" role="tab" id="tabPlan" aria-selected="false"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="4" width="14" height="17" rx="2.5"/><path d="M9 4.5V3h6v1.5M8.5 10h7M8.5 14h7M8.5 18h4"/></svg><span>Ajustes</span></button>
   </nav>
@@ -164,6 +172,11 @@
         <label class="campo">FC en reposo (opcional, zonas por reserva) <input id="ajFcReposo" inputmode="numeric" pattern="[0-9]*"></label>
       </div>
       <label class="campo">Series importadas con mucho desnivel (pendiente media de más del 4 %) <select id="ajDesnivel"><option value="excluir">No cuentan para las marcas por distancia</option><option value="contar">Cuentan, con su ritmo ajustado</option></select></label>
+    </section>
+    <section class="plan-sec" data-sec="ayuda">
+      <h3>Instrucciones de uso</h3>
+      <p class="vacio-lista">Consulta cómo usar la semana, los ejercicios, los entrenamientos y las marcas.</p>
+      <button type="button" class="nav-btn ayuda-btn ayuda-ajustes-btn" id="ayudaBtn" aria-label="Instrucciones de uso" title="Abrir instrucciones completas">Abrir instrucciones completas</button>
     </section>
     <section class="plan-sec" data-sec="sugerencias" id="bloqueSug" hidden>
       <div class="sec-cab"><h3 id="sugTit">Sugerencias</h3><button type="button" class="nav-btn" id="sugRecargar">Actualizar</button></div>
@@ -523,7 +536,7 @@
     <button class="cerrar" aria-label="Cerrar">✕</button>
   </form>
   <div class="d-cuerpo ayuda">
-    <p>Toca cada apartado para verlo. Puedes volver aquí cuando quieras con el botón <b>?</b> de arriba. ¿Echas algo en falta o algo no va bien? Envíanos una sugerencia:</p>
+    <p>Toca cada apartado para verlo. Puedes volver aquí cuando quieras desde <b>Ajustes → Instrucciones de uso</b>. ¿Echas algo en falta o algo no va bien? Envíanos una sugerencia:</p>
     <button type="button" class="nav-btn sug-btn" id="sugAyuda">💬 Enviar una sugerencia o avisar de un fallo</button>
     <details><summary>La semana y el texto del día</summary>
       <p>En el móvil, las secciones están abajo: <b>Semana</b>, <b>Ejercicios</b>, <b>Entrenamientos</b>, <b>Marcas</b> y <b>Ajustes</b>. En el ordenador van arriba, centradas, y la semana se ve en 7 columnas. En pantallas grandes todo se amplía un poco para aprovechar el ancho; en <b>Ajustes → Tamaño en el ordenador</b> eliges otro tamaño si lo prefieres.</p>

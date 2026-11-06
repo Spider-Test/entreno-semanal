@@ -1464,7 +1464,7 @@ function menuGrupo(dia, grupo) {
 }
 
 // ---------- Compartir con amigos: un código (o enlace) que otro usuario añade a su calendario ----------
-const URL_APP = "https://spider-test.github.io/fuerza-y-ritmo/";
+const URL_APP = "https://spider-test.github.io/fuerza-y-ritmo/" + (BETA ? "beta/" : "");
 const nuevoCodigo = () => Array.from(crypto.getRandomValues(new Uint8Array(8)), b => "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"[b % 32]).join("");
 // Los ejercicios viajan por nombre y tipo, porque cada usuario tiene los suyos
 const paraCompartir = items => items.map(it => it.bloque
@@ -5177,7 +5177,14 @@ function pintarTodo() {
 }
 
 // Sincronizar al abrir, al volver a la app, al recuperar conexión y cada 30 s
-document.addEventListener("visibilitychange", () => { if (!document.hidden) { registrarAcceso(); if (!$("vistaSemana").hidden && !escribiendoSerie()) pintarSemana(); sincronizar(); } });
+let segundoPlanoDesde = 0;
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) { segundoPlanoDesde = Date.now(); return; }
+  const instalada = matchMedia("(display-mode: standalone)").matches || navigator.standalone;
+  if (instalada && sesion && !$("app").hidden && segundoPlanoDesde && Date.now() - segundoPlanoDesde > 1200) reproducirApertura();
+  segundoPlanoDesde = 0;
+  registrarAcceso(); if (!$("vistaSemana").hidden && !escribiendoSerie()) pintarSemana(); sincronizar();
+});
 addEventListener("online", sincronizar);
 setInterval(() => { if (!document.hidden) sincronizar(); }, 30000);
 
@@ -5334,10 +5341,27 @@ async function cargarInicios() {
     if (!$("vistaPlan").hidden) pintarPlan();
   } catch {}
 }
-function mostrarApp() {
+let temporizadorApertura;
+function reproducirApertura() {
+  const panel = $("aperturaApp");
+  if (!panel || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  clearTimeout(temporizadorApertura);
+  panel.hidden = false;
+  panel.setAttribute("aria-hidden", "false");
+  panel.classList.remove("activa");
+  void panel.offsetWidth;
+  panel.classList.add("activa");
+  temporizadorApertura = setTimeout(() => {
+    panel.classList.remove("activa");
+    panel.hidden = true;
+    panel.setAttribute("aria-hidden", "true");
+  }, 1080);
+}
+function mostrarApp(reapertura = false) {
   if (perfil && perfil.aprobado === false) { mostrarPendiente(); return; }
   $("login").hidden = true; $("pendiente").hidden = true; $("app").hidden = false;
   verPestana(leer("pestana-v1") || "semana");
+  if (reapertura) reproducirApertura();
   setEstado("Sincronizando…");
   sincronizar();
   registrarAcceso();
@@ -5403,7 +5427,28 @@ $("rpeQuitar").addEventListener("click", () => guardarRpe(0, ""));
 function datosSemana(lunes) {
   const ini = iso(lunes), fin = iso(sumarDias(lunes, 7));
   const todas = seriesVivas().filter(s => s.fecha >= ini && s.fecha < fin && !s.calentamiento), hechas = todas.filter(hecha);
-  const r = { series: hechas.length, total: todas.length, km: 0, nado: 0, kg: 0, mov: 0, prs: 0, dias: new Set(hechas.map(s => s.fecha)).size };
+  const r = { series: hechas.length, total: todas.length, km: 0, nado: 0, kg: 0, mov: 0, prs: 0, dias: new Set(hechas.map(s => s.fecha)).size, entrenosHechos: 0, entrenosPrevistos: 0, porTipo: {} };
+  todas.forEach(s => {
+    const tipo = tipoDe(s.ejercicio_id);
+    const t = r.porTipo[tipo] || (r.porTipo[tipo] = { hechas: 0, total: 0 });
+    t.total++;
+    if (hecha(s)) t.hechas++;
+  });
+  // Cuenta cada sesión del día una vez; incluye sesiones vacías creadas con «+ Entreno».
+  const sesiones = new Map();
+  seriesVivas().filter(s => s.fecha >= ini && s.fecha < fin).forEach(s => {
+    const k = s.fecha + "|" + (s.grupo || "");
+    if (!sesiones.has(k)) sesiones.set(k, []);
+    sesiones.get(k).push(s);
+  });
+  Object.entries(sesionesVacias).forEach(([fecha, nombres]) => {
+    if (fecha >= ini && fecha < fin) (nombres || []).forEach(nombre => {
+      const k = fecha + "|" + (nombre || "");
+      if (!sesiones.has(k)) sesiones.set(k, []);
+    });
+  });
+  r.entrenosPrevistos = sesiones.size;
+  sesiones.forEach(ss => { if (ss.length && ss.every(hecha)) r.entrenosHechos++; });
   hechas.forEach(s => { const t = tipoDe(s.ejercicio_id); if (t === "fuerza") r.kg += n0(s.peso) * n0(s.reps); else if (t === "movilidad") r.mov += n0(s.tiempo) * (s.por_lado ? 2 : 1) / 60; });
   // Los km y metros sí incluyen calentamiento y vuelta a la calma: también se corren
   seriesVivas().filter(s => s.fecha >= ini && s.fecha < fin && hecha(s)).forEach(s => {
@@ -5423,11 +5468,11 @@ function pintarResumen() {
   if (clave === claveResumen) return;
   claveResumen = clave;
   const a = datosSemana(lunes), b = datosSemana(sumarDias(lunes, -7));
-  $("resumenSem").hidden = !a.total && !b.series && !a.rpe;
+  $("resumenSem").hidden = !a.total && !b.series && !a.rpe && !a.entrenosPrevistos;
   if ($("resumenSem").hidden) return;
   const km = v => num(Math.round(v * 10) / 10) + " km", kg = v => num(Math.round(v)) + " kg", uno = v => num(Math.round(v * 10) / 10);
   const dif = (x, y, f) => Math.abs(x - y) < 1e-9 ? "igual que la semana anterior" : (x > y ? "+" : "−") + f(Math.abs(x - y)) + " frente a la anterior";
-  $("resumenLinea").textContent = [a.km || b.km ? km(a.km) : "", a.kg || b.kg ? kg(a.kg) : "", a.mov >= 1 ? num(Math.round(a.mov)) + " min movilidad" : "", a.series + "/" + a.total + " series", a.prs ? a.prs + " PR" : ""].filter(Boolean).join(" · ");
+  $("resumenLinea").textContent = [a.km || b.km ? km(a.km) : "", a.kg || b.kg ? kg(a.kg) : "", a.mov >= 1 ? num(Math.round(a.mov)) + " min movilidad" : "", a.entrenosPrevistos ? a.entrenosHechos + "/" + a.entrenosPrevistos + " entrenos" : "", a.series + "/" + a.total + " series", a.prs ? a.prs + " PR" : ""].filter(Boolean).join(" · ");
   const cont = $("resumenCont");
   cont.textContent = "";
   if (a.km || b.km) cont.appendChild(recuadro("Carrera", km(a.km), dif(a.km, b.km, km)));
@@ -5435,7 +5480,10 @@ function pintarResumen() {
   if (a.kg || b.kg) cont.appendChild(recuadro("Fuerza (kg × reps)", kg(a.kg), dif(a.kg, b.kg, kg)));
   const mins = v => num(Math.round(v)) + " min";
   if (a.mov || b.mov) cont.appendChild(recuadro("Movilidad", mins(a.mov), dif(Math.round(a.mov), Math.round(b.mov), mins)));
+  const pct = (hechas, total) => total ? Math.round(hechas / total * 100) + " % completado" : "Sin sesiones previstas";
+  if (a.entrenosPrevistos || b.entrenosPrevistos) cont.appendChild(recuadro("Entrenamientos completados", a.entrenosHechos + " de " + a.entrenosPrevistos, pct(a.entrenosHechos, a.entrenosPrevistos) + " · semana anterior: " + b.entrenosHechos + " de " + b.entrenosPrevistos));
   cont.appendChild(recuadro("Series hechas", a.series + " de " + a.total, (a.total ? Math.round(a.series / a.total * 100) + " % de lo planificado · " : "") + "anterior: " + b.series + " de " + b.total));
+  Object.entries(a.porTipo).forEach(([tipo, t]) => cont.appendChild(recuadro((TIPOS[tipo] || TIPOS.fuerza).nombre + " · series", t.hechas + " de " + t.total, pct(t.hechas, t.total))));
   cont.appendChild(recuadro("Días entrenados", String(a.dias), "anterior: " + b.dias));
   cont.appendChild(recuadro("Récords (PR)", String(a.prs), "anterior: " + b.prs, a.prs > 0));
   if (a.rpe || b.rpe) cont.appendChild(recuadro("Esfuerzo medio", a.rpe ? uno(a.rpe) + "/10" : "—", b.rpe ? "anterior: " + uno(b.rpe) + "/10" : "sin datos la semana anterior"));
@@ -7297,7 +7345,7 @@ $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); 
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
 // VERSION_APP es interna (sube en cada publicación para que los móviles se actualicen); la que se ve es siempre la 26
-const VERSION_APP = "v156" + (BETA ? " beta" : "");
+const VERSION_APP = "v176" + (BETA ? " beta" : "");
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";
@@ -8063,7 +8111,7 @@ document.querySelectorAll("#vistaPlan > .plan-sec[data-sec]").forEach(sec => {
 const GRUPOS_PLAN = {
   crear: ["importar", "ia", "compartido"],
   entrenos: ["plantillas", "mesociclos", "rutinas"],
-  cuenta: ["copia", "ajustes", "sugerencias", "usuarios"]
+  cuenta: ["copia", "ajustes", "ayuda", "sugerencias", "usuarios"]
 };
 function aplicarGrupoPlan() {
   const grupo = leer("plan-grupo-v1") || "crear", secciones = GRUPOS_PLAN[grupo] || GRUPOS_PLAN.crear;
@@ -8141,7 +8189,7 @@ $("ayudaBtn").addEventListener("click", abrirAyuda);
 $("dlgAyuda").querySelectorAll("details").forEach(d => d.addEventListener("toggle", () => { if (d.open) verAlAbrir(d); }));
 
 if (/type=recovery|error_code=/.test(location.hash)) entrarDesdeEnlace();
-else if (sesion) mostrarApp(); else $("login").hidden = false;
+else if (sesion) mostrarApp(true); else $("login").hidden = false;
 
 // Aviso en la propia app cuando hay una versión publicada más nueva que la que se está usando
 async function comprobarVersionNueva() {

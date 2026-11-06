@@ -31,6 +31,17 @@
     --pulso: #67e8df; --bilbo: #c4b5fd; --bilbo-futura: #c5cfda;
   }
 }
+
+/* Apertura breve al reabrir la app: usa automáticamente el tema actual. */
+.apertura { position:fixed; inset:0; z-index:20000; display:grid; place-items:center; padding:24px; background:var(--bg); pointer-events:none; opacity:0; }
+.apertura.activa { opacity:1; animation: apertura-salir .25s ease-out .76s forwards; }
+.logo-apertura { display:block; width:clamp(128px, 34vw, 168px); height:auto; overflow:visible; opacity:0; transform:scale(.94); filter:drop-shadow(0 10px 24px color-mix(in srgb,var(--accent) 18%,transparent)); }
+.logo-arco { fill:none; stroke:var(--accent); stroke-width:30; stroke-linecap:round; }
+.logo-pesa { fill:var(--fg); }
+.apertura.activa .logo-apertura { animation: apertura-parpadeo .86s ease-in-out both; }
+@keyframes apertura-parpadeo { 0% { opacity:0; transform:scale(.94); } 34% { opacity:1; transform:scale(1.02); } 48% { opacity:.48; transform:scale(.98); } 68% { opacity:1; transform:scale(1.015); } 100% { opacity:1; transform:scale(1); } }
+@keyframes apertura-salir { to { opacity:0; visibility:hidden; } }
+@media (prefers-reduced-motion: reduce) { .apertura.activa, .apertura.activa .logo-apertura { animation:none !important; } .apertura.activa { display:none; } }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 html, body { margin: 0; min-height: 100%; }
@@ -949,6 +960,139 @@ html.ampliado label, html.ampliado summary, html.ampliado .tarjeta, html.ampliad
 .ej-resumen { font-size: 13px; font-weight: 600; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; margin-left: 6px; }
 @media (max-width: 760px) { .ns-fila .veces-l .veces { padding: 10px 4px; font-size: 18px; } .cambiar-ej select { min-height: 44px; font-size: 16px; } }
 
+/* Móvil: cabecera compacta y controles de acordeón accesibles al recorrer contenido abierto. */
+@media (max-width: 760px) {
+  :root { --sticky-cabecera: calc(max(10px, env(safe-area-inset-top, 0px)) + 48px); }
+
+  #app > .cabecera {
+    justify-content: flex-end;
+    min-height: 0;
+    padding-bottom: 4px;
+    background: var(--bg) !important;
+    background-image: none !important;
+    border: 0;
+    border-bottom: 1px solid var(--line);
+    border-radius: 0;
+    box-shadow: none;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+  #app > .cabecera h1 { display: none; }
+  #app > .cabecera .ayuda-btn {
+    width: 36px;
+    height: 36px;
+    margin-left: auto;
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--card) 88%, transparent);
+  }
+
+  /* Día abierto: fecha y navegación sin una tarjeta grande ni un botón Semana que ocupe media fila. */
+  #vistaSemana .dia-nav:not([hidden]) {
+    position: sticky;
+    top: var(--sticky-cabecera);
+    z-index: 14;
+    grid-template-columns: max-content 40px minmax(52px, auto) 40px;
+    gap: 4px;
+    padding: 5px 8px;
+    border: 0;
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--bg) 90%, transparent);
+    box-shadow: none;
+    -webkit-backdrop-filter: blur(14px);
+    backdrop-filter: blur(14px);
+  }
+  #vistaSemana .dia-nav-t {
+    padding: 0 2px 4px;
+    font-size: clamp(17px, 4.6vw, 20px);
+  }
+  #vistaSemana #volverSemana {
+    width: auto;
+    min-width: 0;
+    height: 38px;
+    min-height: 38px;
+    padding: 0 5px;
+    border: 0;
+    background: transparent;
+    font-size: 13px;
+  }
+  #vistaSemana #diaAnt, #vistaSemana #diaSig {
+    width: 40px;
+    height: 40px;
+    min-height: 40px;
+    border: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--card) 82%, transparent);
+    font-size: 22px;
+  }
+  #vistaSemana #diaHoy {
+    width: auto;
+    min-width: 52px;
+    height: 38px;
+    min-height: 38px;
+    padding: 0 11px;
+    border-radius: 999px;
+    font-size: 14px;
+  }
+  #vistaSemana .dia-nav:has(#diaHoy[hidden]) {
+    grid-template-columns: max-content 40px 40px;
+    grid-template-areas: "titulo titulo titulo" "semana anterior siguiente";
+  }
+
+  /* Los títulos de los días, categorías y partes se quedan accesibles sin acumular cabeceras. */
+  #vistaSemana:not(.solo-dia) { --sticky-entreno: calc(var(--sticky-cabecera) + 44px); }
+  #vistaSemana.solo-dia { --sticky-entreno: calc(var(--sticky-cabecera) + 84px); }
+  #vistaSemana:not(.solo-dia) .dia:not(.plegado) > .dia-cab { top: var(--sticky-cabecera); }
+  #vistaSemana .dia:not(.plegado) .dia-cuerpo-in { overflow: clip; }
+  #vistaSemana .parte-caja:not(.p-plegada) > .parte-cab {
+    position: sticky;
+    top: var(--sticky-entreno);
+    z-index: 10;
+    background: color-mix(in srgb, var(--pc) 20%, var(--card));
+    box-shadow: 0 4px 10px rgba(12, 26, 18, 0.12);
+  }
+  #vistaSemana .grupo:not(.g-plegado) > .grupo-cab {
+    position: sticky;
+    top: var(--sticky-entreno);
+    z-index: 9;
+    padding: 4px 6px;
+    border-radius: 8px;
+    background: var(--card);
+    box-shadow: 0 3px 8px rgba(12, 26, 18, 0.10);
+  }
+  #vistaSemana .parte-caja .grupo:not(.g-plegado) > .grupo-cab {
+    top: calc(var(--sticky-entreno) + 42px);
+  }
+
+  #vistaEjercicios .cat-sec:not(.cerrada) > .sec-toggle,
+  #vistaMarcas .cat-sec:not(.cerrada) > .sec-toggle {
+    top: var(--sticky-cabecera);
+  }
+  #vistaListas .lista-sec:not(.cerrada) > .lista-cab {
+    position: sticky;
+    top: calc(var(--sticky-cabecera) + 58px);
+    z-index: 12;
+    padding: 4px 8px;
+    border-radius: 10px;
+    background: var(--card);
+    box-shadow: 0 4px 10px rgba(12, 26, 18, 0.12);
+  }
+  #vistaPlan > .plan-sec:not(.cerrada) > .sec-toggle,
+  #vistaPlan > .plan-sec:not(.cerrada) > .sec-cab:has(> .sec-toggle) {
+    position: sticky;
+    top: var(--sticky-cabecera);
+    z-index: 12;
+    background: var(--card);
+    box-shadow: 0 4px 10px rgba(12, 26, 18, 0.10);
+  }
+  #vistaSemana .sem-resumenes > details[open] > summary,
+  #vistaMarcas .informe-sec[open] > .informe-toggle {
+    position: sticky;
+    top: var(--sticky-cabecera);
+    z-index: 10;
+    background: inherit;
+  }
+}
+
 /* Importar: fecha editable cuando el archivo no la trae (CSV de vueltas) */
 .imp-fecha { display: flex; align-items: center; gap: 8px; margin: 6px 0; font-size: 14px; font-weight: 600; }
 .imp-fecha input { padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--fg); font-size: 16px; }
@@ -1746,3 +1890,263 @@ input:focus, textarea:focus, select:focus { border-color: var(--accent); box-sha
   html, body { overscroll-behavior-y: none; }
 }
 
+/* Móvil: evitar que títulos largos y controles de añadir ensanchen la tarjeta del día. */
+@media (max-width: 760px) {
+  #vistaSemana.solo-dia .semana { grid-template-columns: minmax(0, 1fr); }
+  #vistaSemana .dia,
+  #vistaSemana .dia-cuerpo,
+  #vistaSemana .dia-cuerpo-in,
+  #vistaSemana .grupo,
+  #vistaSemana .parte-caja,
+  #vistaSemana .grupo-cab,
+  #vistaSemana .parte-cab { box-sizing: border-box; min-width: 0; max-width: 100%; }
+  #vistaSemana .grupo,
+  #vistaSemana .grupo-cab { width: 100%; }
+  #vistaSemana .grupo-cab .g-toggle {
+    flex: 1 1 0;
+    width: 0;
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+  }
+  #vistaSemana .g-toggle .gn-txt {
+    flex: 1 1 auto;
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  #vistaSemana .g-toggle .g-res { flex: 1 1 auto; min-width: 0; }
+  #vistaSemana .dia-cuerpo-in > .add-fila {
+    min-width: 0;
+    width: 100%;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  #vistaSemana .add-fila > .add-ej { min-width: 0; max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
+  #vistaSemana .empezar { max-width: calc(100% - 16px); min-width: 0; }
+
+  /* Las barras quedan fijas arriba y abajo, con superficies opacas que mantienen el texto legible. */
+  #app > .cabecera {
+    background: color-mix(in srgb, var(--card) 96%, transparent) !important;
+    border-bottom: 1px solid color-mix(in srgb, var(--line) 80%, transparent);
+    box-shadow: 0 2px 8px rgba(12, 26, 18, 0.06);
+    -webkit-backdrop-filter: blur(16px) saturate(135%);
+    backdrop-filter: blur(16px) saturate(135%);
+  }
+  .tabbar {
+    background: color-mix(in srgb, var(--card) 97%, transparent) !important;
+    border-color: color-mix(in srgb, var(--line) 88%, transparent);
+    -webkit-backdrop-filter: blur(18px) saturate(135%);
+    backdrop-filter: blur(18px) saturate(135%);
+  }
+  body { padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 104px); }
+}
+
+/* Cabeceras de acordeón: se integran en la parte superior sin formar tarjetas flotantes apiladas. */
+@media (max-width: 760px) {
+  #vistaSemana:not(.solo-dia) { --sticky-entreno: var(--sticky-cabecera); }
+  #vistaSemana.solo-dia { --sticky-entreno: calc(var(--sticky-cabecera) + 44px); }
+
+  #vistaSemana .dia-nav:not([hidden]) {
+    grid-template-columns: max-content minmax(0, 1fr) 36px auto 36px;
+    grid-template-areas: "semana titulo anterior hoy siguiente";
+    gap: 3px;
+    padding: 3px 2px;
+    border-radius: 0;
+    background: var(--card);
+    box-shadow: inset 0 -1px var(--line);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+  #vistaSemana .dia-nav-t {
+    padding: 0 2px;
+    font-size: clamp(14px, 3.9vw, 17px);
+    line-height: 1.1;
+    white-space: nowrap;
+  }
+  #vistaSemana #volverSemana { height: 36px; min-height: 36px; padding: 0 3px; font-size: 12px; }
+  #vistaSemana #diaAnt, #vistaSemana #diaSig { width: 36px; height: 36px; min-height: 36px; font-size: 20px; }
+  #vistaSemana #diaHoy { height: 34px; min-height: 34px; min-width: 48px; padding: 0 9px; font-size: 13px; }
+  #vistaSemana .dia-nav:has(#diaHoy[hidden]) {
+    grid-template-columns: max-content minmax(0, 1fr) 36px 36px;
+    grid-template-areas: "semana titulo anterior siguiente";
+  }
+
+  /* En la lista semanal, el título del desplegable sustituye visualmente a las barras padre. */
+  #vistaSemana:not(.solo-dia) .dia:not(.plegado) > .dia-cab { z-index: 10; }
+  #vistaSemana .parte-caja:not(.p-plegada) > .parte-cab {
+    top: var(--sticky-entreno);
+    z-index: 14;
+    border-radius: 0;
+    box-shadow: inset 0 -1px color-mix(in srgb, var(--pc) 28%, var(--line));
+  }
+  #vistaSemana .grupo:not(.g-plegado) > .grupo-cab {
+    top: var(--sticky-entreno);
+    z-index: 15;
+    border-radius: 0;
+    box-shadow: inset 0 -1px var(--line);
+  }
+  #vistaSemana .parte-caja .grupo:not(.g-plegado) > .grupo-cab { top: var(--sticky-entreno); }
+
+  /* Las cabeceras se leen como parte de su panel, no como pastillas flotantes. */
+  #vistaEjercicios .cat-sec:not(.cerrada) > .sec-toggle,
+  #vistaMarcas .cat-sec:not(.cerrada) > .sec-toggle,
+  #vistaListas .lista-sec:not(.cerrada) > .lista-cab,
+  #vistaPlan > .plan-sec:not(.cerrada) > .sec-toggle,
+  #vistaPlan > .plan-sec:not(.cerrada) > .sec-cab:has(> .sec-toggle) {
+    box-shadow: inset 0 -1px var(--line);
+    border-radius: 0;
+  }
+}
+
+/* Móvil: el contenido abierto ocupa el borde superior; la fila vacía de marca se desplaza con la página. */
+@media (max-width: 760px) {
+  :root { --sticky-cabecera: env(safe-area-inset-top, 0px); }
+  #app > .cabecera { position: static; top: auto; }
+  #vistaSemana .dia-nav:not([hidden]) { position: static; top: auto; }
+  #vistaSemana:not(.solo-dia) { --sticky-entreno: var(--sticky-cabecera); }
+  #vistaSemana.solo-dia { --sticky-entreno: var(--sticky-cabecera); }
+
+  #vistaSemana .dia:not(.plegado) > .dia-cab,
+  #vistaSemana .parte-caja:not(.p-plegada) > .parte-cab,
+  #vistaSemana .grupo:not(.g-plegado) > .grupo-cab,
+  #vistaSemana .parte-caja .grupo:not(.g-plegado) > .grupo-cab,
+  #vistaEjercicios .cat-sec:not(.cerrada) > .sec-toggle,
+  #vistaMarcas .cat-sec:not(.cerrada) > .sec-toggle,
+  #vistaListas .lista-sec:not(.cerrada) > .lista-cab,
+  #vistaPlan > .plan-sec:not(.cerrada) > .sec-toggle,
+  #vistaPlan > .plan-sec:not(.cerrada) > .sec-cab:has(> .sec-toggle) {
+    top: var(--sticky-cabecera);
+  }
+
+  /* Conserva contraste en todos los apartados de navegación, también con fondo claro. */
+  .tabbar button:not([aria-selected="true"]) { color: var(--muted) !important; }
+  .tabbar button[aria-selected="true"] { color: var(--verde) !important; }
+}
+
+/* Barra inferior translúcida, con suficiente contraste para leer las cinco secciones. */
+@media (max-width: 760px) {
+  .tabbar {
+    background: linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--card) 78%, transparent),
+      color-mix(in srgb, var(--card) 91%, transparent)
+    ) !important;
+    border-color: color-mix(in srgb, var(--line) 75%, transparent) !important;
+    box-shadow: 0 12px 32px rgba(15, 28, 38, 0.16), inset 0 1px 0 color-mix(in srgb, var(--card) 82%, transparent);
+    -webkit-backdrop-filter: blur(24px) saturate(155%);
+    backdrop-filter: blur(24px) saturate(155%);
+  }
+  .tabbar button:not([aria-selected="true"]) { color: var(--muted) !important; }
+  .tabbar button[aria-selected="true"] { color: var(--verde) !important; }
+  .tabbar button span { white-space: nowrap; font-size: clamp(8px, 2.45vw, 10px); }
+
+  /* El selector secundario de Entrenamientos acompaña el contenido y no lo tapa al desplazarse. */
+  #organizarNav.organizar-nav {
+    position: static;
+    top: auto;
+    z-index: auto;
+    margin-bottom: 4px;
+    background: color-mix(in srgb, var(--card) 92%, transparent);
+    box-shadow: 0 2px 8px rgba(15, 28, 38, 0.06);
+  }
+  #vistaListas .lista-sec:not(.cerrada) > .lista-cab { top: var(--sticky-cabecera); }
+}
+
+/* En móvil, navegación inferior sólida y pegada al borde seguro de la pantalla. */
+.ayuda-ajustes-btn {
+  width: auto;
+  height: auto;
+  min-height: 42px;
+  border-radius: 10px;
+  padding: 8px 14px;
+  font-size: 14px;
+}
+@media (max-width: 760px) {
+  /* No hay banda fija bajo la zona del sistema: el contenido comienza limpio arriba. */
+  #app > .cabecera { display: none !important; }
+  :root { --sticky-cabecera: env(safe-area-inset-top, 0px); }
+
+  /* Solo los encabezados pegajosos de un desplegable tienen efecto translúcido:
+     dejan intuir el entrenamiento que pasa por debajo sin crear una franja global. */
+  #vistaSemana:not(.solo-dia) .dia:not(.plegado) > .dia-cab,
+  #vistaSemana .parte-caja:not(.p-plegada) > .parte-cab,
+  #vistaSemana .grupo:not(.g-plegado) > .grupo-cab,
+  #vistaSemana .parte-caja .grupo:not(.g-plegado) > .grupo-cab,
+  #vistaSemana .sem-resumenes > details[open] > summary,
+  #vistaEjercicios .cat-sec:not(.cerrada) > .sec-toggle,
+  #vistaMarcas .cat-sec:not(.cerrada) > .sec-toggle,
+  #vistaMarcas .informe-sec[open] > .informe-toggle,
+  #vistaListas .lista-sec:not(.cerrada) > .lista-cab,
+  #vistaPlan > .plan-sec:not(.cerrada) > .sec-toggle,
+  #vistaPlan > .plan-sec:not(.cerrada) > .sec-cab:has(> .sec-toggle) {
+    background: color-mix(in srgb, var(--card) 84%, transparent) !important;
+    -webkit-backdrop-filter: blur(12px) saturate(130%) !important;
+    backdrop-filter: blur(12px) saturate(130%) !important;
+  }
+  .tabbar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 100;
+    margin: 0;
+    padding: 5px 6px calc(5px + env(safe-area-inset-bottom, 0px));
+    border: 1px solid var(--line) !important;
+    border-bottom: 0 !important;
+    border-radius: 18px 18px 0 0;
+    background: var(--card) !important;
+    box-shadow: 0 -6px 22px rgba(15, 28, 38, 0.12);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+  .tabbar button { min-height: 52px; }
+}
+
+
+
+/* Cabecera superior opaca en móvil. */
+@media (max-width: 760px) {
+  #app > .cabecera {
+    background: var(--bg) !important;
+    background-image: none !important;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+}
+
+/* Corrección de base: superficies opacas arriba y cabeceras de día uniformes. */
+@media (max-width: 760px) {
+  #navSemana,
+  #vistaSemana .dia-nav:not([hidden]),
+  #organizarNav.organizar-nav {
+    background: var(--bg) !important;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+  #vistaSemana:not(.solo-dia) .dia:not(.plegado) > .dia-cab,
+  #vistaSemana .parte-caja:not(.p-plegada) > .parte-cab,
+  #vistaSemana .grupo:not(.g-plegado) > .grupo-cab,
+  #vistaSemana .parte-caja .grupo:not(.g-plegado) > .grupo-cab,
+  #vistaSemana .sem-resumenes > details[open] > summary,
+  #vistaEjercicios .cat-sec:not(.cerrada) > .sec-toggle,
+  #vistaMarcas .cat-sec:not(.cerrada) > .sec-toggle,
+  #vistaMarcas .informe-sec[open] > .informe-toggle,
+  #vistaListas .lista-sec:not(.cerrada) > .lista-cab,
+  #vistaPlan > .plan-sec:not(.cerrada) > .sec-toggle,
+  #vistaPlan > .plan-sec:not(.cerrada) > .sec-cab:has(> .sec-toggle) {
+    background: var(--card) !important;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+}
+#vistaSemana .semana > .dia > .dia-cab {
+  background: color-mix(in srgb, var(--bg) 54%, var(--card)) !important;
+  border-bottom-color: var(--line) !important;
+}
+#vistaSemana .semana > .dia .dia-nombre {
+  color: color-mix(in srgb, var(--fg) 78%, var(--muted)) !important;
+  font-weight: 850;
+  letter-spacing: 0.06em;
+}
