@@ -1020,7 +1020,7 @@ html.ampliado label, html.ampliado summary, html.ampliado .tarjeta, html.ampliad
     height: 40px;
     min-height: 40px;
     border: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
-    border-radius: 50%;
+    border-radius: 10px;
     background: color-mix(in srgb, var(--card) 82%, transparent);
     font-size: 22px;
   }
@@ -1030,7 +1030,7 @@ html.ampliado label, html.ampliado summary, html.ampliado .tarjeta, html.ampliad
     height: 38px;
     min-height: 38px;
     padding: 0 11px;
-    border-radius: 999px;
+    border-radius: 10px;
     font-size: 14px;
   }
   #vistaSemana .dia-nav:has(#diaHoy[hidden]) {
@@ -2177,20 +2177,20 @@ input:focus, textarea:focus, select:focus { border-color: var(--accent); box-sha
 /* Franja de cristal solo en la app instalada en iOS; los títulos quedan debajo. */
 @media (max-width: 760px) {
   html.ios-instalada {
-    --sticky-cabecera: calc(env(safe-area-inset-top, 0px) + 50px);
+    --sticky-cabecera: calc(env(safe-area-inset-top, 0px) + 46px);
     background: var(--bg);
   }
   html.ios-instalada #vistaSemana:not(.solo-dia) { --sticky-entreno: var(--sticky-cabecera) !important; }
   html.ios-instalada #vistaSemana.solo-dia { --sticky-entreno: calc(var(--sticky-cabecera) + 44px) !important; }
   html.ios-instalada body {
     background: var(--bg);
-    padding-top: calc(env(safe-area-inset-top, 0px) + 58px) !important;
+    padding-top: calc(env(safe-area-inset-top, 0px) + 54px) !important;
   }
   html.ios-instalada body::before {
     content: "";
     position: fixed;
     /* Empieza debajo del área de estado: evita superponer las dos capas. */
-    inset: calc(env(safe-area-inset-top, 0px) + 14px) 0 auto;
+    inset: calc(env(safe-area-inset-top, 0px) + 10px) 0 auto;
     height: 36px;
     z-index: 1000;
     background: var(--bg);
@@ -2227,7 +2227,7 @@ input:focus, textarea:focus, select:focus { border-color: var(--accent); box-sha
 }
 #vistaSemana .g-toggle .gn-txt { flex: 1 1 auto; }
 #vistaSemana .g-toggle .g-res { display: none; }
-.grupo-iniciar { border: 1px solid var(--line); background: var(--card); color: var(--accent); border-radius: 10px; min-height: 36px; padding: 5px 10px; font: inherit; font-size: 13px; font-weight: 700; }
+.grupo-iniciar { display: block; width: 100%; border: 1px solid var(--line); background: var(--accent-soft); color: var(--accent); border-radius: 10px; min-height: 44px; margin: 8px 0 12px; padding: 10px 12px; text-align: left; white-space: normal; font: inherit; font-size: 14px; font-weight: 700; }
 @media (max-width: 760px) {
   #vistaSemana .dia:not(.plegado) > .dia-cab,
   #vistaSemana .grupo > .grupo-cab,
@@ -2237,10 +2237,55 @@ input:focus, textarea:focus, select:focus { border-color: var(--accent); box-sha
     position: sticky !important; top: var(--sticky-cabecera) !important; z-index: 12;
     background: var(--card) !important; border-radius: 0;
   }
-  #vistaSemana .grupo-cab { display: grid; grid-template-columns: 1fr auto auto auto; gap: 4px 8px; padding: 8px; align-items: center; }
+  #vistaSemana .grupo-cab { display: grid; grid-template-columns: 1fr auto auto; gap: 4px 8px; padding: 8px; align-items: center; }
   #vistaSemana .grupo-cab .g-toggle { grid-column: 1 / -1; width: auto; overflow: visible; }
   #vistaSemana .g-toggle .gn-txt { font-size: 16px; line-height: 1.25; }
   #vistaSemana .grupo-cab .g-prog { justify-self: start; }
   #vistaSemana .grupo-cab .menu-btn, #vistaSemana .grupo-cab .asa { min-width: 32px; }
   #vistaSemana .parte-cab .p-toggle { min-width: 0; overflow: visible; }
 }
+
+
+/* Controles del día con espacio real entre botones y tamaños coherentes. */
+@media (max-width: 760px) {
+  #vistaSemana .dia-nav:not([hidden]) {
+    grid-template-columns: max-content minmax(0, 1fr) 44px 56px 44px;
+    grid-template-areas: "semana titulo anterior hoy siguiente";
+    gap: 8px; padding: 6px 0; align-items: center; box-shadow: none;
+  }
+  #vistaSemana .dia-nav-t {
+    min-width: 0; padding: 0; white-space: normal; overflow: visible;
+    text-overflow: clip; font-size: 14px; line-height: 1.2;
+  }
+  #vistaSemana #volverSemana { min-width: 0; width: auto; padding: 0; }
+  #vistaSemana #diaAnt, #vistaSemana #diaSig, #vistaSemana #diaHoy {
+    box-sizing: border-box; height: 44px; min-height: 44px; margin: 0;
+    padding: 0; border-radius: 10px; transform: none; box-shadow: none !important;
+  }
+  #vistaSemana #diaAnt, #vistaSemana #diaSig { width: 44px; min-width: 44px; }
+  #vistaSemana #diaHoy { width: 56px; min-width: 56px; font-size: 14px; }
+  #vistaSemana .dia-nav:has(#diaHoy[hidden]) {
+    grid-template-columns: max-content minmax(0, 1fr) 44px 44px;
+    grid-template-areas: "semana titulo anterior siguiente";
+  }
+}
+@media (max-width: 360px) {
+  #vistaSemana .dia-nav:not([hidden]) {
+    grid-template-areas: "semana titulo titulo titulo titulo" ". . anterior hoy siguiente";
+  }
+  #vistaSemana .dia-nav:has(#diaHoy[hidden]) {
+    grid-template-areas: "semana titulo titulo titulo" ". . anterior siguiente";
+  }
+}
+/* Redondea el panel blanco interior sin recortar los encabezados al desplazarse. */
+#vistaSemana .sem-resumenes > details.resumen-sem > summary {
+  border-radius: 12px !important;
+}
+
+/* Consulta de PR semanales en una ventana, sin añadir otro acordeón. */
+.pr-semana-abrir { display: block; margin: 8px auto 0; min-height: 44px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--accent); font: inherit; font-size: 13px; font-weight: 650; white-space: normal; }
+.pr-semana-lista { list-style: none; margin: 0; padding: 0; }
+.pr-semana-lista li { display: grid; gap: 4px; padding: 12px 0; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
+.pr-semana-lista li:last-child { border-bottom: 0; }
+.pr-semana-marca { color: var(--fg); font-weight: 600; }
+.pr-semana-fecha { color: var(--muted); font-size: 13px; }

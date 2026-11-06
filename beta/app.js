@@ -1460,7 +1460,7 @@ function menuGrupo(dia, grupo) {
   const series = seriesDelDia(dia.id).filter(s => (s.grupo || "") === grupo);
   const nGrupos = new Set(seriesDelDia(dia.id).map(s => s.grupo || "")).size;
   abrirMenu(grupo, resumenItems(itemsDe(series)), [
-    series.length && { texto: "▶ Iniciar solo este entrenamiento", accion: () => empezarEntreno(dia, grupo) },
+    series.length && { texto: series.every(hecha) ? "✓ Completado · Ver entrenamiento" : "▶ Iniciar solo este entrenamiento", accion: () => empezarEntreno(dia, grupo) },
     { texto: "📅 Mover a otro día…", accion: () => elegirDiaDestino(lunesDe(deIso(dia.id)), "¿A qué día muevo «" + (grupo || "Entreno 1") + "»?", f => moverADia(dia, grupo, f)) },
     ...(() => { const otros = [...dia.bloquesEl.querySelectorAll(":scope > .grupo")].map(x => x.dataset.grupo || "").filter(x => x !== grupo);
       return otros.length ? [{ texto: "🔗 Fusionar con otro entreno del día…", accion: () => abrirMenu("¿Con qué entreno lo junto?", "«" + (grupo || "Entreno 1") + "» va primero y el otro detrás, en un solo entreno", otros.map(x => ({ texto: x || "Entreno 1", accion: async () => {
@@ -1724,18 +1724,21 @@ function pintarDiaSinAncla(dia) {
         });
       }
       cab.querySelector(".g-prog").textContent = deG.filter(hecha).length + "/" + deG.length;
-      const iniciar = document.createElement("button");
-      iniciar.type = "button"; iniciar.className = "grupo-iniciar";
-      iniciar.textContent = deG.some(hecha) ? "▶ Seguir" : "▶ Empezar";
-      iniciar.disabled = !deG.length;
-      iniciar.setAttribute("aria-label", "Iniciar solo " + (g.nombre || "Entreno 1"));
-      iniciar.addEventListener("click", () => empezarEntreno(dia, g.nombre));
-      cab.querySelector(".g-prog").after(iniciar);
       cab.querySelector(".menu-btn").setAttribute("aria-label", "Opciones del entreno " + (g.nombre || "1"));
       cab.querySelector(".menu-btn").addEventListener("click", () => menuGrupo(dia, g.nombre));
       if (conAsa) cab.appendChild(asaArrastre(caja, () => [...cont.querySelectorAll(":scope > .grupo")], n => reordenar(n.map(x => seriesDeGrupo(dia.id, x.dataset.grupo)), "Sesión movida"), "Sesión " + g.nombre));
       caja.appendChild(cab);
     }
+    const filasGrupo = delDia.filter(s => (s.grupo || "") === g.nombre);
+    const iniciar = document.createElement("button");
+    iniciar.type = "button"; iniciar.className = "grupo-iniciar";
+    const completado = filasGrupo.length > 0 && filasGrupo.every(hecha);
+    iniciar.textContent = !filasGrupo.length ? "Añade series para empezar este entrenamiento" : completado ?
+      "✓ Completado · Ver entrenamiento" : (filasGrupo.some(hecha) ? "▶ Seguir" : "▶ Empezar") + " este entrenamiento";
+    iniciar.disabled = !filasGrupo.length;
+    iniciar.setAttribute("aria-label", (completado ? "Ver entrenamiento completado: " : "Iniciar solo ") + (g.nombre || "Entreno 1"));
+    iniciar.addEventListener("click", () => empezarEntreno(dia, g.nombre));
+    caja.appendChild(iniciar);
     // Partes opcionales del entreno (Calentamiento, Parte principal…): si no hay ninguna, todo va seguido como siempre
     const seriesItem = id => id.startsWith("b:") ? delDia.filter(s => s.bloque_id === id.slice(2)) : delDia.filter(s => claveSerie(s) === id && (s.grupo || "") === g.nombre);
     const parteDe = id => { if (id.startsWith("v:")) return (bloquesVacios[dia.id + "|" + id.slice(2)] || {}).p || ""; const ss = seriesItem(id); return ss.length ? ss[0].seccion || "" : esperaParte[dia.id + "|" + id] || ""; };
@@ -5504,12 +5507,34 @@ function datosSemana(lunes) {
     const m = n0(s.distancia) + n0(s.rec_dist);   // igual que el total de cada día: con las recuperaciones en metros
     if (t === "carrera") r.km += m / 1000; else if (t === "natacion") r.nado += m;
   });
-  [...new Set(hechas.map(s => s.ejercicio_id))].forEach(id => { const prs = prsEj(id); hechas.forEach(s => { if (prs.has(s.id)) r.prs++; }); });
+  r.prs = prsSemana(lunes).length;
   const rpes = Object.values(db.entrenos).filter(e => e.fecha >= ini && e.fecha < fin && n0(e.rpe) > 0).map(e => n0(e.rpe));
   r.rpe = rpes.length ? rpes.reduce((a, b) => a + b, 0) / rpes.length : 0;
   return r;
 }
 let claveResumen = "";
+// La lista y el contador usan las mismas marcas, comparadas con todo el historial.
+function prsSemana(lunes) {
+  const ini = iso(lunes), fin = iso(sumarDias(lunes, 7));
+  return seriesVivas().filter(s => s.fecha >= ini && s.fecha < fin && hecha(s) && !s.calentamiento && prsEj(s.ejercicio_id).has(s.id))
+    .sort((a, b) => b.fecha.localeCompare(a.fecha) || n0(b.orden) - n0(a.orden));
+}
+function abrirPrsSemana(inicio) {
+  const lunes = deIso(inicio), filas = prsSemana(lunes), lista = document.createElement("ul");
+  lista.className = "pr-semana-lista";
+  filas.forEach(s => {
+    const li = document.createElement("li"), nombre = document.createElement("strong"), marca = document.createElement("span"), contexto = document.createElement("span");
+    nombre.textContent = nombreEj(s.ejercicio_id);
+    marca.className = "pr-semana-marca"; marca.textContent = serieTexto(s);
+    contexto.className = "pr-semana-fecha";
+    contexto.textContent = NOMBRES[(deIso(s.fecha).getDay() + 6) % 7] + " " + fmt(deIso(s.fecha)) + (s.grupo ? " · " + s.grupo : "");
+    li.append(nombre, marca, contexto); lista.appendChild(li);
+  });
+  if (!filas.length) { const li = document.createElement("li"); li.textContent = "No hay nuevos récords personales en esta semana."; lista.appendChild(li); }
+  abrirMenu("Tus PR de la semana", fmt(lunes) + " – " + fmt(sumarDias(lunes, 6)) + " · " + filas.length + (filas.length === 1 ? " récord personal" : " récords personales"),
+    [{ texto: "Cerrar", accion: () => {} }], lista);
+}
+
 function pintarResumen() {
   pintarMolestias();
   const lunes = lunesVista(), clave = versionDatos + "|" + iso(lunes);
@@ -5533,7 +5558,16 @@ function pintarResumen() {
   cont.appendChild(recuadro("Series hechas", a.series + " de " + a.total, (a.total ? Math.round(a.series / a.total * 100) + " % de lo planificado · " : "") + "anterior: " + b.series + " de " + b.total));
   Object.entries(a.porTipo).forEach(([tipo, t]) => cont.appendChild(recuadro((TIPOS[tipo] || TIPOS.fuerza).nombre + " · series", t.hechas + " de " + t.total, pct(t.hechas, t.total))));
   cont.appendChild(recuadro("Días entrenados", String(a.dias), "anterior: " + b.dias));
-  cont.appendChild(recuadro("Récords (PR)", String(a.prs), "anterior: " + b.prs, a.prs > 0));
+  const tarjetaPr = recuadro("Récords (PR)", String(a.prs), "anterior: " + b.prs, a.prs > 0);
+  if (a.prs) {
+    const verPr = document.createElement("button");
+    verPr.type = "button"; verPr.className = "pr-semana-abrir";
+    verPr.textContent = "Ver " + (a.prs === 1 ? "el PR" : "los " + a.prs + " PR") + " de esta semana";
+    verPr.setAttribute("aria-haspopup", "dialog");
+    verPr.addEventListener("click", () => abrirPrsSemana(iso(lunes)));
+    tarjetaPr.appendChild(verPr);
+  } else tarjetaPr.querySelector(".r-sub").textContent = "Sin nuevos PR esta semana · anterior: " + b.prs;
+  cont.appendChild(tarjetaPr);
   if (a.rpe || b.rpe) cont.appendChild(recuadro("Esfuerzo medio", a.rpe ? uno(a.rpe) + "/10" : "—", b.rpe ? "anterior: " + uno(b.rpe) + "/10" : "sin datos la semana anterior"));
 }
 $("resumenSem").open = !!leer("resumen-abierto-v1");
@@ -7054,8 +7088,11 @@ function pintarCabDia(dia) {
   dia.resumenEl.textContent = nombre ? (km ? km + " · " : "") + nombre
     : [km, del.length ? h + "/" + del.length + " series" : "", n0(e.rpe) ? "esfuerzo " + e.rpe + "/10" : ""].filter(Boolean).join(" · ") || "Nada apuntado";
   dia.resumenEl.title = nombre;
-  dia.empezarEl.hidden = !del.length || h === del.length || !(dia.id === iso(new Date()) || dia.id === diaAbierto);
-  dia.empezarEl.textContent = h ? "▶ Seguir entreno (" + h + "/" + del.length + ")" : "▶ Empezar entreno";
+  dia.empezarEl.hidden = !del.length;
+  const variasSesiones = new Set(del.map(s => s.grupo || "")).size > 1;
+  dia.empezarEl.textContent = del.length && h === del.length ?
+    (variasSesiones ? "✓ Día completado · Ver entrenamientos" : "✓ Completado · Ver entrenamiento") :
+    variasSesiones ? "▶ Elegir entrenamiento" : h ? "▶ Seguir entreno (" + h + "/" + del.length + ")" : "▶ Empezar entreno";
 }
 function pintarProgresoSemana() {
   const ini = iso(lunesVista()), fin = iso(sumarDias(lunesVista(), 7));
@@ -7202,10 +7239,13 @@ function empezarEntreno(dia, grupo) {
   if (grupo === undefined) {
     const grupos = [...new Set(seriesDelDia(dia.id).map(s => s.grupo || ""))];
     const abiertos = [...dia.bloquesEl.querySelectorAll(":scope > .grupo:not(.g-plegado)")].map(x => x.dataset.grupo || "").filter(g => grupos.includes(g));
-    if (grupos.length > 1 && abiertos.length !== 1) {
-      abrirMenu("¿Qué entrenamiento quieres empezar?", "Cada entrenamiento se reproduce por separado.", grupos.map(g => ({
-        texto: g || "Entreno 1", accion: () => empezarEntreno(dia, g)
-      })));
+    if (grupos.length > 1) {
+      abrirMenu("Elige un entrenamiento", "Los completados se pueden abrir para revisar lo registrado.", grupos.map(g => {
+        const filas = seriesDelDia(dia.id).filter(s => (s.grupo || "") === g), hechas = filas.filter(hecha).length;
+        return { texto: (hechas === filas.length ? "✓ " : "▶ ") + (g || "Entreno 1") +
+          (hechas === filas.length ? " · Completado" : hechas ? " · Seguir (" + hechas + "/" + filas.length + ")" : " · Empezar"),
+          accion: () => empezarEntreno(dia, g) };
+      }));
       return;
     }
     grupo = abiertos.length === 1 ? abiertos[0] : grupos[0];
@@ -7411,7 +7451,7 @@ $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); 
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
 // VERSION_APP es interna (sube en cada publicación para que los móviles se actualicen); la que se ve es siempre la 26
-const VERSION_APP = "v191" + (BETA ? " beta" : "");
+const VERSION_APP = "v201" + (BETA ? " beta" : "");
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";
