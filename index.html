@@ -26,7 +26,7 @@
   window.addEventListener("pageshow", actualizar);
 })();
 </script>
-<link rel="stylesheet" href="estilos.css?v=v224">
+<link rel="stylesheet" href="estilos.css?v=v228">
 </head>
 <body>
 
@@ -406,6 +406,7 @@
     <label class="campo">Notas <textarea id="mesoNotas" placeholder="Objetivo del bloque, RPE, semana de descarga…"></textarea></label>
     <p id="mesoAviso" class="aviso" role="status"></p>
     <div class="d-botones">
+      <button type="button" class="nav-btn" id="mesoVolverImportacion" hidden>Volver al documento sin guardar</button>
       <button type="button" class="nav-btn" id="mesoGuardar">Guardar</button>
       <button type="button" class="anadir" id="mesoAplicar">Guardar y rellenar calendario</button>
     </div>
@@ -521,20 +522,13 @@
     </div>
     <div id="iaVistaCaja" class="ia-paso" hidden>
       <h3 id="iaVistaTit" class="ia-tit"></h3>
-      <details id="iaEditorCaja"><summary>Editar entrenamiento y asignar días</summary>
-        <p class="nota">Puedes cambiar nombres, cantidades, descansos y días antes de guardar. Los tiempos se editan en segundos.</p>
-        <div id="iaEditor"></div>
-      </details>
       <div id="iaVista" class="ia-vista"></div>
-      <div class="fila" id="iaMesoOp" hidden>
-        <label class="campo">Empieza la semana del <input id="iaInicio" type="date"></label>
-        <label class="campo">Semanas <input id="iaMesoSem" type="number" min="1" max="26" inputmode="numeric"></label>
-      </div>
       <p class="menu-det nota" id="iaAvisoDias" role="status"></p>
       <div class="d-botones">
         <button type="button" class="nav-btn" id="iaPlantillas">Usar como plantillas</button>
         <button type="button" class="nav-btn" id="iaLista">Guardar en una lista</button>
-        <button type="button" class="anadir" id="iaMeso" hidden>Revisar mesociclo y calendario</button>
+        <button type="button" class="nav-btn" id="iaMeso" hidden>Abrir editor de mesociclo</button>
+        <button type="button" class="nav-btn" id="iaVolverTexto">Volver al texto del documento</button>
       </div>
       <div id="iaDiaOp" hidden>
         <label class="campo" id="iaDiaSesionL">Sesión que quieres añadir <select id="iaDiaSesion"></select></label>
@@ -542,7 +536,7 @@
           <label class="campo">Añadir al día <input id="iaDiaFecha" type="date"></label>
           <label class="campo chk"><input type="checkbox" id="iaDiaPlantilla"> Guardarla también como plantilla</label>
         </div>
-        <div class="d-botones"><button type="button" class="anadir" id="iaAnadirDia">Añadir al calendario</button></div>
+        <div class="d-botones"><button type="button" class="anadir" id="iaAnadirDia">Añadir y editar en calendario</button></div>
       </div>
     </div>
   </div>
@@ -929,6 +923,6 @@
 <div class="toast" id="toast" role="status" hidden><span id="toastTxt"></span><button type="button" id="toastBtn">Deshacer</button></div>
 <div class="fiesta" id="fiesta" aria-hidden="true"></div>
 
-<script src="app.js?v=v224"></script>
+<script src="app.js?v=v228"></script>
 </body>
 </html>

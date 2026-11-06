@@ -849,6 +849,79 @@ function mostrarFechasPendientes() {
   if (boton) { boton.hidden = !pendientes.length; boton.textContent = "Revisar fechas pendientes (" + pendientes.length + ")"; }
   return pendientes.length;
 }
+function botonDescartarFechas(cuerpo, dlg, ctx) {
+  const caja = document.createElement("div"), boton = document.createElement("button");
+  boton.type = "button"; boton.className = "peligro";
+  boton.textContent = "Descartar todas las series pendientes con fecha incorrecta (" + seriesConFechaIncorrecta().length + ")";
+  const confirmacion = document.createElement("div"); caja.append(boton, confirmacion); cuerpo.appendChild(caja);
+  boton.onclick = () => {
+    const filas = seriesConFechaIncorrecta().map(s => ({ id: s.id, original: JSON.stringify(s) }));
+    if (!filas.length) { dlg.close(); mostrarFechasPendientes(); return; }
+    confirmacion.textContent = "";
+    const texto = document.createElement("p");
+    texto.textContent = "Se descartarán los cambios pendientes de " + filas.length + " series con fechas incorrectas, incluidas las que no se ven en esta página. Las series nuevas aún no guardadas en la nube se quitarán del dispositivo. Si alguna ya existía en la nube, se recuperará esa versión. No se borrarán otros entrenamientos. Se conservará una copia recuperable antes de continuar.";
+    const si = document.createElement("button"), no = document.createElement("button"), estadoDescarte = document.createElement("p");
+    si.type = no.type = "button"; si.className = "peligro"; no.className = "nav-btn";
+    si.textContent = "Sí, descartar estas " + filas.length + " series"; no.textContent = "Cancelar";
+    estadoDescarte.setAttribute("role", "status");
+    no.onclick = () => { confirmacion.textContent = ""; boton.disabled = false; };
+    confirmacion.append(texto, si, no, estadoDescarte); boton.disabled = true;
+    si.onclick = async () => {
+      si.disabled = no.disabled = true;
+      estadoDescarte.textContent = "Recuperando la versión guardada y conservando una copia…";
+      try {
+        comprobarSesion(ctx);
+        if (sincronizando) throw new Error("Espera a que termine la sincronización y vuelve a intentarlo.");
+        const remotas = new Map();
+        // Solo lecturas de la cuenta activa. Nunca borrar filas de Supabase para limpiar un error local.
+        for (let i = 0; i < filas.length; i += 40) {
+          const ids = filas.slice(i, i + 40).map(f => f.id);
+          if (ids.some(id => !/^[0-9a-f-]{36}$/i.test(id))) throw new Error("Hay un identificador no reconocido. Conserva la copia y solicita revisión.");
+          let ultimo = "";
+          for (;;) {
+            const ruta = "/rest/v1/series?select=*&user_id=eq." + encodeURIComponent(ctx.usuario)
+              + "&id=in.(" + ids.join(",") + ")&order=id.asc&limit=40" + (ultimo ? "&id=gt." + encodeURIComponent(ultimo) : "");
+            const respuesta = await api(ruta); comprobarSesion(ctx);
+            if (!respuesta.ok) throw new Error("No se pudo consultar la copia de la nube. No se ha descartado nada.");
+            const pagina = await respuesta.json();
+            if (!Array.isArray(pagina)) throw new Error("Respuesta inesperada. No se ha descartado nada.");
+            if (!pagina.length) break;
+            for (const r of pagina) {
+              if (r.user_id !== ctx.usuario || !ids.includes(r.id) || !fechaSerieValida(r.fecha) || !marcaSerieValida(r.actualizado)) throw new Error("No se pudo recuperar una copia válida. No se ha descartado nada.");
+              remotas.set(r.id, r);
+            }
+            const siguiente = pagina[pagina.length - 1].id;
+            if (siguiente === ultimo) throw new Error("No se pudo completar la lectura. No se ha descartado nada.");
+            ultimo = siguiente;
+          }
+        }
+        comprobarSesion(ctx);
+        if (sincronizando || filas.some(f => JSON.stringify(db.series[f.id]) !== f.original)) throw new Error("Los datos han cambiado durante la revisión. Cierra y abre de nuevo esta ventana.");
+        const copia = { creado: new Date().toISOString(), accion: "descartar-pendientes-fecha", series: filas.map(f => ({ original: JSON.parse(f.original), nube: remotas.get(f.id) || null })) };
+        if (!escribir("fechas-series-copias-v1", [...(leer("fechas-series-copias-v1") || []), copia])) throw new Error("No hay espacio para guardar la copia. No se ha descartado nada.");
+        const series = Object.assign(Object.create(null), db.series);
+        filas.forEach(f => {
+          const remota = remotas.get(f.id);
+          if (!remota) delete series[f.id];
+          else {
+            const fila = {}; TABLAS.series.campos.forEach(c => { fila[c] = remota[c]; });
+            fila.sucio = false; series[f.id] = fila;
+          }
+        });
+        const siguienteDb = { ...db, series };
+        if (!escribir("datos-v2", siguienteDb)) throw new Error("No se pudo guardar el resultado en este dispositivo. Se conserva la copia de seguridad.");
+        db = siguienteDb; versionDatos++;
+        dlg.close(); mostrarFechasPendientes(); pintarTodo();
+        setEstado("Descartados los cambios de " + filas.length + " series. Copia conservada en la exportación de Ajustes.");
+        sincronizar();
+      } catch (e) {
+        estadoDescarte.textContent = e instanceof SesionCambiada ? "La cuenta ha cambiado. Cierra esta ventana." : (e.message || "No se ha podido completar el descarte.");
+        si.disabled = no.disabled = false;
+      }
+    };
+  };
+}
+
 function abrirFechasPendientes() {
   if (!sesion || sesion.user_id !== cuentaLocal) return;
   const pendientes = seriesConFechaIncorrecta().slice(0, 20);
@@ -859,6 +932,7 @@ function abrirFechasPendientes() {
   const cerrar = document.createElement("button"); cerrar.type = "button"; cerrar.className = "cerrar"; cerrar.textContent = "✕"; cerrar.setAttribute("aria-label", "Cerrar"); cerrar.onclick = () => dlg.close(); cab.append(titulo, cerrar);
   const cuerpo = document.createElement("div"); cuerpo.className = "d-cuerpo";
   const info = document.createElement("p"); info.textContent = "Estas series siguen guardadas en el dispositivo. Elige el día correcto para cada fecha inválida. Se conservará una copia antes de corregir. Si hay más de 20, podrás revisar las siguientes después."; cuerpo.appendChild(info);
+  botonDescartarFechas(cuerpo, dlg, ctx);
   const entradas = pendientes.map(s => {
     const bloque = document.createElement("fieldset"), leyenda = document.createElement("legend");
     leyenda.textContent = (nombreEj(s.ejercicio_id) || "Ejercicio") + (s.grupo ? " · " + s.grupo : "") + (s.borrado ? " · eliminado pendiente de sincronizar" : ""); bloque.appendChild(leyenda);
@@ -973,7 +1047,7 @@ function leerRutinaNumerada(texto, nombre) {
     }
     items.push({ ejercicio: ej.nombre, tipo: "fuerza", seccion: "", series });
   }
-  return { nombre: String(nombre || "Entrenamiento importado").replace(/\.[^.]+$/, "").slice(0,60), nota: "Revisa la importación antes de guardar. Las indicaciones originales están en las notas de cada serie; comprueba y completa los descansos en Editar entrenamiento.", semanas: 0, bloques: [{ sesiones: [{ nombre: "Entrenamiento importado", dias: [], items }] }], multi: false, conDias: false };
+  return { nombre: String(nombre || "Entrenamiento importado").replace(/\.[^.]+$/, "").slice(0,60), nota: "Revisa la importación antes de guardar. Las indicaciones originales están en las notas de cada serie; comprueba y completa los descansos al editar en el calendario.", semanas: 0, bloques: [{ sesiones: [{ nombre: "Entrenamiento importado", dias: [], items }] }], multi: false, conDias: false };
 }
 
 function prepararTextoImportado(texto, nombre) {
@@ -1007,17 +1081,10 @@ function prepararTextoImportado(texto, nombre) {
 }
 
 function validarEdicionIA() {
-  for (const inp of $("iaEditor").querySelectorAll("input")) {
-    if (!inp.checkValidity()) {
-      $("iaEditorCaja").open = true;
-      let padre = inp.parentElement;
-      while (padre && padre !== $("iaEditor")) { if (padre.tagName === "DETAILS") padre.open = true; padre = padre.parentElement; }
-      inp.reportValidity(); return false;
-    }
-  }
+  try { comprobarSesion(contextoIA); }
+  catch { $("iaAvisoDias").textContent = "La sesión ha cambiado. Vuelve a importar desde tu cuenta."; return false; }
   if (!rutinaIA?.nombre.trim() || sesionesImportadas().some(({s}) => !s.nombre.trim() || s.items.some(it => (it.bloque ? it.tramos : [it]).some(t => !t.ejercicio.trim())))) {
-    $("iaAvisoDias").textContent = "Completa el nombre del plan, de las sesiones y de los ejercicios.";
-    $("iaEditorCaja").open = true; return false;
+    $("iaAvisoDias").textContent = "Completa los nombres en el texto del documento antes de continuar."; return false;
   }
   return true;
 }
@@ -1034,63 +1101,9 @@ function actualizarDestinoIA() {
   if ([...sel.options].some(op => op.value === anterior)) sel.value = anterior;
   $("iaDiaSesionL").hidden = sesiones.length < 2;
   $("iaDiaOp").hidden = !sesiones.length;
-  $("iaMesoOp").hidden = !sesiones.length;
+
   $("iaMeso").hidden = !sesiones.length;
-  $("iaAvisoDias").textContent = sesiones.some(({ s }) => !s.dias.length)
-    ? "Puedes añadir una sesión a una fecha. Para un mesociclo, asigna días a todas las sesiones en Editar entrenamiento."
-    : "Revisa las sesiones y sus días. El mesociclo se abre para elegir y revisar el calendario antes de rellenarlo.";
-}
-function editarRutinaIA() {
-  const r = rutinaIA, cont = $("iaEditor"); cont.textContent = "";
-  if (!r) return;
-  const refrescar = () => {
-    r.conDias = r.bloques.some(b => b.sesiones.some(s => s.dias.length));
-    $("iaVistaTit").textContent = r.nombre; vistaRutina(r, $("iaVista")); actualizarDestinoIA();
-  };
-  const campo = (padre, titulo, valor, cambio, numerico = false, entero = false) => {
-    const lab = document.createElement("label"); lab.className = "campo"; lab.textContent = titulo;
-    const inp = document.createElement("input"); inp.type = numerico ? "number" : "text";
-    if (numerico) { inp.min = "0"; inp.max = "1000000"; inp.step = entero ? "1" : "any"; inp.inputMode = "decimal"; }
-    else inp.maxLength = 300;
-    inp.value = valor ?? "";
-    inp.addEventListener("input", () => {
-      const v = numerico ? Number(inp.value) : inp.value;
-      if (numerico && (!Number.isFinite(v) || v < 0 || v > 1000000 || (entero && !Number.isInteger(v)))) { inp.setCustomValidity("Escribe un número válido entre 0 y 1000000."); return; }
-      inp.setCustomValidity(""); cambio(v); refrescar();
-    });
-    lab.appendChild(inp); padre.appendChild(lab); return inp;
-  };
-  campo(cont, "Nombre del plan", r.nombre, v => { r.nombre = v.slice(0, 60); });
-  campo(cont, "Notas del plan", r.nota, v => { r.nota = v; });
-  r.bloques.forEach((b, w) => b.sesiones.forEach(s => {
-    const caja = document.createElement("details"); caja.open = sesionesImportadas().length === 1;
-    const titulo = document.createElement("summary"); titulo.textContent = (r.multi ? "Semana " + (w + 1) + " · " : "") + s.nombre;
-    caja.appendChild(titulo); cont.appendChild(caja);
-    campo(caja, "Nombre de la sesión", s.nombre, v => { s.nombre = v.slice(0, 50); titulo.textContent = (r.multi ? "Semana " + (w + 1) + " · " : "") + s.nombre; });
-    const dias = document.createElement("fieldset"), leyenda = document.createElement("legend"); leyenda.textContent = "Días de esta sesión (para el mesociclo)"; dias.appendChild(leyenda);
-    NOMBRES.forEach((nombre, d) => {
-      const lab = document.createElement("label"), check = document.createElement("input"); lab.className = "campo chk";
-      check.type = "checkbox"; check.checked = s.dias.includes(d);
-      check.addEventListener("change", () => { s.dias = check.checked ? [...s.dias, d].sort((a,b) => a-b) : s.dias.filter(x => x !== d); refrescar(); });
-      lab.append(check, document.createTextNode(" " + nombre)); dias.appendChild(lab);
-    }); caja.appendChild(dias);
-    s.items.forEach(it => {
-      const ejercicio = document.createElement("details"), tit = document.createElement("summary"); tit.textContent = it.bloque ? "Bloque" : it.ejercicio;
-      ejercicio.appendChild(tit); caja.appendChild(ejercicio);
-      campo(ejercicio, "Parte del entrenamiento", it.seccion || "", v => { it.seccion = v.slice(0, 40); });
-      (it.bloque ? it.tramos : [it]).forEach(t => {
-        campo(ejercicio, "Ejercicio", t.ejercicio, v => { t.ejercicio = v.slice(0, 80); if (!it.bloque) tit.textContent = v; });
-        t.series.forEach((serie, i) => {
-          const fila = document.createElement("details"), st = document.createElement("summary"); st.textContent = "Serie " + (i + 1); fila.appendChild(st); ejercicio.appendChild(fila);
-          const campos = t.tipo === "fuerza" ? [["reps","Repeticiones"],["peso","Peso (kg)"],["pct","% del 1RM"],["tiempo","Tiempo (segundos)"]]
-            : t.tipo === "movilidad" ? [["reps","Repeticiones"],["tiempo","Tiempo (segundos)"]] : [["distancia","Distancia (metros)"],["tiempo","Tiempo (segundos)"],["rec_dist","Recuperación (metros)"]];
-          campos.push(["descanso","Descanso (segundos)"]);
-          campos.forEach(([k, n]) => campo(fila, n, serie[k] || 0, v => { serie[k] = v; }, true, ["reps", "tiempo", "descanso"].includes(k)));
-          campo(fila, "Indicaciones", serie.nota || "", v => { serie.nota = v; });
-        });
-      });
-    });
-  }));
+  $("iaAvisoDias").textContent = "Elige una fecha para editar con los controles del calendario, o abre el editor de mesociclo para organizar el plan. Todavía no se ha guardado.";
 }
 
 let sincronizando = false, repetir = false;
@@ -5416,11 +5429,15 @@ function avisoUsuarios() {
 }
 
 // Editor de mesociclo
-let mesoEdit = null;
-function abrirMeso(id) {
+let mesoEdit = null, mesoImportacion = null;
+function abrirMeso(id, importacion = null) {
+  mesoImportacion = importacion;
   const m = id ? db.mesociclos[id] : null;
   mesoEdit = m ? { ...m, dias: JSON.parse(JSON.stringify(m.dias || {})) }
                : { id: nuevoId(), nombre: "", inicio: iso(lunesDe(new Date())), semanas: 4, dias: {}, progresion: 0, descarga: {}, notas: "", borrado: false, nuevo: true };
+  if (importacion) mesoEdit = JSON.parse(JSON.stringify(importacion.borrador));
+  $("mesoALista").hidden = !!importacion;
+  $("mesoVolverImportacion").hidden = !importacion;
   const desc = mesoEdit.descarga || {};
   $("mesoDescUltima").checked = !!desc.ultima;
   $("mesoDescCada").value = n0(desc.cada) >= 2 ? desc.cada : "";
@@ -5442,60 +5459,76 @@ function abrirMeso(id) {
 function pintarDiasMeso() {
   const cont = $("mesoDias");
   cont.textContent = "";
-  if (semanasPropias(mesoEdit)) {
-    cont.appendChild(nota("Este mesociclo viene de un plan que cambia cada semana: cada semana usa sus propias plantillas (las que empiezan por «S1 ·», «S2 ·»…). Puedes editarlas en Plan → Plantillas."));
+  const propias = semanasPropias(mesoEdit);
+  if (propias && !mesoImportacion) {
+    cont.appendChild(nota("Este mesociclo viene de un plan que cambia cada semana: cada semana usa sus propias plantillas (las que empiezan por «S1 ·», «S2 ·»…)."));
     return;
   }
-  NOMBRES.forEach((n, i) => {
-    const fila = document.createElement("div");
-    fila.className = "meso-dia";
-    fila.innerHTML = '<span class="md-n"></span><span class="md-chips"></span><button type="button" class="nav-btn md-mas">+</button>';
-    fila.querySelector(".md-n").textContent = n;
-    const chips = fila.querySelector(".md-chips");
-    (mesoEdit.dias[i] || []).forEach((pid, k) => {
-      const c = document.createElement("button");
-      c.type = "button";
-      c.className = "chip";
-      c.textContent = ((db.plantillas[pid] || {}).nombre || "Plantilla borrada") + " ✕";
-      c.setAttribute("aria-label", "Quitar " + c.textContent.slice(0, -2) + " del " + n);
-      c.addEventListener("click", () => { mesoEdit.dias[i].splice(k, 1); pintarDiasMeso(); });
-      chips.appendChild(c);
-    });
-    if (!(mesoEdit.dias[i] || []).length) { const v = document.createElement("span"); v.className = "md-vacio"; v.textContent = "Descanso"; chips.appendChild(v); }
-    // Ver los ejercicios de las plantillas de ese día sin salir del editor
-    const verDia = (mesoEdit.dias[i] || []).map(pid => db.plantillas[pid]).filter(Boolean).map(p => desplegableItems(n + " · " + p.nombre, p.items || []));
-    const mas = fila.querySelector(".md-mas");
-    mas.setAttribute("aria-label", "Añadir plantilla al " + n);
-    mas.addEventListener("click", () => {
-      const ps = vivos("plantillas").sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
-      if (!ps.length) { $("mesoAviso").textContent = "Primero crea alguna plantilla desde un día de la semana (menú ⋯ → Guardar ejercicios como plantilla)."; return; }
-      // Lista sencilla dentro del propio editor para no abrir otra ventana encima
-      const lista = document.createElement("div");
-      lista.className = "md-lista";
-      ps.forEach(p => {
-        const o = document.createElement("button");
-        o.type = "button"; o.className = "chip chip-op"; o.textContent = p.nombre;
-        o.addEventListener("click", () => { (mesoEdit.dias[i] = mesoEdit.dias[i] || []).push(p.id); pintarDiasMeso(); });
-        lista.appendChild(o);
+  const importadas = mesoImportacion?.plantillas || {};
+  const plantilla = pid => importadas[pid] || db.plantillas[pid];
+  if (mesoImportacion) cont.appendChild(nota("Borrador sin guardar. Revisa la fecha, las semanas y los días. Pulsa + para asignar las sesiones importadas. Guardar conserva el plan; Guardar y rellenar calendario añade sus sesiones para editarlas allí."));
+  const semanas = propias ? Object.keys(mesoEdit.dias).filter(k => /^s\d+$/.test(k)).sort((a,b) => +a.slice(1) - +b.slice(1)) : [null];
+  semanas.forEach(clave => {
+    const dias = clave ? mesoEdit.dias[clave] : mesoEdit.dias;
+    if (clave) { const h = document.createElement("h4"); h.textContent = "Semana " + clave.slice(1); cont.appendChild(h); }
+    const disponibles = Object.values(importadas).filter(p => !clave || p.semana === +clave.slice(1) - 1);
+    const asignadas = new Set(Object.values(dias).flat());
+    const faltan = disponibles.filter(p => !asignadas.has(p.id));
+    if (faltan.length) cont.appendChild(nota("Por asignar: " + faltan.map(p => p.nombre).join(" · ")));
+    NOMBRES.forEach((n, i) => {
+      const fila = document.createElement("div"); fila.className = "meso-dia";
+      fila.innerHTML = '<span class="md-n"></span><span class="md-chips"></span><button type="button" class="nav-btn md-mas">+</button>';
+      fila.querySelector(".md-n").textContent = n;
+      const chips = fila.querySelector(".md-chips");
+      (dias[i] || []).forEach((pid, k) => {
+        const c = document.createElement("button"); c.type = "button"; c.className = "chip";
+        c.textContent = (plantilla(pid)?.nombre || "Plantilla borrada") + " ✕";
+        c.setAttribute("aria-label", "Quitar " + c.textContent.slice(0, -2) + " del " + n);
+        c.addEventListener("click", () => { dias[i].splice(k, 1); pintarDiasMeso(); }); chips.appendChild(c);
       });
-      fila.after(lista);
-      mas.disabled = true;
+      if (!(dias[i] || []).length) { const v = document.createElement("span"); v.className = "md-vacio"; v.textContent = "Descanso"; chips.appendChild(v); }
+      const mas = fila.querySelector(".md-mas"); mas.setAttribute("aria-label", "Añadir plantilla al " + n);
+      mas.addEventListener("click", () => {
+        const ps = [...disponibles, ...vivos("plantillas").sort((a,b) => a.nombre.localeCompare(b.nombre, "es"))];
+        if (!ps.length) { $("mesoAviso").textContent = "Primero crea alguna plantilla desde un día de la semana (menú ⋯ → Guardar ejercicios como plantilla)."; return; }
+        const lista = document.createElement("div"); lista.className = "md-lista";
+        ps.forEach(p => {
+          const o = document.createElement("button"); o.type = "button"; o.className = "chip chip-op"; o.textContent = p.nombre;
+          o.disabled = (dias[i] || []).includes(p.id);
+          o.addEventListener("click", () => { (dias[i] = dias[i] || []).push(p.id); pintarDiasMeso(); }); lista.appendChild(o);
+        });
+        fila.after(lista); mas.disabled = true;
+      });
+      cont.appendChild(fila);
+      (dias[i] || []).forEach(pid => {
+        const p = plantilla(pid); if (!p) return;
+        if (!importadas[pid]) { cont.appendChild(desplegableItems(n + " · " + p.nombre, p.items || [])); return; }
+        const d = document.createElement("details"), s = document.createElement("summary");
+        s.textContent = n + " · " + p.nombre; d.append(s, listaItems(p.items)); cont.appendChild(d);
+      });
     });
-    cont.appendChild(fila);
-    verDia.forEach(v => cont.appendChild(v));
   });
 }
 function leerMeso() {
   const nombre = $("mesoNombre").value.trim(), inicio = $("mesoInicio").value, semanas = parseInt($("mesoSemanas").value, 10);
   const progresion = parseFloat(($("mesoProg").value || "0").replace(",", "."));
   if (!nombre) { $("mesoAviso").textContent = "Ponle un nombre (por ejemplo, Fuerza · bloque 1)."; $("mesoNombre").focus(); return null; }
-  if (!inicio) { $("mesoAviso").textContent = "Elige la fecha de inicio."; return null; }
+  if (!fechaSerieValida(inicio)) { $("mesoAviso").textContent = "Elige una fecha de inicio válida."; return null; }
   if (!(semanas >= 1 && semanas <= 26)) { $("mesoAviso").textContent = "El número de semanas debe estar entre 1 y 26."; return null; }
   if (isNaN(progresion)) { $("mesoAviso").textContent = "La progresión debe ser un número de kg (puede ser 0)."; return null; }
   const cada = parseInt($("mesoDescCada").value, 10) || 0, pct = parseFloat(($("mesoDescPct").value || "30").replace(",", "."));
   if (cada === 1 || cada < 0) { $("mesoAviso").textContent = "La descarga «cada N semanas» debe ser 2 o más (o déjalo vacío)."; return null; }
   if (!(pct > 0 && pct < 100)) { $("mesoAviso").textContent = "La reducción de la descarga debe estar entre 1 y 99 %."; return null; }
   const descarga = $("mesoDescUltima").checked || cada ? { ultima: $("mesoDescUltima").checked, cada, pct, modo: $("mesoDescModo").value } : {};
+  if (mesoImportacion) {
+    const propias = semanasPropias(mesoEdit);
+    if (propias && semanas !== propias) { $("mesoAviso").textContent = "El documento contiene " + propias + " semanas distintas. Conserva esa duración para no omitir ni dejar vacías semanas."; return null; }
+    const mapas = propias ? Object.values(mesoEdit.dias) : [mesoEdit.dias];
+    const asignadas = new Set(mapas.flatMap(d => Object.values(d).flat()));
+    if (Object.keys(mesoImportacion.plantillas).some(id => !asignadas.has(id))) {
+      $("mesoAviso").textContent = "Asigna un día a cada sesión importada con el botón + antes de guardar. No se ha guardado ningún cambio."; return null;
+    }
+  }
   const m = { ...mesoEdit, nombre, inicio: iso(lunesDe(deIso(inicio))), semanas, progresion, descarga, notas: $("mesoNotas").value };
   delete m.nuevo;
   return m;
@@ -5548,7 +5581,7 @@ function aplicarMeso(m, rehacer) {
   return total;
 }
 $("mesoGuardar").addEventListener("click", () => {
-  const m = leerMeso(); if (!m) return;
+  const m = leerMeso(); if (!m || !guardarPlantillasImportadas(m)) return;
   cambiar("mesociclos", m);
   $("dlgMeso").close(); pintarPlan();
 });
@@ -5557,7 +5590,10 @@ $("mesoAplicar").addEventListener("click", () => {
   const fin = iso(sumarDias(deIso(m.inicio), n0(m.semanas) * 7));
   const ya = seriesVivas().filter(s => s.meso_id === m.id);
   const otros = vivos("mesociclos").filter(o => o.id !== m.id && o.inicio && o.inicio < fin && iso(sumarDias(deIso(o.inicio), n0(o.semanas) * 7)) > m.inicio && seriesVivas().some(s => s.meso_id === o.id && s.fecha >= m.inicio && s.fecha < fin));
+  const importacionActiva = mesoImportacion;
   const aplicar = rehacer => {
+    if (mesoImportacion !== importacionActiva || (importacionActiva && !$("dlgMeso").open)) return;
+    if (!guardarPlantillasImportadas(m)) return;
     const antes = new Map(seriesVivas().filter(s => s.meso_id === m.id).map(s => [s.id, { ...s }]));
     cambiar("mesociclos", m, true);
     const n = aplicarMeso(m, rehacer);
@@ -5581,6 +5617,11 @@ $("mesoAplicar").addEventListener("click", () => {
     { texto: "Completar solo lo que falte (recomendado)", accion: () => conSolape(false) },
     { texto: "Rehacer lo pendiente según el plan", peligro: true, confirmar: "Pulsa otra vez: lo pendiente vuelve a los días del plan (lo hecho no se toca y se puede deshacer)", accion: () => conSolape(true) }
   ]);
+});
+$("dlgMeso").addEventListener("close", () => { if (!$("dlgMeso").open) mesoImportacion = null; });
+$("mesoVolverImportacion").addEventListener("click", () => {
+  $("dlgMeso").close(); mesoImportacion = null;
+  pasoIA("vista"); pintarVistaIA(); $("dlgIA").showModal();
 });
 // Añadir un mesociclo a una lista: sus entrenamientos en el orden de la semana; si cada semana es distinta, una
 // cabecera por semana («Meso · Semana 2»). Si ya estaba en esa lista, pregunta antes de repetirlo
@@ -6830,10 +6871,12 @@ async function textoDocumento(f) {
   return f.text();
 }
 async function importarDocumento(f) {
+  const ctx = contextoSesion();
   setEstado("Leyendo «" + f.name + "»…");
   let texto = "";
   try { texto = (await textoDocumento(f) || "").replace(/\r/g, "").replace(/[ \t]{2,}/g, " ").replace(/\n{3,}/g, "\n\n").trim(); }
   catch (e) { setEstado(e.message || "No se ha podido leer el documento.", true); return; }
+  try { comprobarSesion(ctx); } catch { return; }
   abrirIA(texto.trim() ? "pegar" : "prompt");
   docIA = { nombre: f.name, texto: texto.slice(0, 15000), cortado: texto.length > 15000, sinTexto: !texto.trim() };
   if (texto.trim()) {
@@ -6867,7 +6910,54 @@ function pintarCamposIA() {
   pintarRefIA();
   $("iaTexto").value = textoPrompt();
 }
-let rutinaIA = null;
+let rutinaIA = null, contextoIA = null;
+// La clasificación usa la estructura reconocida, nunca el número de páginas del PDF.
+function tipoRutinaImportada(r) {
+  if (r.multi || r.semanas > 1 || /\bmesociclo\b/i.test(r.nombre)) return "mesociclo";
+  return r.bloques.reduce((n, b) => n + b.sesiones.length, 0) === 1 ? "entrenamiento" : "elegir";
+}
+function orientarImportacionIA() {
+  const tipo = tipoRutinaImportada(rutinaIA);
+  if (tipo === "mesociclo") { abrirMesoImportado(); return; }
+  pasoIA("vista");
+  $("iaVistaTit").textContent = tipo === "entrenamiento" ? "Entrenamiento · " + rutinaIA.nombre : rutinaIA.nombre;
+  $("iaAvisoDias").textContent = tipo === "entrenamiento"
+    ? "Entrenamiento detectado. Elige el día: se añadirá al calendario y podrás editarlo con los controles habituales. Todavía no se ha guardado."
+    : "Hay varias sesiones, pero no se indica una duración en semanas. Elige una sesión para el calendario o abre el editor de mesociclo para organizar el plan.";
+  $("iaVistaCaja").scrollIntoView({ block: "start" });
+}
+function abrirMesoImportado() {
+  if (!rutinaIA || !validarEdicionIA()) return;
+  const r = rutinaIA, plantillas = {}, dias = {};
+  r.bloques.forEach((b, w) => {
+    const destino = r.multi ? (dias["s" + (w + 1)] = {}) : dias;
+    b.sesiones.forEach(s => {
+      const id = nuevoId();
+      plantillas[id] = { id, nombre: (r.multi ? r.nombre + " · S" + (w + 1) + " · " : "") + s.nombre,
+        items: JSON.parse(JSON.stringify(s.items)), semana: w };
+      s.dias.forEach(d => (destino[d] = destino[d] || []).push(id));
+    });
+  });
+  const borrador = { id: nuevoId(), nombre: r.nombre, inicio: lunesSiguiente(), semanas: semanasRutina(r),
+    dias, progresion: 0, descarga: {}, notas: r.nota || "", borrado: false, nuevo: true };
+  $("dlgIA").close();
+  abrirMeso(null, { borrador, plantillas, contexto: contextoIA });
+}
+function guardarPlantillasImportadas(m) {
+  if (!mesoImportacion) return true;
+  try { comprobarSesion(mesoImportacion.contexto); }
+  catch { $("mesoAviso").textContent = "La sesión ha cambiado. Vuelve a importar el documento desde tu cuenta."; return false; }
+  const usados = new Set(vivos("plantillas").map(p => norm(p.nombre)));
+  Object.values(mesoImportacion.plantillas).forEach(p => {
+    let nombre = p.nombre, n = 2;
+    while (usados.has(norm(nombre))) nombre = p.nombre + " (" + n++ + ")";
+    usados.add(norm(nombre));
+    cambiar("plantillas", { id: p.id, nombre, items: desdeCompartido(p.items), borrado: false }, true);
+  });
+  mesoImportacion = null;
+  return true;
+}
+
 function pasoIA(paso) {
   ["prompt", "pegar"].forEach(p => $("iaPasos").querySelector('[data-paso="' + p + '"]').setAttribute("aria-selected", String(p === paso || (paso === "vista" && p === "pegar"))));
   $("iaPasos").hidden = paso === "vista";
@@ -6876,10 +6966,10 @@ function pasoIA(paso) {
   $("iaVistaCaja").hidden = paso === "prompt" || (paso === "pegar" && !rutinaIA);
 }
 function abrirIA(paso) {
+  contextoIA = contextoSesion();
   rutinaIA = null;
   docIA = null;
   $("iaDocumentoAyuda").hidden = true;
-  $("iaEditorCaja").open = false;
   $("iaVistaTit").textContent = "";
   $("iaError").textContent = "";
   $("dlgIA").setAttribute("aria-label", paso === "vista" ? "Rutina tipo" : "Crear con IA");
@@ -6892,13 +6982,10 @@ function pintarVistaIA() {
   $("iaVistaCaja").hidden = !r;
   if (!r) return;
   vistaRutina(r, $("iaVista"));
-  $("iaInicio").value = $("iaInicio").value || lunesSiguiente();
-  $("iaMesoSem").value = semanasRutina(r);
   const n = sesionesImportadas().length;
   $("iaPlantillas").textContent = n === 1 ? "Guardar como plantilla" : "Usar como plantillas (" + n + ")";
   $("iaDiaFecha").value = $("iaDiaFecha").value || iso(new Date());
   actualizarDestinoIA();
-  editarRutinaIA();
 }
 $("iaPasos").addEventListener("click", ev => { const b = ev.target.closest("[data-paso]"); if (b) { pasoIA(b.dataset.paso); if (b.dataset.paso === "prompt") $("iaTexto").value = textoPrompt(); } });
 ["iaObjetivo", "iaDias", "iaNivel", "iaSemanas", "iaMaterial", "iaMeta", "iaLimites", "iaModo", "iaSesTipo", "iaSesOtro", "iaDuracion", "iaIntensidad", "iaMarca", "iaFechaCarrera"].forEach(id => ["input", "change"].forEach(ev => $(id).addEventListener(ev, pintarCamposIA)));
@@ -6931,6 +7018,7 @@ $("iaRevisar").addEventListener("click", () => {
     : r.error + " Puedes editar el texto aquí. Usa ## para cada sesión y - Ejercicio [fuerza]: 3x10 para sus ejercicios.") : "";
   $("iaVistaTit").textContent = r.error ? "" : r.nombre;
   pintarVistaIA();
+  if (!r.error) orientarImportacionIA();
 });
 $("iaRespuesta").addEventListener("input", () => { rutinaIA = null; $("iaError").textContent = ""; pintarVistaIA(); });
 $("iaPlantillas").addEventListener("click", () => { if (!rutinaIA || !validarEdicionIA()) return; $("dlgIA").close(); guardarRutina(rutinaIA, false); });
@@ -6940,28 +7028,25 @@ $("iaLista").addEventListener("click", () => {
   $("dlgIA").close();
   elegirLista("¿En qué lista guardo «" + r.nombre + "»?", l => guardarRutina(r, false, null, null, l));
 });
-$("iaMeso").addEventListener("click", () => {
-  if (!rutinaIA || !validarEdicionIA()) return;
-  if (sesionesImportadas().some(({s}) => !s.dias.length)) {
-    $("iaAvisoDias").textContent = "Asigna al menos un día a cada sesión antes de crear el mesociclo.";
-    $("iaEditorCaja").open = true; return;
-  }
-  const sem = parseInt($("iaMesoSem").value, 10), ini = $("iaInicio").value;
-  if (!ini || !(sem >= 1 && sem <= 26) || (rutinaIA.multi && sem < rutinaIA.bloques.length)) { $("iaAvisoDias").textContent = "Elige el inicio y entre 1 y 26 semanas, suficientes para incluir todas las semanas importadas."; return; }
-  $("dlgIA").close();
-  guardarRutina(rutinaIA, true, iso(lunesDe(deIso(ini))), sem);
-});
+$("iaMeso").addEventListener("click", abrirMesoImportado);
+$("iaVolverTexto").addEventListener("click", () => { pasoIA("pegar"); $("iaPegar").scrollIntoView({ block: "start" }); });
 $("iaAnadirDia").addEventListener("click", () => {
   const r = rutinaIA, f = $("iaDiaFecha").value;
-  if (!r || !f || !validarEdicionIA()) return;
+  if (!r || !validarEdicionIA()) return;
+  if (!fechaSerieValida(f)) { $("iaAvisoDias").textContent = "Elige un día válido antes de añadir el entrenamiento."; return; }
   const s = sesionesImportadas()[Number($("iaDiaSesion").value)]?.s;
   if (!s) return;
   if ($("iaDiaPlantilla").checked) guardarRutina({ ...r, multi: false, bloques: [{ sesiones: [s] }] }, false);
-  pegarItems(f, desdeCompartido(s.items), s.nombre);
+  const usados = new Set(seriesVivas().filter(x => x.fecha === f).map(x => x.grupo || ""));
+  (sesionesVacias[f] || []).forEach(g => usados.add(g));
+  let nombre = s.nombre, n = 2;
+  while (usados.has(nombre)) nombre = s.nombre + " (" + n++ + ")";
+  pegarItems(f, desdeCompartido(s.items), nombre);
+  gruposPlegados[f + "|" + nombre] = 0;
   persistir();
   $("dlgIA").close();
   abrirDia(f);
-  setEstado("«" + s.nombre + "» añadida al " + fechaCorta(f));
+  setEstado("«" + nombre + "» añadido al " + fechaCorta(f) + ". Puedes editar sus ejercicios y series aquí.");
 });
 $("iaDocumentoAyuda").addEventListener("click", () => {
   if (!docIA) return;
@@ -7989,7 +8074,7 @@ $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); 
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
 // VERSION_APP es interna (sube en cada publicación para que los móviles se actualicen); la que se ve es siempre la 26
-const VERSION_APP = "v224" + (BETA ? " beta" : "");
+const VERSION_APP = "v228" + (BETA ? " beta" : "");
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";
