@@ -2172,3 +2172,18 @@ input:focus, textarea:focus, select:focus { border-color: var(--accent); box-sha
   #vistaMarcas .sec-toggle, #vistaMarcas .informe-toggle, #vistaListas .lista-cab,
   #vistaPlan .sec-toggle, #vistaPlan .sec-cab { background: var(--card) !important; background-image: none !important; }
 }
+
+
+/* iPhone instalado: banda opaca bajo la barra de estado para que iOS no difumine contenido al desplazarse. */
+@media (max-width: 760px) and (display-mode: standalone) {
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0 0 auto;
+    height: calc(env(safe-area-inset-top, 0px) + 6px);
+    z-index: 1000;
+    background: var(--bg);
+    border-bottom: 1px solid var(--line);
+    pointer-events: none;
+  }
+}
