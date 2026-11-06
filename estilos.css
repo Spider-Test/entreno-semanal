@@ -1887,3 +1887,56 @@ input:focus, textarea:focus, select:focus { border-color: var(--accent); box-sha
     background: inherit;
   }
 }
+
+/* Móvil: evitar que títulos largos y controles de añadir ensanchen la tarjeta del día. */
+@media (max-width: 760px) {
+  #vistaSemana.solo-dia .semana { grid-template-columns: minmax(0, 1fr); }
+  #vistaSemana .dia,
+  #vistaSemana .dia-cuerpo,
+  #vistaSemana .dia-cuerpo-in,
+  #vistaSemana .grupo,
+  #vistaSemana .parte-caja,
+  #vistaSemana .grupo-cab,
+  #vistaSemana .parte-cab { box-sizing: border-box; min-width: 0; max-width: 100%; }
+  #vistaSemana .grupo,
+  #vistaSemana .grupo-cab { width: 100%; }
+  #vistaSemana .grupo-cab .g-toggle {
+    flex: 1 1 0;
+    width: 0;
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+  }
+  #vistaSemana .g-toggle .gn-txt {
+    flex: 1 1 auto;
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  #vistaSemana .g-toggle .g-res { flex: 1 1 auto; min-width: 0; }
+  #vistaSemana .dia-cuerpo-in > .add-fila {
+    min-width: 0;
+    width: 100%;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  #vistaSemana .add-fila > .add-ej { min-width: 0; max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
+  #vistaSemana .empezar { max-width: calc(100% - 16px); min-width: 0; }
+
+  /* Las barras quedan fijas arriba y abajo, con superficies opacas que mantienen el texto legible. */
+  #app > .cabecera {
+    background: color-mix(in srgb, var(--card) 96%, transparent) !important;
+    border-bottom: 1px solid color-mix(in srgb, var(--line) 80%, transparent);
+    box-shadow: 0 2px 8px rgba(12, 26, 18, 0.06);
+    -webkit-backdrop-filter: blur(16px) saturate(135%);
+    backdrop-filter: blur(16px) saturate(135%);
+  }
+  .tabbar {
+    background: color-mix(in srgb, var(--card) 97%, transparent) !important;
+    border-color: color-mix(in srgb, var(--line) 88%, transparent);
+    -webkit-backdrop-filter: blur(18px) saturate(135%);
+    backdrop-filter: blur(18px) saturate(135%);
+  }
+  body { padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 104px); }
+}
