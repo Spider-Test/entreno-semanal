@@ -107,6 +107,12 @@ input, textarea { font-size: 16px; border: 1px solid var(--line); background: va
 .bloques:not(:empty) { padding-top: 8px; border-top: 1px dashed var(--line); }
 .bloque { border: 1px solid var(--line); border-radius: 10px; padding: 6px 8px 8px; display: flex; flex-direction: column; gap: 4px; }
 .bloque-cab { display: flex; align-items: center; gap: 6px; }
+.bloque-toggle { flex: none; width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: 8px; padding: 0; background: transparent; color: var(--muted); cursor: pointer; }
+.bloque-toggle:hover, .bloque-toggle:focus-visible { background: var(--accent-soft); color: var(--accent); }
+.bloque-toggle .flecha-dia { transform: rotate(90deg); }
+.bloque.carrera-plegada > :not(.bloque-cab) { display: none !important; }
+.bloque.carrera-plegada .bloque-toggle .flecha-dia { transform: none; }
+.bloque.carrera-plegada { padding-bottom: 6px; }
 .ej-nombre { flex: 1; min-width: 0; text-align: left; border: 0; background: none; padding: 2px 0; font-weight: 700; font-size: 15px; overflow-wrap: anywhere; }
 .ico { color: var(--accent); font-size: 12px; margin-left: 4px; font-weight: 600; }
 .tipo-tag { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); border: 1px solid var(--line); border-radius: 5px; padding: 0 5px; margin-left: 6px; vertical-align: 2px; }
@@ -705,7 +711,7 @@ dialog.pantalla[open] { display: flex; flex-direction: column; }
 .series li .asa { margin-left: auto; }
 .arrastrando { position: relative; z-index: 5; background: var(--card); box-shadow: 0 10px 28px rgba(0, 0, 0, 0.22); border-radius: 10px; opacity: 0.97; }
 .bloque-cab .menu-btn { width: 32px; height: 32px; }
-@media (max-width: 760px) { .asa { width: 40px; height: 44px; font-size: 20px; } .bloque-cab .menu-btn { width: 40px; height: 44px; } }
+@media (max-width: 760px) { .asa { width: 40px; height: 44px; font-size: 20px; } .bloque-cab .menu-btn { width: 40px; height: 44px; } .bloque-toggle { width: 40px; height: 40px; } }
 @media (hover: hover) and (pointer: fine) {
   .asa { opacity: 0; transition: opacity 0.15s; }
   .series li:hover .asa, .bloque:hover > .bloque-cab .asa, .grupo-cab:hover .asa, .bloque:hover > .bloque-cab .menu-btn, .asa:focus-visible, .arrastrando .asa { opacity: 1; }

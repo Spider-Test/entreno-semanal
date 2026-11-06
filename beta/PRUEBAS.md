@@ -349,3 +349,7 @@ Si alguna cifra se multiplica por 3 o más en una versión nueva, revisar antes 
 - [ ] En vistas previas de plantillas y entrenamientos, cada parte (calentamiento, principal, vuelta a la calma) se puede plegar y desplegar; ejercicios sin parte siguen visibles.
 - [ ] En modo oscuro, el acento de la app se ve verde salvia y el fondo/paneles conservan el contraste; comprobar texto, botones, días, resumen y pestaña activa.
 - [ ] En móvil, tirar hacia abajo desde el inicio de la página no arrastra la cabecera de la app ni activa el rebote de actualización; el scroll normal hacia arriba y abajo sigue funcionando.
+
+## v155 · Partes de carreras importadas
+- [ ] En un entreno importado con «Calentamiento carrera», «Series» y/o «Vuelta a la calma», cada tarjeta tiene una flecha para plegar y desplegar sus detalles, también en móvil.
+- [ ] Plegar una tarjeta no oculta ni modifica las otras partes; el botón del nombre sigue abriendo la edición y las series conservan sus datos.

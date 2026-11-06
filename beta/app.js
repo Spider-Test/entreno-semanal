@@ -64,6 +64,7 @@ let cursores = leer("cursores-v3") || {};       // última marca de servidor le�
 let enEspera = leer("bloques-v1") || {};
 // Entrenos del día aún sin series (fecha -> nombres) y en qué entreno va cada ejercicio añadido sin series (fecha|id -> nombre)
 let gruposPlegados = {};   // los grupos y partes empiezan plegados en cada apertura
+let carrerasPlegadas = leer("carrera-plegado-v1") || {};
 let sesionesVacias = leer("sesiones-v1") || {}, esperaGrupo = leer("espera-grupo-v1") || {};
 // Partes de cada entreno aún sin series (fecha|entreno -> nombres) y la parte de cada ejercicio añadido sin series (fecha|id -> parte)
 let partesVacias = leer("partes-v1") || {}, esperaParte = leer("espera-parte-v1") || {};
@@ -1937,6 +1938,30 @@ function bloque(dia, id, series, grupo, parte, copia) {
       '<button type="button" class="enlace cambiar-ej-btn" hidden>⇄ Cambiar ejercicio</button><label class="cambiar-ej" hidden>Ejercicio <select class="otro-ej" aria-label="Cambiar el ejercicio (se mantienen las series)"></select></label>' +
       '<button type="button" class="enlace desmarcar" hidden>↺ Marcar como pendiente</button>' +
     '</form>';
+  // Las carreras importadas representan calentamiento, series y vuelta a la calma como tarjetas
+  // separadas. Se pliega cada tarjeta sin cambiar el comportamiento del botón que edita su nombre.
+  if (tipo === "carrera") {
+    const cab = b.querySelector(".bloque-cab");
+    const plegar = document.createElement("button");
+    const clave = [dia.id, grupo || "", parte || "", idK].join("|");
+    const ponerPlegada = plegada => {
+      b.classList.toggle("carrera-plegada", plegada);
+      plegar.setAttribute("aria-expanded", String(!plegada));
+      plegar.setAttribute("aria-label", (plegada ? "Desplegar " : "Plegar ") + (ej.nombre || "parte de carrera"));
+    };
+    plegar.type = "button";
+    plegar.className = "bloque-toggle";
+    plegar.innerHTML = '<span class="flecha-dia" aria-hidden="true">▸</span>';
+    ponerPlegada(carrerasPlegadas[clave] === 1);
+    plegar.addEventListener("click", ev => {
+      ev.stopPropagation();
+      const plegada = !b.classList.contains("carrera-plegada");
+      carrerasPlegadas[clave] = plegada ? 1 : 0;
+      escribir("carrera-plegado-v1", carrerasPlegadas);
+      ponerPlegada(plegada);
+    });
+    cab.prepend(plegar);
+  }
   const nom = b.querySelector(".ej-nombre");
   nom.textContent = (ej.nombre || "Sin nombre") + (copia > 1 && !parte ? " (" + copia + ")" : "");
   nom.appendChild(etiquetaTipo(tipo));
@@ -7261,7 +7286,7 @@ $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); 
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
 // VERSION_APP es interna (sube en cada publicación para que los móviles se actualicen); la que se ve es siempre la 26
-const VERSION_APP = "v154" + (BETA ? " beta" : "");
+const VERSION_APP = "v155" + (BETA ? " beta" : "");
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";
