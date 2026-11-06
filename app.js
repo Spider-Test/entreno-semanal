@@ -1565,6 +1565,8 @@ let arrastreActivo = false;   // mientras se arrastra con ≡, la sincronizació
 function pintarBloques(forzar) {
   if (arrastreActivo || (!forzar && escribiendoSerie())) { repintarLuego = true; return; }
   repintarLuego = false;
+  // Actualiza primero los resúmenes plegados de todos los días, aunque el render de algún ejercicio falle.
+  dias.forEach(pintarCabDia);
   dias.forEach(pintarDia);
   pintarProgresoSemana();
 }
@@ -7344,7 +7346,7 @@ $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); 
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
 // VERSION_APP es interna (sube en cada publicación para que los móviles se actualicen); la que se ve es siempre la 26
-const VERSION_APP = "v177" + (BETA ? " beta" : "");
+const VERSION_APP = "v179" + (BETA ? " beta" : "");
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";
@@ -8186,6 +8188,39 @@ function abrirAyuda() {
 pintarAvisoNovedades();
 $("ayudaBtn").addEventListener("click", abrirAyuda);
 $("dlgAyuda").querySelectorAll("details").forEach(d => d.addEventListener("toggle", () => { if (d.open) verAlAbrir(d); }));
+
+// La transparencia solo se aplica al encabezado desplegable que ya está pegado arriba mientras se desplaza.
+(() => {
+  const selector = [
+    "#vistaSemana:not(.solo-dia) .dia:not(.plegado) > .dia-cab",
+    "#vistaSemana .parte-caja:not(.p-plegada) > .parte-cab",
+    "#vistaSemana .grupo:not(.g-plegado) > .grupo-cab",
+    "#vistaSemana .sem-resumenes > details[open] > summary",
+    "#vistaEjercicios .cat-sec:not(.cerrada) > .sec-toggle",
+    "#vistaMarcas .cat-sec:not(.cerrada) > .sec-toggle",
+    "#vistaMarcas .informe-sec[open] > .informe-toggle",
+    "#vistaListas .lista-sec:not(.cerrada) > .lista-cab",
+    "#vistaPlan > .plan-sec:not(.cerrada) > .sec-toggle",
+    "#vistaPlan > .plan-sec:not(.cerrada) > .sec-cab:has(> .sec-toggle)"
+  ].join(",");
+  let pendiente = false;
+  const actualizar = () => {
+    pendiente = false;
+    const arriba = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--sticky-cabecera")) || 0;
+    const desplazada = scrollY > 2;
+    document.querySelectorAll(selector).forEach(el => {
+      const r = el.getBoundingClientRect();
+      const pegada = desplazada && Math.abs(r.top - arriba) <= 3;
+      if (el.classList.contains("cab-pegada") !== pegada) el.classList.toggle("cab-pegada", pegada);
+    });
+  };
+  const programar = () => { if (!pendiente) { pendiente = true; requestAnimationFrame(actualizar); } };
+  document.addEventListener("scroll", programar, { passive: true, capture: true });
+  window.addEventListener("resize", programar, { passive: true });
+  const app = document.getElementById("app");
+  if (app) new MutationObserver(programar).observe(app, { childList: true, subtree: true, attributes: true, attributeFilter: ["class", "open", "hidden"] });
+  programar();
+})();
 
 if (/type=recovery|error_code=/.test(location.hash)) entrarDesdeEnlace();
 else if (sesion) mostrarApp(true); else $("login").hidden = false;

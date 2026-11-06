@@ -2105,6 +2105,26 @@ input:focus, textarea:focus, select:focus { border-color: var(--accent); box-sha
   .tabbar button { min-height: 52px; }
 }
 
+
+/* El cristal aparece solo en la cabecera de un desplegable que está fijada arriba al desplazarse. */
+@media (max-width: 760px) {
+  #vistaSemana .dia-cab.cab-pegada,
+  #vistaSemana .parte-cab.cab-pegada,
+  #vistaSemana .grupo-cab.cab-pegada,
+  #vistaSemana .sem-resumenes > details[open] > summary.cab-pegada,
+  #vistaEjercicios .sec-toggle.cab-pegada,
+  #vistaMarcas .sec-toggle.cab-pegada,
+  #vistaMarcas .informe-toggle.cab-pegada,
+  #vistaListas .lista-cab.cab-pegada,
+  #vistaPlan .sec-toggle.cab-pegada,
+  #vistaPlan .sec-cab.cab-pegada {
+    background: color-mix(in srgb, var(--card) 78%, transparent) !important;
+    -webkit-backdrop-filter: blur(16px) saturate(140%) !important;
+    backdrop-filter: blur(16px) saturate(140%) !important;
+    box-shadow: 0 4px 14px rgba(15, 28, 38, 0.1) !important;
+  }
+}
+
 /* La navegación superior y el encabezado de la app no dejan capas de cristal sobre el contenido. */
 @media (max-width: 760px) {
   #app > .cabecera {
