@@ -2213,6 +2213,9 @@ input:focus, textarea:focus, select:focus { border-color: var(--accent); box-sha
 
 /* iPhone instalado: barra superior opaca para separar el contenido del área de estado de iOS. */
 @media (max-width: 760px) and (display-mode: standalone) {
+  :root { --sticky-cabecera: calc(env(safe-area-inset-top, 0px) + 36px); }
+  #vistaSemana:not(.solo-dia) { --sticky-entreno: var(--sticky-cabecera) !important; }
+  #vistaSemana.solo-dia { --sticky-entreno: calc(var(--sticky-cabecera) + 44px) !important; }
   body { padding-top: calc(env(safe-area-inset-top, 0px) + 44px) !important; }
   body::before {
     content: "";
