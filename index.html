@@ -47,7 +47,6 @@
 <section id="app" hidden>
   <header class="cabecera">
     <h1>Fuerza y Ritmo</h1>
-    <button type="button" class="ayuda-btn" id="ayudaBtn" aria-label="Instrucciones de uso" title="Instrucciones de uso">?</button>
   </header>
   <nav class="tabbar" role="tablist" aria-label="Secciones">
     <button type="button" role="tab" id="tabSemana" aria-selected="true"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg><span>Semana</span></button>
@@ -168,6 +167,11 @@
         <label class="campo">FC en reposo (opcional, zonas por reserva) <input id="ajFcReposo" inputmode="numeric" pattern="[0-9]*"></label>
       </div>
       <label class="campo">Series importadas con mucho desnivel (pendiente media de más del 4 %) <select id="ajDesnivel"><option value="excluir">No cuentan para las marcas por distancia</option><option value="contar">Cuentan, con su ritmo ajustado</option></select></label>
+    </section>
+    <section class="plan-sec" data-sec="ayuda">
+      <h3>Instrucciones de uso</h3>
+      <p class="vacio-lista">Consulta cómo usar la semana, los ejercicios, los entrenamientos y las marcas.</p>
+      <button type="button" class="nav-btn ayuda-btn ayuda-ajustes-btn" id="ayudaBtn" aria-label="Instrucciones de uso" title="Abrir instrucciones completas">Abrir instrucciones completas</button>
     </section>
     <section class="plan-sec" data-sec="sugerencias" id="bloqueSug" hidden>
       <div class="sec-cab"><h3 id="sugTit">Sugerencias</h3><button type="button" class="nav-btn" id="sugRecargar">Actualizar</button></div>
@@ -527,7 +531,7 @@
     <button class="cerrar" aria-label="Cerrar">✕</button>
   </form>
   <div class="d-cuerpo ayuda">
-    <p>Toca cada apartado para verlo. Puedes volver aquí cuando quieras con el botón <b>?</b> de arriba. ¿Echas algo en falta o algo no va bien? Envíanos una sugerencia:</p>
+    <p>Toca cada apartado para verlo. Puedes volver aquí cuando quieras desde <b>Ajustes → Instrucciones de uso</b>. ¿Echas algo en falta o algo no va bien? Envíanos una sugerencia:</p>
     <button type="button" class="nav-btn sug-btn" id="sugAyuda">💬 Enviar una sugerencia o avisar de un fallo</button>
     <details><summary>La semana y el texto del día</summary>
       <p>En el móvil, las secciones están abajo: <b>Semana</b>, <b>Ejercicios</b>, <b>Entrenamientos</b>, <b>Marcas</b> y <b>Ajustes</b>. En el ordenador van arriba, centradas, y la semana se ve en 7 columnas. En pantallas grandes todo se amplía un poco para aprovechar el ancho; en <b>Ajustes → Tamaño en el ordenador</b> eliges otro tamaño si lo prefieres.</p>

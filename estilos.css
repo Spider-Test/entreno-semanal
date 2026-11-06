@@ -2050,3 +2050,33 @@ input:focus, textarea:focus, select:focus { border-color: var(--accent); box-sha
   #vistaListas .lista-sec:not(.cerrada) > .lista-cab { top: var(--sticky-cabecera); }
 }
 
+/* En móvil, navegación inferior sólida y pegada al borde seguro de la pantalla. */
+.ayuda-ajustes-btn {
+  width: auto;
+  height: auto;
+  min-height: 42px;
+  border-radius: 10px;
+  padding: 8px 14px;
+  font-size: 14px;
+}
+@media (max-width: 760px) {
+  #app > .cabecera { display: none !important; }
+  .tabbar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 100;
+    margin: 0;
+    padding: 5px 6px calc(5px + env(safe-area-inset-bottom, 0px));
+    border: 1px solid var(--line) !important;
+    border-bottom: 0 !important;
+    border-radius: 18px 18px 0 0;
+    background: var(--card) !important;
+    box-shadow: 0 -6px 22px rgba(15, 28, 38, 0.12);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+  .tabbar button { min-height: 52px; }
+}
+
