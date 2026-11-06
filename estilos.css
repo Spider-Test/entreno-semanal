@@ -810,7 +810,7 @@ dialog.pantalla[open] { display: flex; flex-direction: column; }
   .calent-sug { font-size: 13px; padding: 6px 8px; }
 }
 
-/* ===== Liquid Glass: solo en lo que flota (pestañas, cabecera, ventanas, avisos, botones del modo entreno) ===== */
+/* Efectos de cristal reservados para elementos flotantes y ventanas. */
 :root {
   --vidrio: color-mix(in srgb, var(--card) 62%, transparent);
   --vidrio-denso: color-mix(in srgb, var(--card) 80%, transparent);
@@ -823,7 +823,7 @@ dialog.pantalla[open] { display: flex; flex-direction: column; }
           --vidrio-luz: rgba(255, 255, 255, 0.14); --vidrio-brillo: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0) 60%);
           --vidrio-sombra: 0 10px 30px rgba(0, 0, 0, 0.45), 0 1px 3px rgba(0, 0, 0, 0.3); }
 }
-.tabbar, .cabecera, dialog:not(.pantalla), .toast, .en-pie, .en-cab {
+.tabbar, dialog:not(.pantalla), .toast, .en-pie, .en-cab {
   -webkit-backdrop-filter: blur(24px) saturate(170%); backdrop-filter: blur(24px) saturate(170%);
 }
 /* Barra de pestañas: cápsula flotante */
@@ -837,7 +837,7 @@ dialog.pantalla[open] { display: flex; flex-direction: column; }
   /* Cabecera fija al hacer scroll */
   body { padding-top: 0; }
   .cabecera { position: sticky; top: 0; z-index: 15; margin: 0 calc(-1 * max(14px, env(safe-area-inset-left, 0px))); padding: max(10px, env(safe-area-inset-top, 0px)) max(14px, env(safe-area-inset-right, 0px)) 8px;
-    background: var(--vidrio-brillo), var(--vidrio); border-bottom: 1px solid var(--vidrio-luz); }
+    background: var(--bg); background-image: none; border-bottom: 1px solid var(--line); -webkit-backdrop-filter: none; backdrop-filter: none; }
 }
 /* Ventanas y hojas */
 dialog:not(.pantalla) { background: var(--vidrio-brillo), var(--vidrio-denso); border: 1px solid var(--vidrio-luz); box-shadow: 0 24px 60px rgba(0, 0, 0, 0.3), inset 0 1px 0 var(--vidrio-luz); }
@@ -851,11 +851,11 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.35); }
 .en-cab, .en-pie { background: var(--vidrio-brillo), var(--vidrio); border-color: var(--vidrio-luz); }
 /* Sin cristal: sin soporte, o si se pide menos transparencia o más contraste */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  .tabbar, .cabecera, dialog:not(.pantalla), .en-cab, .en-pie { background: var(--card); }
+  .tabbar, dialog:not(.pantalla), .en-cab, .en-pie { background: var(--card); }
   .toast { background: var(--toast-bg); }
 }
 @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
-  .tabbar, .cabecera, dialog:not(.pantalla), .en-cab, .en-pie { background: var(--card); -webkit-backdrop-filter: none; backdrop-filter: none; }
+  .tabbar, dialog:not(.pantalla), .en-cab, .en-pie { background: var(--card); -webkit-backdrop-filter: none; backdrop-filter: none; }
   .toast { background: var(--toast-bg); -webkit-backdrop-filter: none; backdrop-filter: none; }
   .toast.pr { background: var(--gold); }
 }
@@ -996,10 +996,10 @@ html.ampliado label, html.ampliado summary, html.ampliado .tarjeta, html.ampliad
     padding: 5px 8px;
     border: 0;
     border-radius: 12px;
-    background: color-mix(in srgb, var(--bg) 90%, transparent);
+    background: var(--bg) !important;
     box-shadow: none;
-    -webkit-backdrop-filter: blur(14px);
-    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
   }
   #vistaSemana .dia-nav-t {
     padding: 0 2px 4px;
@@ -1182,7 +1182,7 @@ h1 { color: var(--titulo); }
 /* Más a juego con el logo: cabecera y pestañas en azul marino, con el verde de las zancadas como acento */
 :root { --bg: #e4ebf2; --azul: #14324a; --azul-cristal: color-mix(in srgb, #14324a 90%, transparent); --verde: #4cc48a; }
 @media (prefers-color-scheme: dark) { :root { --bg: #08121b; --azul: #11304a; --azul-cristal: color-mix(in srgb, #11304a 88%, transparent); } }
-.cabecera { background: var(--azul-cristal) !important; border-bottom: 0 !important; color: #fff; }
+.cabecera { background: var(--azul) !important; background-image: none !important; border-bottom: 0 !important; color: #fff; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
 .cabecera h1 { color: #fff; }
 .cabecera .ayuda-btn { background: rgba(255, 255, 255, 0.12); border-color: rgba(255, 255, 255, 0.35); color: var(--verde); }
 .tabbar { background: var(--azul-cristal) !important; border-color: rgba(255, 255, 255, 0.12) !important; }
@@ -1752,9 +1752,9 @@ input:focus, textarea:focus, select:focus { border-color: var(--accent); box-sha
     padding: 5px;
     border: 1px solid color-mix(in srgb, var(--accent) 20%, var(--line));
     border-radius: 16px;
-    background: color-mix(in srgb, var(--card) 92%, transparent);
-    -webkit-backdrop-filter: blur(16px);
-    backdrop-filter: blur(16px);
+    background: var(--card) !important;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
     box-shadow: var(--sombra-panel);
   }
   .organizar-nav .plan-nav-btn {
@@ -1926,14 +1926,7 @@ input:focus, textarea:focus, select:focus { border-color: var(--accent); box-sha
   #vistaSemana .add-fila > .add-ej { min-width: 0; max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
   #vistaSemana .empezar { max-width: calc(100% - 16px); min-width: 0; }
 
-  /* Las barras quedan fijas arriba y abajo, con superficies opacas que mantienen el texto legible. */
-  #app > .cabecera {
-    background: color-mix(in srgb, var(--card) 96%, transparent) !important;
-    border-bottom: 1px solid color-mix(in srgb, var(--line) 80%, transparent);
-    box-shadow: 0 2px 8px rgba(12, 26, 18, 0.06);
-    -webkit-backdrop-filter: blur(16px) saturate(135%);
-    backdrop-filter: blur(16px) saturate(135%);
-  }
+  /* Barra inferior. */
   .tabbar {
     background: color-mix(in srgb, var(--card) 97%, transparent) !important;
     border-color: color-mix(in srgb, var(--line) 88%, transparent);
@@ -2068,23 +2061,6 @@ input:focus, textarea:focus, select:focus { border-color: var(--accent); box-sha
   #app > .cabecera { display: none !important; }
   :root { --sticky-cabecera: env(safe-area-inset-top, 0px); }
 
-  /* Solo los encabezados pegajosos de un desplegable tienen efecto translúcido:
-     dejan intuir el entrenamiento que pasa por debajo sin crear una franja global. */
-  #vistaSemana:not(.solo-dia) .dia:not(.plegado) > .dia-cab,
-  #vistaSemana .parte-caja:not(.p-plegada) > .parte-cab,
-  #vistaSemana .grupo:not(.g-plegado) > .grupo-cab,
-  #vistaSemana .parte-caja .grupo:not(.g-plegado) > .grupo-cab,
-  #vistaSemana .sem-resumenes > details[open] > summary,
-  #vistaEjercicios .cat-sec:not(.cerrada) > .sec-toggle,
-  #vistaMarcas .cat-sec:not(.cerrada) > .sec-toggle,
-  #vistaMarcas .informe-sec[open] > .informe-toggle,
-  #vistaListas .lista-sec:not(.cerrada) > .lista-cab,
-  #vistaPlan > .plan-sec:not(.cerrada) > .sec-toggle,
-  #vistaPlan > .plan-sec:not(.cerrada) > .sec-cab:has(> .sec-toggle) {
-    background: color-mix(in srgb, var(--card) 84%, transparent) !important;
-    -webkit-backdrop-filter: blur(12px) saturate(130%) !important;
-    backdrop-filter: blur(12px) saturate(130%) !important;
-  }
   .tabbar {
     position: fixed;
     left: 0;
@@ -2214,4 +2190,22 @@ input:focus, textarea:focus, select:focus { border-color: var(--accent); box-sha
     -webkit-backdrop-filter: none !important;
     backdrop-filter: none !important;
   }
+}
+
+
+/* Móvil: ninguna cabecera o navegación superior usa transparencia ni desenfoque. */
+@media (max-width: 760px) {
+  #app > .cabecera { background: var(--bg) !important; background-image: none !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+  #navSemana, #vistaSemana .dia-nav, #organizarNav,
+  #vistaSemana .dia-cab, #vistaSemana .parte-cab, #vistaSemana .grupo-cab,
+  #vistaSemana .sem-resumenes > details > summary,
+  #vistaEjercicios .sec-toggle, #vistaMarcas .sec-toggle, #vistaMarcas .informe-toggle,
+  #vistaListas .lista-cab, #vistaPlan .sec-toggle, #vistaPlan .sec-cab {
+    -webkit-backdrop-filter: none !important; backdrop-filter: none !important;
+  }
+  #navSemana, #vistaSemana .dia-nav, #organizarNav { background: var(--bg) !important; background-image: none !important; }
+  #vistaSemana .dia-cab, #vistaSemana .parte-cab, #vistaSemana .grupo-cab,
+  #vistaSemana .sem-resumenes > details > summary, #vistaEjercicios .sec-toggle,
+  #vistaMarcas .sec-toggle, #vistaMarcas .informe-toggle, #vistaListas .lista-cab,
+  #vistaPlan .sec-toggle, #vistaPlan .sec-cab { background: var(--card) !important; background-image: none !important; }
 }
