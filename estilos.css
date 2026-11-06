@@ -2066,8 +2066,7 @@ input:focus, textarea:focus, select:focus { border-color: var(--accent); box-sha
   #app > .cabecera { display: none !important; }
   :root { --sticky-cabecera: env(safe-area-inset-top, 0px); }
 
-  /* Solo los encabezados pegajosos de un desplegable tienen efecto translúcido:
-     dejan intuir el entrenamiento que pasa por debajo sin crear una franja global. */
+  /* Los encabezados pegajosos de los desplegables llevan fondo sólido para mantener la lectura clara. */
   #vistaSemana:not(.solo-dia) .dia:not(.plegado) > .dia-cab,
   #vistaSemana .parte-caja:not(.p-plegada) > .parte-cab,
   #vistaSemana .grupo:not(.g-plegado) > .grupo-cab,
@@ -2079,9 +2078,9 @@ input:focus, textarea:focus, select:focus { border-color: var(--accent); box-sha
   #vistaListas .lista-sec:not(.cerrada) > .lista-cab,
   #vistaPlan > .plan-sec:not(.cerrada) > .sec-toggle,
   #vistaPlan > .plan-sec:not(.cerrada) > .sec-cab:has(> .sec-toggle) {
-    background: color-mix(in srgb, var(--card) 84%, transparent) !important;
-    -webkit-backdrop-filter: blur(12px) saturate(130%) !important;
-    backdrop-filter: blur(12px) saturate(130%) !important;
+    background: var(--card) !important;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
   }
   .tabbar {
     position: fixed;
