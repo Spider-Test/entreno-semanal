@@ -2127,7 +2127,44 @@ input:focus, textarea:focus, select:focus { border-color: var(--accent); box-sha
   letter-spacing: 0.06em;
 }
 
-/* La barra de secciones de Entrenamientos queda siempre sólida y acompaña al contenido. */
+/* Versión principal: superficies superiores sólidas; evita que el contenido se difumine detrás. */
+@media (max-width: 760px) {
+  #app > .cabecera,
+  #navSemana,
+  #vistaSemana .dia-nav:not([hidden]),
+  #organizarNav.organizar-nav,
+  #vistaSemana:not(.solo-dia) .dia:not(.plegado) > .dia-cab,
+  #vistaSemana .parte-caja:not(.p-plegada) > .parte-cab,
+  #vistaSemana .grupo:not(.g-plegado) > .grupo-cab,
+  #vistaSemana .parte-caja .grupo:not(.g-plegado) > .grupo-cab,
+  #vistaSemana .sem-resumenes > details[open] > summary,
+  #vistaEjercicios .cat-sec:not(.cerrada) > .sec-toggle,
+  #vistaMarcas .cat-sec:not(.cerrada) > .sec-toggle,
+  #vistaMarcas .informe-sec[open] > .informe-toggle,
+  #vistaListas .lista-sec:not(.cerrada) > .lista-cab,
+  #vistaPlan > .plan-sec:not(.cerrada) > .sec-toggle,
+  #vistaPlan > .plan-sec:not(.cerrada) > .sec-cab:has(> .sec-toggle) {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+  #navSemana,
+  #vistaSemana .dia-nav:not([hidden]),
+  #organizarNav.organizar-nav { background: var(--bg) !important; }
+  #vistaSemana:not(.solo-dia) .dia:not(.plegado) > .dia-cab,
+  #vistaSemana .parte-caja:not(.p-plegada) > .parte-cab,
+  #vistaSemana .grupo:not(.g-plegado) > .grupo-cab,
+  #vistaSemana .parte-caja .grupo:not(.g-plegado) > .grupo-cab,
+  #vistaSemana .sem-resumenes > details[open] > summary,
+  #vistaEjercicios .cat-sec:not(.cerrada) > .sec-toggle,
+  #vistaMarcas .cat-sec:not(.cerrada) > .sec-toggle,
+  #vistaMarcas .informe-sec[open] > .informe-toggle,
+  #vistaListas .lista-sec:not(.cerrada) > .lista-cab,
+  #vistaPlan > .plan-sec:not(.cerrada) > .sec-toggle,
+  #vistaPlan > .plan-sec:not(.cerrada) > .sec-cab:has(> .sec-toggle) { background: var(--card) !important; }
+  #vistaSemana:not(.solo-dia) .dia.hoy:not(.plegado) > .dia-cab { background: var(--accent-soft) !important; }
+}
+
+/* La navegación superior nunca debe quedarse fija ni difuminar el texto que pasa detrás. */
 @media (max-width: 760px) {
   #navSemana, #vistaSemana .dia-nav, #organizarNav,
   #organizarNav.organizar-nav.plan-nav {
@@ -2141,7 +2178,7 @@ input:focus, textarea:focus, select:focus { border-color: var(--accent); box-sha
   }
 }
 
-/* PWA instalada: separa la primera fila de la zona del reloj/Isla dinámica y mantiene la navegación nítida. */
+/* PWA instalada en móvil: reserva el área del reloj/Isla dinámica para que no cubra la primera fila. */
 @media (max-width: 760px) and (display-mode: standalone) {
   body { padding-top: calc(env(safe-area-inset-top, 0px) + 8px) !important; }
   #navSemana, #vistaSemana .dia-nav, #organizarNav,
@@ -2197,12 +2234,12 @@ input:focus, textarea:focus, select:focus { border-color: var(--accent); box-sha
   }
   @supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
     html.ios-instalada body::before {
-      background: color-mix(in srgb, var(--bg) 42%, transparent);
-      -webkit-backdrop-filter: blur(12px) saturate(135%);
-      backdrop-filter: blur(12px) saturate(135%);
-      /* La salida gradual evita un borde rectangular sobre el contenido. */
-      -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 18px), transparent);
-      mask-image: linear-gradient(to bottom, #000 calc(100% - 18px), transparent);
+      background: color-mix(in srgb, var(--bg) 28%, transparent);
+      -webkit-backdrop-filter: blur(12px);
+      backdrop-filter: blur(12px);
+      /* Toda la extensión bajo el área segura se desvanece gradualmente. */
+      -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 36px), transparent);
+      mask-image: linear-gradient(to bottom, #000 calc(100% - 36px), transparent);
     }
   }
   @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
