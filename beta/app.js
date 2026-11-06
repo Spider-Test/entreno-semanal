@@ -956,13 +956,15 @@ function pintarSemana() {
   rel.classList.toggle("actual", n === 0);
   // «Hoy»: en otra semana, o en esta si hoy está plegado; en la vista de un día, si no es hoy
   $("hoyBtn").hidden = n === 0 && desplegado(hoyIso);
-  $("diaHoy").hidden = !diaAbierto || diaAbierto === hoyIso;
+  $("diaHoy").hidden = !diaAbierto;
+  if (diaAbierto === hoyIso) $("diaHoy").setAttribute("aria-current", "date");
+  else $("diaHoy").removeAttribute("aria-current");
   pintarBanda();
   // Cada día se despliega o se pliega (por defecto, solo hoy desplegado); con un día abierto, solo ese día
   $("vistaSemana").classList.toggle("solo-dia", !!diaAbierto);
   $("diaNav").hidden = !diaAbierto;
   $("navSemana").hidden = !!diaAbierto;
-  if (diaAbierto) $("diaNavTit").textContent = NOMBRES[(deIso(diaAbierto).getDay() + 6) % 7] + " " + fmt(deIso(diaAbierto)) + (diaAbierto === hoyIso ? " · hoy" : "");
+  if (diaAbierto) $("diaNavTit").textContent = NOMBRES[(deIso(diaAbierto).getDay() + 6) % 7] + " " + fmt(deIso(diaAbierto));
   dias.forEach(d => {
     const f = sumarDias(lunes, d.i);
     d.id = iso(f);
@@ -5512,7 +5514,14 @@ $("fechaInformeAnterior").addEventListener("click", () => { mesCalendarioInforme
 $("fechaInformeSiguiente").addEventListener("click", () => { mesCalendarioInforme = new Date(mesCalendarioInforme.getFullYear(), mesCalendarioInforme.getMonth() + 1, 1); pintarCalendarioInforme(); });
 $("calendarioInforme").addEventListener("keydown", e => { if (e.key === "Escape") { cerrarCalendarioInforme(); $("fechaInformeAbrir").focus(); } });
 document.addEventListener("pointerdown", e => { if (!e.target.closest(".informe-fecha-campo")) cerrarCalendarioInforme(); });
-function descargarResumenPeriodo() {
+function descargarResumenPeriodo(formato) {
+  if (!formato) {
+    abrirMenu("Descargar resumen", "Elige el formato del archivo.", [
+      { texto: "Descargar HTML", accion: () => descargarResumenPeriodo("html") },
+      { texto: "Guardar como PDF…", accion: () => descargarResumenPeriodo("pdf") }
+    ]);
+    return;
+  }
   const { desde, hasta, titulo } = limitesInforme();
   const filas = seriesVivas().filter(s => s.fecha >= desde && s.fecha < hasta && hecha(s) && !s.calentamiento);
   const dias = new Set(filas.map(s => s.fecha)), sesiones = new Set(filas.map(s => s.fecha + "|" + (s.grupo || "Entreno"))), correr = filas.filter(s => tipoDe(s.ejercicio_id) === "carrera"), nadar = filas.filter(s => tipoDe(s.ejercicio_id) === "natacion"), fuerza = filas.filter(s => tipoDe(s.ejercicio_id) === "fuerza");
@@ -5522,8 +5531,16 @@ function descargarResumenPeriodo() {
   correr.filter(s => n0(s.distancia) && n0(s.tiempo)).forEach(s => { const nombre = nombreEj(s.ejercicio_id), r = n0(s.tiempo) / n0(s.distancia); if (!registros.has(nombre) || r < registros.get(nombre).valor) registros.set(nombre, { nombre, valor: r, detalle: fmtDist(s.distancia) + " · " + fmtTiempo(s.tiempo) + " · " + ritmo(s, "carrera") }); });
   const esc = x => String(x).replace(/[&<>\"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;" })[c]);
   const top = [...registros.values()].sort((a, b) => a.nombre.localeCompare(b.nombre, "es")).slice(0, 30);
-  const contenido = `<!doctype html><html lang="es"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>${esc(titulo)} · Fuerza y Ritmo</title><style>body{font:16px system-ui,sans-serif;max-width:760px;margin:36px auto;padding:0 20px;color:#20252b}h1{font-size:28px}small{color:#667}section{border-top:1px solid #ddd;padding:14px 0}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:12px}.k{padding:14px;background:#f3f5f7;border-radius:12px}.k b{display:block;font-size:22px}li{margin:8px 0}@media print{body{margin:0 auto}}</style><h1>${esc(titulo)}</h1><p>Resumen de entrenamientos registrados · ${desde} a ${iso(sumarDias(deIso(hasta),-1))}</p><section class="grid"><div class="k"><b>${sesiones.size}</b>sesiones</div><div class="k"><b>${filas.length}</b>series completadas</div><div class="k"><b>${dias.size}</b>días activos</div><div class="k"><b>${fmtDist(metros(correr))}</b>distancia de carrera</div><div class="k"><b>${fmtDist(metros(nadar))}</b>distancia de natación</div><div class="k"><b>${fmtTiempo(segundos(correr)+segundos(nadar))}</b>tiempo de carrera y natación</div><div class="k"><b>${Math.round(desnivel)} m</b>desnivel positivo registrado</div></section><section><h2>Mejores resultados registrados</h2>${top.length ? `<ul>${top.map(x=>`<li><b>${esc(x.nombre)}</b>: ${esc(x.detalle)}</li>`).join("")}</ul>` : "<p>No hay marcas de fuerza o carrera en este periodo.</p>"}</section><p>Generado por Fuerza y Ritmo. Los datos reflejan lo registrado en la app.</p></html>`;
-  descargarArchivo("resumen-entrenamiento-" + desde + "-" + iso(sumarDias(deIso(hasta),-1)) + ".html", contenido, "text/html");
+  const contenido = `<!doctype html><html lang="es"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>${esc(titulo)} · Fuerza y Ritmo</title><style>@page{margin:18mm}body{font:16px system-ui,sans-serif;max-width:760px;margin:36px auto;padding:0 20px;color:#20252b}h1{font-size:28px}small{color:#667}section{border-top:1px solid #ddd;padding:14px 0}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:12px}.k{padding:14px;background:#f3f5f7;border-radius:12px}.k b{display:block;font-size:22px}li{margin:8px 0}@media print{body{margin:0 auto;padding:0;max-width:none}.grid{grid-template-columns:repeat(2,1fr)}.k{break-inside:avoid}section{break-inside:avoid}}</style><h1>${esc(titulo)}</h1><p>Resumen de entrenamientos registrados · ${desde} a ${iso(sumarDias(deIso(hasta),-1))}</p><section class="grid"><div class="k"><b>${sesiones.size}</b>sesiones</div><div class="k"><b>${filas.length}</b>series completadas</div><div class="k"><b>${dias.size}</b>días activos</div><div class="k"><b>${fmtDist(metros(correr))}</b>distancia de carrera</div><div class="k"><b>${fmtDist(metros(nadar))}</b>distancia de natación</div><div class="k"><b>${fmtTiempo(segundos(correr)+segundos(nadar))}</b>tiempo de carrera y natación</div><div class="k"><b>${Math.round(desnivel)} m</b>desnivel positivo registrado</div></section><section><h2>Mejores resultados registrados</h2>${top.length ? `<ul>${top.map(x=>`<li><b>${esc(x.nombre)}</b>: ${esc(x.detalle)}</li>`).join("")}</ul>` : "<p>No hay marcas de fuerza o carrera en este periodo.</p>"}</section><p>Generado por Fuerza y Ritmo. Los datos reflejan lo registrado en la app.</p></html>`;
+  const nombre = "resumen-entrenamiento-" + desde + "-" + iso(sumarDias(deIso(hasta),-1));
+  if (formato === "html") { descargarArchivo(nombre + ".html", contenido, "text/html"); return; }
+  const ventana = window.open("", "_blank");
+  if (!ventana) { setEstado("El navegador bloqueó la ventana para imprimir. Permite ventanas emergentes o descarga el resumen en HTML.", true); return; }
+  let imprimirIniciado = false;
+  const imprimir = () => { if (imprimirIniciado) return; imprimirIniciado = true; setTimeout(() => { ventana.focus(); ventana.print(); }, 250); };
+  ventana.addEventListener("load", imprimir, { once: true });
+  ventana.document.open(); ventana.document.write(contenido); ventana.document.close();
+  setTimeout(imprimir, 700);
 }
 $("fechaInforme").value = iso(new Date());
 actualizarFechaInforme();
@@ -7244,7 +7261,7 @@ $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); 
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
 // VERSION_APP es interna (sube en cada publicación para que los móviles se actualicen); la que se ve es siempre la 26
-const VERSION_APP = "v151" + (BETA ? " beta" : "");
+const VERSION_APP = "v152" + (BETA ? " beta" : "");
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";
