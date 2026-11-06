@@ -34,12 +34,14 @@
 
 /* Apertura breve al reabrir la app: usa automáticamente el tema actual. */
 .apertura { position:fixed; inset:0; z-index:20000; display:grid; place-items:center; padding:24px; background:var(--bg); pointer-events:none; opacity:0; }
-.apertura.activa { animation: apertura-salir .25s ease-out .76s forwards; }
-.apertura img { display:block; width:clamp(112px, 30vw, 148px); height:auto; aspect-ratio:1; object-fit:contain; border-radius:24px; opacity:0; transform:scale(.94); box-shadow:0 0 0 1px color-mix(in srgb,var(--accent) 22%,transparent), 0 12px 34px color-mix(in srgb,var(--accent) 16%,transparent); }
-.apertura.activa img { animation: apertura-parpadeo .86s ease-in-out both; }
+.apertura.activa { opacity:1; animation: apertura-salir .25s ease-out .76s forwards; }
+.logo-apertura { display:block; width:clamp(128px, 34vw, 168px); height:auto; overflow:visible; opacity:0; transform:scale(.94); filter:drop-shadow(0 10px 24px color-mix(in srgb,var(--accent) 18%,transparent)); }
+.logo-arco { fill:none; stroke:var(--accent); stroke-width:30; stroke-linecap:round; }
+.logo-pesa { fill:var(--fg); }
+.apertura.activa .logo-apertura { animation: apertura-parpadeo .86s ease-in-out both; }
 @keyframes apertura-parpadeo { 0% { opacity:0; transform:scale(.94); } 34% { opacity:1; transform:scale(1.02); } 48% { opacity:.48; transform:scale(.98); } 68% { opacity:1; transform:scale(1.015); } 100% { opacity:1; transform:scale(1); } }
 @keyframes apertura-salir { to { opacity:0; visibility:hidden; } }
-@media (prefers-reduced-motion: reduce) { .apertura.activa, .apertura.activa h1 { animation:none !important; } .apertura.activa { display:none; } }
+@media (prefers-reduced-motion: reduce) { .apertura.activa, .apertura.activa .logo-apertura { animation:none !important; } .apertura.activa { display:none; } }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 html, body { margin: 0; min-height: 100%; }
