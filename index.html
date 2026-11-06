@@ -26,7 +26,7 @@
   window.addEventListener("pageshow", actualizar);
 })();
 </script>
-<link rel="stylesheet" href="estilos.css?v=v228">
+<link rel="stylesheet" href="estilos.css?v=v230">
 </head>
 <body>
 
@@ -524,20 +524,27 @@
       <h3 id="iaVistaTit" class="ia-tit"></h3>
       <div id="iaVista" class="ia-vista"></div>
       <p class="menu-det nota" id="iaAvisoDias" role="status"></p>
-      <div class="d-botones">
-        <button type="button" class="nav-btn" id="iaPlantillas">Usar como plantillas</button>
-        <button type="button" class="nav-btn" id="iaLista">Guardar en una lista</button>
-        <button type="button" class="nav-btn" id="iaMeso" hidden>Abrir editor de mesociclo</button>
-        <button type="button" class="nav-btn" id="iaVolverTexto">Volver al texto del documento</button>
-      </div>
-      <div id="iaDiaOp" hidden>
-        <label class="campo" id="iaDiaSesionL">Sesión que quieres añadir <select id="iaDiaSesion"></select></label>
-        <div class="fila">
-          <label class="campo">Añadir al día <input id="iaDiaFecha" type="date"></label>
-          <label class="campo chk"><input type="checkbox" id="iaDiaPlantilla"> Guardarla también como plantilla</label>
+      <details id="iaDiaOp" class="ia-guardar" hidden>
+        <summary>Añadir entrenamiento</summary>
+        <div class="ia-guardar-campos">
+          <label class="campo" id="iaDiaSesionL">Sesión <select id="iaDiaSesion"></select></label>
+          <label class="campo">Nombre del entrenamiento <input id="iaNombreSesion" maxlength="60" required></label>
+          <label class="campo">Dónde guardarlo
+            <select id="iaDestino"><option value="calendario">En el calendario</option><option value="plantilla">Como plantilla</option><option value="ambos">Calendario y plantilla</option></select>
+          </label>
+          <label class="campo" id="iaFechaCaja">Día del entrenamiento <input id="iaDiaFecha" type="date" required></label>
+          <p id="iaDestinoNota" class="nota"></p>
+          <button type="button" class="anadir" id="iaAnadirDia">Guardar y abrir calendario</button>
         </div>
-        <div class="d-botones"><button type="button" class="anadir" id="iaAnadirDia">Añadir y editar en calendario</button></div>
-      </div>
+      </details>
+      <details class="ia-otras"><summary>Otras opciones</summary>
+        <div class="ia-acciones">
+          <button type="button" class="nav-btn" id="iaPlantillas" hidden>Guardar todas como plantillas</button>
+          <button type="button" class="nav-btn" id="iaLista">Guardar en una lista</button>
+          <button type="button" class="nav-btn" id="iaMeso" hidden>Abrir editor de mesociclo</button>
+          <button type="button" class="nav-btn" id="iaVolverTexto">Volver al texto del documento</button>
+        </div>
+      </details>
     </div>
   </div>
 </dialog>
@@ -923,6 +930,6 @@
 <div class="toast" id="toast" role="status" hidden><span id="toastTxt"></span><button type="button" id="toastBtn">Deshacer</button></div>
 <div class="fiesta" id="fiesta" aria-hidden="true"></div>
 
-<script src="app.js?v=v228"></script>
+<script src="app.js?v=v230"></script>
 </body>
 </html>

@@ -2386,3 +2386,23 @@ input:focus, textarea:focus, select:focus { border-color: var(--accent); box-sha
 /* Los paneles informativos recortan su fondo interior al marco redondeado.
    Sus cabeceras móviles ya no son fijas; la cabecera del día queda intacta. */
 #vistaSemana .sem-resumenes > details.resumen-sem { overflow: clip; }
+
+/* Importación: una decisión principal y formulario en columna también en móvil. */
+#iaVistaCaja { display: flex; flex-direction: column; gap: 14px; }
+#iaVistaCaja[hidden] { display: none; }
+#iaVistaCaja .ia-tit { margin: 0; overflow-wrap: anywhere; }
+#iaVistaCaja .nota { margin: 0; }
+#iaVistaCaja .rutina-ses { padding: 14px; border: 1px solid var(--line); }
+#iaVistaCaja .rutina-parte-acordeon { list-style: none; margin: 10px 0; }
+#iaVistaCaja .rutina-parte-det > summary { font-weight: 700; color: var(--fg); padding: 8px 0; }
+#iaVistaCaja .rutina-ses > ul { padding-left: 0; }
+#iaVistaCaja .rutina-ses > ul > li:not(.rutina-parte-acordeon) { margin-left: 18px; }
+#iaDiaOp.ia-guardar { margin: 0; padding: 0; border: 1px solid var(--line); border-radius: 14px; background: var(--card); }
+.ia-guardar > summary { padding: 16px; font-weight: 700; color: var(--accent); cursor: pointer; }
+.ia-guardar-campos, .ia-acciones { display: flex; flex-direction: column; gap: 14px; padding: 0 14px 14px; }
+.ia-guardar-campos > *, .ia-acciones > button { width: 100%; min-width: 0; box-sizing: border-box; margin: 0; }
+.ia-guardar-campos select, .ia-guardar-campos input { width: 100%; min-width: 0; box-sizing: border-box; }
+.ia-guardar-campos button, .ia-acciones button { white-space: normal; text-align: center; }
+.ia-otras > summary, .ia-indicaciones > summary { cursor: pointer; padding: 8px 0; color: var(--muted); }
+.ia-indicaciones > p { padding: 8px 0; }
+.ia-acciones { padding: 8px 0 0; }
