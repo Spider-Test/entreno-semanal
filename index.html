@@ -48,9 +48,9 @@
   <nav class="tabbar" role="tablist" aria-label="Secciones">
     <button type="button" role="tab" id="tabSemana" aria-selected="true"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg><span>Semana</span></button>
     <button type="button" role="tab" id="tabEjercicios" aria-selected="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 7v10M17.5 7v10M3.5 9.5v5M20.5 9.5v5M6.5 12h11"/></svg><span>Ejercicios</span></button>
-    <button type="button" role="tab" id="tabListas" aria-selected="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6.5h11M9 12h11M9 17.5h11"/><path d="M4 6.5h.01M4 12h.01M4 17.5h.01" stroke-width="3" stroke-linecap="round"/></svg><span>Entrenamientos</span></button>
+    <button type="button" role="tab" id="tabListas" aria-selected="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6.5h11M9 12h11M9 17.5h11"/><path d="M4 6.5h.01M4 12h.01M4 17.5h.01" stroke-width="3" stroke-linecap="round"/></svg><span>Listas</span></button>
     <button type="button" role="tab" id="tabMarcas" aria-selected="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19.5h16M7 16.5v-5M12 16.5V6.5M17 16.5v-8"/></svg><span>Marcas</span></button>
-    <button type="button" role="tab" id="tabPlan" aria-selected="false"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="4" width="14" height="17" rx="2.5"/><path d="M9 4.5V3h6v1.5M8.5 10h7M8.5 14h7M8.5 18h4"/></svg><span>Ajustes</span></button>
+    <button type="button" role="tab" id="tabPlan" aria-selected="false"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="4" width="14" height="17" rx="2.5"/><path d="M9 4.5V3h6v1.5M8.5 10h7M8.5 14h7M8.5 18h4"/></svg><span>Plan</span></button>
   </nav>
 
   <div id="vistaSemana">
@@ -70,28 +70,13 @@
       <button type="button" class="nav-btn btn-hoy" id="diaHoy" hidden>Hoy</button>
     </nav>
     <p class="meso-banda" id="mesoBanda" hidden></p>
-    <div class="sem-resumenes">
-      <details class="resumen-sem" id="resumenSem" hidden>
-        <summary><span class="rs-t">Resumen de la semana</span><span class="rs-l" id="resumenLinea"></span></summary>
-        <div class="records" id="resumenCont"></div>
-      </details>
-      <details class="resumen-sem lesiones-sem" id="molestiasSem">
-        <summary><span class="rs-t">Molestias y lesiones</span><span class="rs-l" id="molestiasLinea"></span></summary>
-        <section class="molestias-semana">
-          <div class="sec-cab"><h3>Molestias y lesiones</h3><button type="button" class="nav-btn" id="nuevaMolestia">+ Nueva</button></div>
-          <p class="menu-det nota">Anota aquí una molestia para que aparezca como aviso en los ejercicios relacionados y se tenga en cuenta al crear planes con IA.</p>
-          <div class="lista-tarjetas" id="listaMolestias"></div>
-        </section>
-      </details>
-    </div>
+    <details class="resumen-sem" id="resumenSem" hidden>
+      <summary><span class="rs-t">Resumen de la semana</span><span class="rs-l" id="resumenLinea"></span></summary>
+      <div class="records" id="resumenCont"></div>
+    </details>
     <main class="semana" id="semana"></main>
   </div>
 
-  <nav class="plan-nav organizar-nav" id="organizarNav" aria-label="Organizar entrenamientos" hidden>
-    <button type="button" class="plan-nav-btn activa" data-organizar="listas">Listas</button>
-    <button type="button" class="plan-nav-btn" data-organizar="crear">Crear o importar</button>
-    <button type="button" class="plan-nav-btn" data-organizar="entrenos">Mis entrenamientos</button>
-  </nav>
   <div id="vistaListas" hidden>
     <div class="barra listas-barra"><h2 class="listas-tit">Listas de entrenamientos</h2><button type="button" class="nav-btn" id="nuevaLista">+ Nueva lista</button></div>
     <div id="listasCont"></div>
@@ -118,8 +103,12 @@
     </section>
     <section class="plan-sec" data-sec="importar">
       <h3>Importar carreras</h3>
-      <p class="vacio-lista">Importa una actividad del reloj (FIT, GPX o TCX), COROS o un CSV de Strava/Garmin. Las vueltas se guardan como series y sus recuperaciones como descanso.</p>
-      <div class="botonera"><button type="button" class="anadir" id="impAbrir">Elegir archivo de carrera…</button></div>
+      <p class="vacio-lista">Trae tus carreras del reloj (archivo GPX o TCX) o de Strava y Garmin (CSV de actividades). Con vueltas, cada serie se guarda por separado y sus recuperaciones como descanso.</p>
+      <div class="botonera"><button type="button" class="anadir" id="impAbrir">Importar archivo…</button></div>
+    </section>
+    <section class="plan-sec" data-sec="molestias">
+      <div class="sec-cab"><h3>Molestias y lesiones</h3><button type="button" class="nav-btn" id="nuevaMolestia">+ Nueva</button></div>
+      <div class="lista-tarjetas" id="listaMolestias"></div>
     </section>
     <section class="plan-sec" data-sec="ia">
       <h3>Crear con IA</h3>
@@ -137,12 +126,13 @@
       <div class="barra"><input id="codigoComp" placeholder="Pega el enlace o el código de 8 letras" autocomplete="off" autocapitalize="characters"><button type="button" class="nav-btn" id="abrirComp">Abrir</button></div>
     </section>
     <section class="plan-sec" data-sec="copia">
-      <div class="sec-cab"><h3>Copia de seguridad</h3><label class="nav-btn">Restaurar copia…<input type="file" id="impJson" accept="application/json,.json" hidden></label></div>
+      <h3>Copia de seguridad</h3>
       <p class="vacio-lista">Descarga todos tus datos. La copia completa (JSON) sirve para restaurarlos; los CSV se abren con Excel o Numbers.</p>
       <div class="botonera">
         <button type="button" class="nav-btn" id="expJson">Copia completa (JSON)</button>
         <button type="button" class="nav-btn" id="expCsv">Series (CSV)</button>
         <button type="button" class="nav-btn" id="expDias">Días y notas (CSV)</button>
+        <label class="nav-btn">Restaurar copia…<input type="file" id="impJson" accept="application/json,.json" hidden></label>
       </div>
     </section>
     <section class="plan-sec" data-sec="ajustes">
@@ -178,28 +168,6 @@
 
   <div id="vistaMarcas" hidden>
     <p class="aviso-estim">Tus récords de fuerza (por zonas del cuerpo), carrera y piscina. Las estimaciones de carrera son orientativas, calculadas con tus entrenamientos completos (fórmulas de Daniels y Riegel). No sustituyen a una prueba real ni a un entrenador.</p>
-    <section class="plan-sec informe-sec">
-      <h3>Resumen descargable</h3>
-      <div class="fila informe-controles">
-        <label class="campo">Periodo <select id="periodoInforme"><option value="semana">Semana</option><option value="mes">Mes</option><option value="ano">Año</option></select></label>
-        <label class="campo informe-fecha-campo">Fecha de referencia
-          <input id="fechaInforme" type="date" hidden>
-          <span class="informe-fecha">
-            <button type="button" class="informe-fecha-boton" id="fechaInformeAbrir" aria-haspopup="dialog" aria-expanded="false" aria-controls="calendarioInforme"></button>
-            <div class="calendario-informe" id="calendarioInforme" role="dialog" aria-label="Elige una fecha" hidden>
-              <div class="cal-informe-cab">
-                <button type="button" class="nav-btn" id="fechaInformeAnterior" aria-label="Mes anterior">‹</button>
-                <strong id="fechaInformeMes"></strong>
-                <button type="button" class="nav-btn" id="fechaInformeSiguiente" aria-label="Mes siguiente">›</button>
-              </div>
-              <div class="cal-informe-dias" id="fechaInformeDias" role="grid"></div>
-            </div>
-          </span>
-        </label>
-        <button type="button" class="anadir" id="descargarInforme">Descargar resumen</button>
-      </div>
-      <p class="menu-det nota">Incluye sesiones, días activos, distancia y tiempo registrados, desnivel y mejores resultados del periodo. Se descarga como HTML imprimible; desde el navegador puedes guardarlo como PDF.</p>
-    </section>
     <div id="marcasCont"></div>
   </div>
 
@@ -524,7 +492,7 @@
     <p>Toca cada apartado para verlo. Puedes volver aquí cuando quieras con el botón <b>?</b> de arriba. ¿Echas algo en falta o algo no va bien? Envíanos una sugerencia:</p>
     <button type="button" class="nav-btn sug-btn" id="sugAyuda">💬 Enviar una sugerencia o avisar de un fallo</button>
     <details><summary>La semana y el texto del día</summary>
-      <p>En el móvil, las secciones están abajo: <b>Semana</b>, <b>Ejercicios</b>, <b>Entrenamientos</b>, <b>Marcas</b> y <b>Ajustes</b>. En el ordenador van arriba, centradas, y la semana se ve en 7 columnas. En pantallas grandes todo se amplía un poco para aprovechar el ancho; en <b>Ajustes → Tamaño en el ordenador</b> eliges otro tamaño si lo prefieres.</p>
+      <p>En el móvil, las secciones están abajo: <b>Semana</b>, <b>Ejercicios</b>, <b>Marcas</b> y <b>Plan</b>. En el ordenador van arriba, centradas, y la semana se ve en 7 columnas. En pantallas grandes todo se amplía un poco para aprovechar el ancho; en <b>Plan → Ajustes → Tamaño en el ordenador</b> eliges otro tamaño si lo prefieres.</p>
       <p>Cada día es un <b>desplegable</b>: toca su título (▸/▾) para abrirlo o plegarlo. Plegado muestra el título del entreno (la primera línea de su texto o el nombre de sus sesiones). Por defecto solo hoy está abierto, y la app recuerda los que abras o cierres.</p>
       <p>El botón <b>⤢</b> abre ese día solo, a pantalla completa. Pasa al día anterior o siguiente con ‹ › o deslizando a los lados, y vuelve con <b>‹ Semana</b>.</p>
       <p>Cada día tiene un espacio para escribir lo que quieras. Se guarda solo. Mientras escribes aparece el botón <b>N</b> de negrita.</p>
@@ -548,7 +516,7 @@
     <details><summary>Calendario y unidades</summary>
       <p>El botón <b>📅</b>, junto a las fechas de la semana, abre el calendario del mes: cada día con entrenamiento lleva un punto (relleno si lo hiciste entero, a medias o vacío si estaba planificado). Cambia de mes con ‹ › y toca un día para ir a su semana con ese día abierto.</p>
       <p>El botón verde <b>Hoy</b> aparece cuando estás en otra semana, cuando hoy está plegado o en la vista de otro día: te lleva a hoy, desplegado y a la vista.</p>
-      <p>En <b>Ajustes → Distancias en</b> eliges metros, kilómetros o automático (metros y, desde 3 km, kilómetros). Cambia cómo se ven y en qué unidad escribes los campos de distancia; los botones − y + suben 100 m (o 0,1 km). En cualquier campo puedes escribir la unidad: «5 km», «5,2km» o «400 m».</p>
+      <p>En <b>Plan → Ajustes → Distancias en</b> eliges metros, kilómetros o automático (metros y, desde 3 km, kilómetros). Cambia cómo se ven y en qué unidad escribes los campos de distancia; los botones − y + suben 100 m (o 0,1 km). En cualquier campo puedes escribir la unidad: «5 km», «5,2km» o «400 m».</p>
     </details>
     <details><summary>Añadir ejercicios y series</summary>
       <p>Pulsa <b>+ Ejercicio</b> en un día, busca el ejercicio o escribe uno nuevo. Arriba puedes filtrar por Fuerza, Carrera, Natación o Movilidad.</p>
@@ -557,7 +525,7 @@
       <p><b>Fuerza:</b> kg × repeticiones. El botón <b>kg</b> cambia a <b>%</b> del 1RM (pon tu 1RM en la ficha del ejercicio).</p>
       <p><b>Movilidad:</b> repeticiones o tiempo (un número solo son segundos: «45»; también «2 min» o «1,30»). Marca <b>Por lado</b> si se hace a cada lado. No cuenta récords; el resumen de la semana suma sus minutos (por lado cuenta los dos).</p>
       <p><b>Carrera y natación:</b> metros y tiempo. El botón <b>m</b> cambia a <b>min</b> si prefieres apuntar solo el tiempo.</p>
-      <p>Los botones <b>−</b> y <b>+</b> suben o bajan el peso, las repeticiones, los metros (100 m) o el tiempo (5 s). En <b>Ajustes</b> eliges cuántos kilos sube cada toque (2,5 por defecto) y el peso de la barra; se guardan en cada dispositivo.</p>
+      <p>Los botones <b>−</b> y <b>+</b> suben o bajan el peso, las repeticiones, los metros (100 m) o el tiempo (5 s). En <b>Plan → Ajustes</b> eliges cuántos kilos sube cada toque (2,5 por defecto) y el peso de la barra; se guardan en cada dispositivo.</p>
       <p><b>Series y OK:</b> en fuerza, el número de <b>series</b> va junto al nombre del ejercicio; debajo, las <b>repeticiones</b> con su selector (Reps ▾: tiempo, máx…) y el <b>peso</b> con kg/%; y abajo, Por lado, el descanso y OK. Se guarda como «3 × 10 (100 kg)» y pulsa <b>OK</b>. Se crean todas de golpe y el ejercicio se pliega, limpio: «Press banca · 60 kg × 8 · ×4» con su progreso. Hoy y en días futuros quedan pendientes para marcarlas una a una; en días pasados se apuntan como hechas.</p>
       <p><b>Ventana de reps:</b> «10-12» en las repeticiones (en el móvil, «10,12») planifica una ventana; al marcar la serie te pide las que hiciste.</p>
       <p><b>Deshacer (ordenador):</b> Ctrl+Z / ⌘Z deshace y Ctrl+Y / ⌘⇧Z rehace.</p>
@@ -616,45 +584,45 @@
       <p>Si los ejercicios tienen nombre de sesión (por ejemplo «Pierna»), su menú ⋯ copia, guarda o comparte solo esa sesión. Puedes tener varias sesiones el mismo día.</p>
     </details>
     <details><summary>Discos y calentamiento</summary>
-      <p>En los ejercicios con barra verás qué discos van <b>por lado</b> (barra de 20 kg; se cambia en Ajustes). En la ficha del ejercicio puedes marcar si se hace con barra.</p>
+      <p>En los ejercicios con barra verás qué discos van <b>por lado</b> (barra de 20 kg; se cambia en Plan → Ajustes). En la ficha del ejercicio puedes marcar si se hace con barra.</p>
       <p>Hoy, antes de la primera serie de un ejercicio con peso, la app te propone un <b>calentamiento</b> (barra × 10, 50 % × 5, 70 % × 3, 85 % × 1). <b>Añadir</b> lo pone delante como series de calentamiento, que no cuentan para récords ni volumen; <b>No</b> deja de proponerlo ese día.</p>
     </details>
     <details><summary>Molestias y lesiones</summary>
-      <p>En <b>Semana → Molestias y lesiones</b>, junto al resumen semanal, anotas la zona, qué notas y desde cuándo; puedes marcarla como resuelta cuando pase. Los ejercicios relacionados muestran un aviso ⚠ y la IA tiene en cuenta las molestias activas.</p>
+      <p>En <b>Plan → Molestias y lesiones</b> apuntas la zona, qué notas y desde cuándo, y la marcas como resuelta cuando pase.</p>
       <p>Los ejercicios que trabajan esa zona muestran un aviso ⚠ (en la ficha de cada ejercicio puedes ajustar sus zonas) y «Crear con IA» la tiene en cuenta. No sustituye la opinión de un profesional.</p>
     </details>
     <details><summary>Mesociclos y semana de descarga</summary>
-      <p>En <b>Entrenamientos → Mis entrenamientos</b>, las secciones se abren y cierran tocando su título (con su contador); la app recuerda cuáles dejas abiertas. En <b>Plantillas</b> tienes un buscador por nombre o por ejercicio.</p>
+      <p>Las secciones de <b>Plan</b> se abren y cierran tocando su título (con su contador); la app recuerda cuáles dejas abiertas. En <b>Plantillas</b> tienes un buscador por nombre o por ejercicio.</p>
       <p>Para trabajar con varias plantillas a la vez, <b>mantén pulsada</b> una (o pulsa <b>Seleccionar</b>) y marca las que quieras, también entre los resultados del buscador. Abajo aparecen las acciones: <b>Añadir a un día</b> (cada una como su sesión), <b>Mesociclo</b> (crear uno repartiéndolas por la semana o añadirlas a uno existente), <b>Compartir</b> (un solo enlace con todas) y <b>Eliminar</b> (con confirmación y Deshacer).</p>
-      <p>En <b>Entrenamientos → Mis entrenamientos → Mesociclos</b> repartes tus plantillas por los días de la semana durante varias semanas. Puedes sumar kilos cada semana.</p>
+      <p>En <b>Plan → Mesociclos</b> repartes tus plantillas por los días de la semana durante varias semanas. Puedes sumar kilos cada semana.</p>
       <p>La <b>semana de descarga</b> (la última, o cada N semanas) baja un 30 % el peso y la distancia, o el número de series (lo eliges tú). En la semana aparece marcada como «Descarga».</p>
       <p>Pulsa <b>Guardar y rellenar calendario</b> para que aparezcan las series planificadas.</p>
     </details>
     <details><summary>Crear con IA y rutinas tipo</summary>
-      <p>En <b>Entrenamientos → Crear o importar</b> eliges objetivo, días, nivel, material y limitaciones. Copia el prompt, pégalo en ChatGPT, Claude u otra IA y pega su respuesta en el paso 2.</p>
+      <p>En <b>Plan → Crear con IA</b> eliges objetivo, días, nivel, material y limitaciones. Copia el prompt, pégalo en ChatGPT, Claude u otra IA y pega su respuesta en el paso 2.</p>
       <p>La app te muestra una vista previa y lo guarda como plantillas, en una <b>lista de entrenamientos</b> (si cambia cada semana, cada semana va en su bloque) o como mesociclo. Crea los ejercicios que falten. Si algo no encaja, te dice qué línea falla.</p>
       <p><b>Entrenamiento suelto:</b> en «¿Qué quieres?» elige «Entrenamiento suelto», el tipo de sesión (pierna, torso, series, umbral, tirada larga, natación, «Otro»…), la duración y la intensidad. Tus molestias activas y tus ritmos van en el prompt. Al pegar la respuesta, elige el día y pulsa <b>Añadir al día</b> (y, si quieres, guárdala también como plantilla).</p>
-      <p><b>Importar un documento:</b> en Entrenamientos → Crear o importar, «Importar documento…» admite PDF, Word (.docx), Excel (.xlsx), CSV, texto o una foto. La app saca el texto (los lectores se descargan solo al importar) y te prepara un prompt que pide a la IA convertirlo sin inventar nada; lo pegas en tu IA y pegas su respuesta en el paso 2, con vista previa antes de guardar. Si el documento ya está en el formato de la app, se lee directamente. Un PDF escaneado o una foto no tienen texto que leer: la app te lo dice y te prepara el prompt para que adjuntes el archivo a la IA.</p>
+      <p><b>Importar un documento:</b> en Plan → Crear con IA, «Importar documento…» admite PDF, Word (.docx), Excel (.xlsx), CSV, texto o una foto. La app saca el texto (los lectores se descargan solo al importar) y te prepara un prompt que pide a la IA convertirlo sin inventar nada; lo pegas en tu IA y pegas su respuesta en el paso 2, con vista previa antes de guardar. Si el documento ya está en el formato de la app, se lee directamente. Un PDF escaneado o una foto no tienen texto que leer: la app te lo dice y te prepara el prompt para que adjuntes el archivo a la IA.</p>
       <p><b>Media maratón y maratón:</b> además de 5 y 10 km. Puedes poner tu marca objetivo y la fecha de la carrera (las semanas se cuentan hasta ella). El prompt incluye tus marcas previstas de Marcas (VDOT y Riegel) y pide descarga y tapering antes de la carrera. Las tiradas largas pueden llevar ritmos distintos por tramos.</p>
-      <p>En <b>Entrenamientos → Mis entrenamientos → Rutinas tipo</b> tienes algunos ejemplos listos. Todo se copia a tus plantillas y lo puedes editar como cualquier otra.</p>
+      <p>En <b>Rutinas tipo</b> tienes algunos ejemplos listos. Todo se copia a tus plantillas y lo puedes editar como cualquier otra.</p>
       <p>Son sugerencias generales, no un plan médico ni personalizado.</p>
     </details>
     <details><summary>Importar carreras</summary>
-      <p>En <b>Entrenamientos → Crear o importar → Importar carreras</b> subes un archivo GPX o TCX del reloj o de Strava, el CSV de actividades de Strava o Garmin, o el <b>CSV de vueltas de COROS</b> (en la app de COROS, la actividad → exportar vueltas). Cada carrera se guarda en su fecha con distancia y tiempo, y alimenta Marcas y ritmos.</p>
+      <p>En <b>Plan → Importar carreras</b> subes un archivo GPX o TCX del reloj o de Strava, el CSV de actividades de Strava o Garmin, o el <b>CSV de vueltas de COROS</b> (en la app de COROS, la actividad → exportar vueltas). Cada carrera se guarda en su fecha con distancia y tiempo, y alimenta Marcas y ritmos.</p>
       <p><b>Archivos FIT (lo más completo):</b> en la app de COROS, abre la actividad → compartir (arriba) → <b>Exportar archivo .fit</b>; en COROS Training Hub (web), la actividad → Exportar → FIT. En Garmin Connect (web), la actividad → ⚙ → <b>Exportar original</b> (descarga un .zip: descomprímelo y elige el .fit). Del FIT se toman la fecha y la hora, cada vuelta con su tipo según el reloj (sin adivinar por el ritmo), el nombre del entrenamiento programado y sus objetivos, el desnivel del barómetro, y las pulsaciones media y máxima y la cadencia.</p>
       <p><b>Dónde ver tus pulsaciones:</b> en <b>Marcas → Pulsaciones</b> (el primer apartado): FC máxima, de dónde sale (y un botón para ir a esa actividad), FC en reposo, zonas Z1–Z5 con sus pulsaciones, el tiempo en cada zona de las últimas 4 semanas y la gráfica de tu pico de FC en cada actividad. Con <b>Editar</b> eliges cómo se calcula y pones tu edad o tu FC en reposo. En el día, cada carrera importada muestra su FC media y máxima debajo del total, y cada serie la suya.</p>
-      <p><b>FC máxima automática:</b> se calcula con el pico mantenido (media de 10 segundos) de tus archivos FIT y TCX de los últimos 6 meses, descartando los primeros minutos, los saltos bruscos y los valores imposibles. Ajustes y Marcas te dicen de dónde sale («168 ppm · Series 1000 m del 2 nov»). En <b>Ajustes → Cómo se calcula tu FC máxima</b> eliges: <b>automática</b> (con tus archivos; mientras no haya, por tu edad), <b>por tu edad</b> (fórmula de Tanaka: 208 − 0,7 × edad) o <b>a mano</b>. Debajo ves lo que da cada opción y cuál se usa. Si un archivo supera la que usas, te avisa. La FC en reposo (opcional) hace que las zonas se calculen sobre tu reserva.</p>
+      <p><b>FC máxima automática:</b> se calcula con el pico mantenido (media de 10 segundos) de tus archivos FIT y TCX de los últimos 6 meses, descartando los primeros minutos, los saltos bruscos y los valores imposibles. Plan → Ajustes y Marcas te dicen de dónde sale («168 ppm · Series 1000 m del 2 nov»). En <b>Plan → Ajustes → Cómo se calcula tu FC máxima</b> eliges: <b>automática</b> (con tus archivos; mientras no haya, por tu edad), <b>por tu edad</b> (fórmula de Tanaka: 208 − 0,7 × edad) o <b>a mano</b>. Debajo ves lo que da cada opción y cuál se usa. Si un archivo supera la que usas, te avisa. La FC en reposo (opcional) hace que las zonas se calculen sobre tu reserva.</p>
       <p><b>Zonas Z1–Z5:</b> 50–60, 60–70, 70–80, 80–90 y 90–100 % de tu FC máxima (o de tu reserva, si pones la FC en reposo: método Karvonen). Cada carrera importada con pulso muestra el tiempo en cada zona debajo de su total, y Marcas, el de las últimas 4 semanas.</p>
       <p><b>Cómo se calcula la forma:</b> nunca con una serie suelta, sino con la sesión entera: número de series, volumen, duración y tipo de recuperación (trotando descansa menos que parado), caída de ritmo entre series y desnivel (ritmo ajustado). Con pulsaciones, además, el % de tu FC máxima en cada serie (si llegaste al 88 %, no fuiste a tope y se extrapola tu ritmo máximo) y la deriva cardiaca (si el pulso sube mucho con el mismo ritmo, estabas cerca del límite). En Marcas, «Por qué» enseña los factores de la sesión que más pesa.</p>
-      <p><b>Pulsaciones:</b> en los rodajes continuos con FC, la forma se calcula con la parte de tu VO₂máx que usaste según tu % de FC máxima (fórmula de Londeree): así un rodaje suave no rebaja tu forma. Pon tu <b>FC máxima</b> en Ajustes; si la dejas vacía se usa la mayor registrada en tus archivos del último año (más prudente si nunca llegaste a tu máximo).</p>
+      <p><b>Pulsaciones:</b> en los rodajes continuos con FC, la forma se calcula con la parte de tu VO₂máx que usaste según tu % de FC máxima (fórmula de Londeree): así un rodaje suave no rebaja tu forma. Pon tu <b>FC máxima</b> en Plan → Ajustes; si la dejas vacía se usa la mayor registrada en tus archivos del último año (más prudente si nunca llegaste a tu máximo).</p>
       <p><b>Desnivel:</b> si el archivo trae altitud (GPX y TCX punto a punto, o la subida y bajada de cada vuelta en el CSV de COROS, Strava o Garmin), cada serie guarda su desnivel y un <b>ritmo ajustado por pendiente</b>: el ritmo equivalente en llano según el coste energético de correr en cuesta (modelo de Minetti, 2002). La altitud se suaviza para quitar el ruido del GPS. Subir hace el ritmo ajustado más rápido que el real y bajar, más lento. La forma, las marcas, las predicciones y los objetivos usan el ajustado; lo apuntado a mano y los archivos sin altitud, el real.</p>
-      <p>Una serie con pendiente media de más del 4 % se marca «con desnivel» y no cuenta para las marcas por distancia. En <b>Ajustes</b> puedes hacer que cuente con su ritmo ajustado.</p>
+      <p>Una serie con pendiente media de más del 4 % se marca «con desnivel» y no cuenta para las marcas por distancia. En <b>Plan → Ajustes</b> puedes hacer que cuente con su ritmo ajustado.</p>
       <p>El CSV de vueltas de COROS no trae la fecha: se toma del nombre del archivo (por ejemplo …20261103185611.csv es el 3 de noviembre a las 18:56) y puedes corregirla en la vista previa antes de importar. Se usa el tiempo en movimiento de cada vuelta.</p>
-      <p>Si tiene vueltas (lap): las rápidas son <b>series</b>; las más lentas de 8:00/km son <b>recuperación</b> y se guardan como descanso de la serie anterior; las que casi no avanzan son <b>descanso parado</b>; las lentas y largas del principio y del final son <b>calentamiento</b> y <b>vuelta a la calma</b> (no cuentan para marcas). Puedes cambiar cada vuelta en la vista previa, y si las series son iguales, agruparlas como bloque ×N. El límite de 8:00 se cambia en Ajustes.</p>
+      <p>Si tiene vueltas (lap): las rápidas son <b>series</b>; las más lentas de 8:00/km son <b>recuperación</b> y se guardan como descanso de la serie anterior; las que casi no avanzan son <b>descanso parado</b>; las lentas y largas del principio y del final son <b>calentamiento</b> y <b>vuelta a la calma</b> (no cuentan para marcas). Puedes cambiar cada vuelta en la vista previa, y si las series son iguales, agruparlas como bloque ×N. El límite de 8:00 se cambia en Plan → Ajustes.</p>
       <p>Si una carrera ya está en tu calendario, la app lo detecta y no la duplica. Los rodajes con vuelta automática cada km se guardan como una sola serie.</p>
     </details>
     <details><summary>Marcas y ritmos recomendados</summary>
-      <p>La pestaña <b>Marcas</b> tiene tres apartados desplegables. <b>Fuerza:</b> el récord y el 1RM estimado de cada ejercicio, separados en pierna, torso, brazos y core según las zonas que trabaja (las de su ficha); toca uno para ver su gráfica e historial. <b>Carrera:</b> «Mis carreras» (tus competiciones: «+ Carrera» o, desde el día, ⋯ del ejercicio → «Marcar como carrera»; por distancia con tu PB ★, evolución y lo que la app preveía antes de cada una; las futuras salen como objetivo con cuenta atrás y «Preparar con IA»; cuentan como tus marcas reales y pesan un 50 % más en la forma), tu forma (VDOT), tus marcas previstas en 250 m, 1 km, 2 km, 5 km, 10 km, media y maratón (según tu forma y por Riegel, con su ritmo y tu marca real al lado para comparar), tus ritmos de entrenamiento, tus pulsaciones y tus mejores marcas. <b>Piscina:</b> tus mejores marcas en 50, 100, 200, 400, 800 y 1500 m y su evolución.</p>
+      <p>La pestaña <b>Marcas</b> tiene tres apartados desplegables. <b>Fuerza:</b> el récord y el 1RM estimado de cada ejercicio, separados en pierna, torso, brazos y core según las zonas que trabaja (las de su ficha); toca uno para ver su gráfica e historial. <b>Carrera:</b> «Mis carreras» (tus competiciones: «+ Carrera» o, desde el día, ⋯ del ejercicio → «Marcar como carrera»; por distancia con tu PB ★, evolución y lo que la app preveía antes de cada una; las futuras salen como objetivo con cuenta atrás y «Preparar con IA»; cuentan como tus marcas reales y pesan un 50 % más en la forma), tu forma (VDOT), tus marcas previstas en 1 km, 2 km, 5 km, 10 km, media y maratón (según tu forma y por Riegel, con su ritmo y tu marca real al lado para comparar), tus ritmos de entrenamiento, tus pulsaciones y tus mejores marcas. <b>Piscina:</b> tus mejores marcas en 50, 100, 200, 400, 800 y 1500 m y su evolución.</p>
       <p>Las series de carrera planificadas muestran un objetivo que se ajusta según cómo te van saliendo. Si tus últimos días tienen esfuerzo alto, el objetivo se suaviza un poco. Son estimaciones orientativas.</p>
     </details>
     <details><summary>Esfuerzo (RPE) y resumen semanal</summary>
@@ -663,12 +631,12 @@
       <p>Arriba de la semana, <b>Resumen de la semana</b> muestra km (con las recuperaciones en metros, igual que el total de cada día), kilos levantados (peso × repeticiones), series hechas frente a planificadas, récords y esfuerzo medio, comparados con la semana anterior.</p>
     </details>
     <details><summary>Compartir con amigos</summary>
-      <p>Desde el menú ⋯ de un día, una sesión o una plantilla, <b>Compartir con un amigo</b> crea un código de 8 letras (con su botón <b>Copiar código</b>) y un enlace. Tu amigo lo abre o lo pega en <b>Entrenamientos → Crear o importar → Añadir algo compartido</b>. Primero solo lo ve (ejercicios, series, partes y bloques); si lo quiere, pulsa <b>+ Añadir a mi rutina…</b> y elige el día o guardarlo como plantilla.</p>
+      <p>Desde el menú ⋯ de un día, una sesión o una plantilla, <b>Compartir con un amigo</b> crea un código de 8 letras (con su botón <b>Copiar código</b>) y un enlace. Tu amigo lo abre o lo pega en <b>Plan → Añadir algo compartido</b>. Primero solo lo ve (ejercicios, series, partes y bloques); si lo quiere, pulsa <b>+ Añadir a mi rutina…</b> y elige el día o guardarlo como plantilla.</p>
       <p>Un <b>mesociclo</b> entero se comparte desde su editor: tu amigo ve una vista previa y lo guarda con todas sus plantillas.</p>
     </details>
     <details><summary>Copia de seguridad</summary>
-      <p>En <b>Ajustes → Copia de seguridad</b>, «Restaurar copia…» queda visible en la cabecera; las opciones para descargar las copias aparecen al desplegar el apartado.</p>
-      <p><b>Restaurar copia</b> recupera lo que falte sin borrar nada de lo que tienes. La copia completa (JSON) sirve para restaurar; los CSV se abren con Excel o Numbers.</p>
+      <p>En <b>Plan → Copia de seguridad</b> descargas todos tus datos: la copia completa (JSON) sirve para restaurar; los CSV se abren con Excel o Numbers.</p>
+      <p><b>Restaurar copia</b> recupera lo que falte sin borrar nada de lo que tienes.</p>
     </details>
     <details><summary>Sin conexión</summary>
       <p>Todo se guarda primero en el dispositivo y se sincroniza con tu cuenta en cuanto hay conexión. Puedes usar la app sin internet; abajo verás si hay cambios pendientes de subir.</p>
@@ -685,9 +653,9 @@
       <p>Quedará con su icono entre tus aplicaciones y se abrirá a pantalla completa, también sin conexión.</p>
     </details>
     <details id="ayudaAdmin" hidden><summary>Administración (solo tú)</summary>
-      <p><b>Accesos:</b> en Ajustes → Usuarios, cada usuario muestra la fecha y la hora de su <b>último uso</b> (abrir la app o volver a ella; se anota como mucho una vez cada 10 minutos), desde qué dispositivo (iPhone, Android, Mac… y si es la app instalada o el navegador), con qué versión (principal o beta), y su <b>último inicio de sesión</b> (cuando escribió la contraseña; con la sesión abierta cambia poco). La lista va del uso más reciente al más antiguo y marca «activo esta semana». Solo lo ves tú y solo son datos de acceso: nunca qué entrena cada uno.</p>
-      <p>En <b>Ajustes → Usuarios</b> apruebas las cuentas nuevas (te llega un correo cuando alguien se registra) o les quitas el acceso.</p>
-      <p>En <b>Ajustes → Sugerencias</b> lees las sugerencias, las marcas como leídas y las borras con ✕ (o todas las leídas de una vez), con Deshacer durante 5 segundos.</p>
+      <p><b>Accesos:</b> en Plan → Usuarios, cada usuario muestra la fecha y la hora de su <b>último uso</b> (abrir la app o volver a ella; se anota como mucho una vez cada 10 minutos), desde qué dispositivo (iPhone, Android, Mac… y si es la app instalada o el navegador), con qué versión (principal o beta), y su <b>último inicio de sesión</b> (cuando escribió la contraseña; con la sesión abierta cambia poco). La lista va del uso más reciente al más antiguo y marca «activo esta semana». Solo lo ves tú y solo son datos de acceso: nunca qué entrena cada uno.</p>
+      <p>En <b>Plan → Usuarios</b> apruebas las cuentas nuevas (te llega un correo cuando alguien se registra) o les quitas el acceso.</p>
+      <p>En <b>Plan → Sugerencias</b> lees las sugerencias, las marcas como leídas y las borras con ✕ (o todas las leídas de una vez), con Deshacer durante 5 segundos.</p>
       <p>Con <b>Puede editar el catálogo común</b> das permiso a alguien para editar los ejercicios compartidos. El 1RM y los entrenamientos de cada uno siguen siendo privados.</p>
     </details>
   </div>
@@ -789,7 +757,7 @@
     </div>
     <div class="fila">
       <label class="campo">Distancia
-        <select id="carDist"><option value="250">250 m</option><option value="2000">2 km</option><option value="5000">5 km</option><option value="10000" selected>10 km</option><option value="21097">Media maratón (21,1 km)</option><option value="42195">Maratón (42,2 km)</option><option value="otra">Otra…</option></select>
+        <select id="carDist"><option value="2000">2 km</option><option value="5000">5 km</option><option value="10000" selected>10 km</option><option value="21097">Media maratón (21,1 km)</option><option value="42195">Maratón (42,2 km)</option><option value="otra">Otra…</option></select>
       </label>
       <label class="campo" id="carOtraL" hidden>Kilómetros <input id="carOtra" inputmode="decimal" placeholder="7,5" autocomplete="off"></label>
     </div>

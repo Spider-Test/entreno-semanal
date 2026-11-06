@@ -63,7 +63,7 @@ Object.keys(TABLAS).forEach(t => { db[t] = db[t] || {}; });
 let cursores = leer("cursores-v3") || {};       // última marca de servidor leída por tabla (v3: relee todo al añadir campos)
 let enEspera = leer("bloques-v1") || {};
 // Entrenos del día aún sin series (fecha -> nombres) y en qué entreno va cada ejercicio añadido sin series (fecha|id -> nombre)
-let gruposPlegados = {};   // los grupos y partes empiezan plegados en cada apertura
+let gruposPlegados = leer("grupos-plegados-v1") || {};   // entrenos plegados dentro de un día (solo en este dispositivo)
 let sesionesVacias = leer("sesiones-v1") || {}, esperaGrupo = leer("espera-grupo-v1") || {};
 // Partes de cada entreno aún sin series (fecha|entreno -> nombres) y la parte de cada ejercicio añadido sin series (fecha|id -> parte)
 let partesVacias = leer("partes-v1") || {}, esperaParte = leer("espera-parte-v1") || {};
@@ -1347,15 +1347,10 @@ function moverADia(dia, grupo, f) {
 }
 // Juntar dos entrenos del mismo día en uno («Pecho + Pierna»): primero los del primero y detrás los del segundo.
 // Partes con el mismo nombre se juntan; el mismo ejercicio en la misma parte queda como otra tarjeta (no se mezcla)
-function fusionarEntrenos(dia, primero, segundo, nombre, separarCalentamientos) {
+function fusionarEntrenos(dia, primero, segundo, nombre) {
   const delDia = seriesDelDia(dia.id), s1 = delDia.filter(s => (s.grupo || "") === primero), s2 = delDia.filter(s => (s.grupo || "") === segundo);
   const antes = s1.concat(s2).map(s => ["series", { ...s }]);
   const maxOrden = s1.length ? Math.max(...s1.map(s => n0(s.orden))) : 0;
-  const secciones1 = new Set(s1.map(s => s.seccion || "").concat(partesVacias[dia.id + "|" + primero] || []));
-  const renombrar = new Map();
-  if (separarCalentamientos) [...new Set(s2.map(s => s.seccion || "").concat(partesVacias[dia.id + "|" + segundo] || []))].forEach(sec => {
-    if (secciones1.has(sec) && /calentamiento/i.test(sec)) renombrar.set(sec, sec + " (" + (segundo || "Entreno 2") + ")");
-  });
   s1.forEach(s => cambiar("series", { ...s, grupo: nombre }, true));
   const usadas = {};
   s1.filter(s => !s.bloque_id).forEach(s => { const k = s.ejercicio_id + "|" + (s.seccion || ""); (usadas[k] = usadas[k] || new Set()).add(n0(s.copia) > 1 ? n0(s.copia) : 1); });
@@ -1367,27 +1362,18 @@ function fusionarEntrenos(dia, primero, segundo, nombre, separarCalentamientos) 
       if (nuevaCopia[kc] === undefined) nuevaCopia[kc] = usadas[k] && usadas[k].has(mia) ? Math.max(...usadas[k]) + 1 : 0;
       if (nuevaCopia[kc]) { extra = { copia: nuevaCopia[kc] }; usadas[k].add(nuevaCopia[kc]); }
     }
-    cambiar("series", { ...s, seccion: renombrar.get(s.seccion || "") || s.seccion || "", grupo: nombre, orden: maxOrden + 1 + i, ...extra }, true);
+    cambiar("series", { ...s, grupo: nombre, orden: maxOrden + 1 + i, ...extra }, true);
   });
   // Lo que vive fuera de las series: ejercicios sin series, entrenos y partes vacíos, bloques vacíos, plegados
   const deUno = g => g === primero || g === segundo;
   (enEspera[dia.id] || []).forEach(k => { if (deUno(esperaGrupo[dia.id + "|" + k] || "")) esperaGrupo[dia.id + "|" + k] = nombre; });
-  const pv1 = partesVacias[dia.id + "|" + primero] || [], pv2 = (partesVacias[dia.id + "|" + segundo] || []).map(sec => renombrar.get(sec) || sec);
-  const pv = [...new Set(pv1.concat(pv2))];
+  const pv = [...new Set((partesVacias[dia.id + "|" + primero] || []).concat(partesVacias[dia.id + "|" + segundo] || []))];
   delete partesVacias[dia.id + "|" + primero]; delete partesVacias[dia.id + "|" + segundo];
   if (pv.length) partesVacias[dia.id + "|" + nombre] = pv;
   const sv = (sesionesVacias[dia.id] || []).filter(x => !deUno(x));
   if (!s1.length && !s2.length && !pv.length) sv.push(nombre);
   if (sv.length) sesionesVacias[dia.id] = sv; else delete sesionesVacias[dia.id];
-  Object.keys(bloquesVacios).forEach(k => { if (k.startsWith(dia.id + "|") && deUno(bloquesVacios[k].g || "")) {
-    const eraSegundo = (bloquesVacios[k].g || "") === segundo;
-    bloquesVacios[k] = { ...bloquesVacios[k], g: nombre, p: eraSegundo ? (renombrar.get(bloquesVacios[k].p || "") || bloquesVacios[k].p || "") : bloquesVacios[k].p };
-  } });
-  if (renombrar.size) (enEspera[dia.id] || []).forEach(id => {
-    if ((esperaGrupo[dia.id + "|" + id] || "") !== segundo) return;
-    const k = dia.id + "|" + id, sec = esperaParte[k] || "";
-    if (renombrar.has(sec)) esperaParte[k] = renombrar.get(sec);
-  });
+  Object.keys(bloquesVacios).forEach(k => { if (k.startsWith(dia.id + "|") && deUno(bloquesVacios[k].g || "")) bloquesVacios[k] = { ...bloquesVacios[k], g: nombre }; });
   delete gruposPlegados[dia.id + "|" + primero]; delete gruposPlegados[dia.id + "|" + segundo]; delete gruposPlegados[dia.id + "|" + nombre];
   escribir("grupos-plegados-v1", gruposPlegados);
   guardarEspera(); guardarSesiones(); guardarVacios(); persistir();
@@ -1401,18 +1387,8 @@ function menuGrupo(dia, grupo) {
     { texto: "📅 Mover a otro día…", accion: () => elegirDiaDestino(lunesDe(deIso(dia.id)), "¿A qué día muevo «" + (grupo || "Entreno 1") + "»?", f => moverADia(dia, grupo, f)) },
     ...(() => { const otros = [...dia.bloquesEl.querySelectorAll(":scope > .grupo")].map(x => x.dataset.grupo || "").filter(x => x !== grupo);
       return otros.length ? [{ texto: "🔗 Fusionar con otro entreno del día…", accion: () => abrirMenu("¿Con qué entreno lo junto?", "«" + (grupo || "Entreno 1") + "» va primero y el otro detrás, en un solo entreno", otros.map(x => ({ texto: x || "Entreno 1", accion: async () => {
-        const hayCal1 = series.some(s => s.calentamiento || /calentamiento/i.test(s.seccion || "")) || (partesVacias[dia.id + "|" + grupo] || []).some(s => /calentamiento/i.test(s));
-        const delOtro = seriesDelDia(dia.id).filter(s => (s.grupo || "") === x);
-        const hayCal2 = delOtro.some(s => s.calentamiento || /calentamiento/i.test(s.seccion || "")) || (partesVacias[dia.id + "|" + x] || []).some(s => /calentamiento/i.test(s));
-        const nombrar = async separar => {
-          const n = await pedirNombre("Nombre del entreno fusionado", (grupo || "Entreno 1") + " + " + (x || "Entreno 1"), "Por ejemplo «Pecho + Pierna». Sus ejercicios, bloques y partes pasan a ser un solo entreno.");
-          if (n) fusionarEntrenos(dia, grupo, x, n, separar);
-        };
-        if (hayCal1 && hayCal2) abrirMenu("¿Qué hacemos con los calentamientos?", "Puedes juntarlos en una sola sección o conservarlos separados dentro del entreno fusionado.", [
-          { texto: "Unir los calentamientos", accion: () => nombrar(false) },
-          { texto: "Mantenerlos separados", accion: () => nombrar(true) }
-        ]);
-        else nombrar(false);
+        const n = await pedirNombre("Nombre del entreno fusionado", (grupo || "Entreno 1") + " + " + (x || "Entreno 1"), "Por ejemplo «Pecho + Pierna». Sus ejercicios, bloques y partes pasan a ser un solo entreno.");
+        if (n) fusionarEntrenos(dia, grupo, x, n);
       } }))) }] : []; })(),
     nGrupos > 1 && { texto: "Subir sesión", accion: () => moverGrupo(dia.id, grupo, -1) },
     nGrupos > 1 && { texto: "Bajar sesión", accion: () => moverGrupo(dia.id, grupo, 1) },
@@ -1653,10 +1629,10 @@ function pintarDiaSinAncla(dia) {
         const nombres = [...new Set(g.ids.map(id => id.startsWith("b:") || id.startsWith("v:") ? "Bloque" : nombreEj(ejDeClave(id))).filter(Boolean))];
         cab.querySelector(".g-res").textContent = nombres.slice(0, 3).join(", ") + (nombres.length > 3 ? "…" : "");
         const ponerPl = pl => { caja.classList.toggle("g-plegado", pl); tg.setAttribute("aria-expanded", String(!pl)); };
-        ponerPl(gruposPlegados[clavePl] !== 0);
+        ponerPl(!!gruposPlegados[clavePl]);
         tg.addEventListener("click", () => {
           const pl = !caja.classList.contains("g-plegado");
-          gruposPlegados[clavePl] = pl ? 1 : 0;
+          if (pl) gruposPlegados[clavePl] = 1; else delete gruposPlegados[clavePl];
           escribir("grupos-plegados-v1", gruposPlegados);
           ponerPl(pl);
         });
@@ -1698,10 +1674,10 @@ function pintarDiaSinAncla(dia) {
         caja.appendChild(dest);
         const claveP = "p|" + dia.id + "|" + g.nombre + "|" + p.nombre, tg = cabP.querySelector(".p-toggle");
         const ponerP = pl => { dest.classList.toggle("p-plegada", pl); tg.setAttribute("aria-expanded", String(!pl)); };
-        ponerP(gruposPlegados[claveP] !== 0);
+        ponerP(!!gruposPlegados[claveP]);
         tg.addEventListener("click", () => {
           const pl = !dest.classList.contains("p-plegada");
-          gruposPlegados[claveP] = pl ? 1 : 0;
+          if (pl) gruposPlegados[claveP] = 1; else delete gruposPlegados[claveP];
           escribir("grupos-plegados-v1", gruposPlegados);
           ponerP(pl);
         });
@@ -1753,10 +1729,10 @@ function pintarDiaSinAncla(dia) {
         items.forEach(x => lc.appendChild(x.el));
         const claveL = "l|" + dia.id + "|" + g.nombre + "|" + p.nombre + "|" + letra;
         const ponerL = pl => { lc.classList.toggle("l-plegada", pl); cabL.setAttribute("aria-expanded", String(!pl)); };
-        ponerL(gruposPlegados[claveL] !== 0);
+        ponerL(!!gruposPlegados[claveL]);
         cabL.addEventListener("click", () => {
           const pl = !lc.classList.contains("l-plegada");
-          gruposPlegados[claveL] = pl ? 1 : 0;
+          if (pl) gruposPlegados[claveL] = 1; else delete gruposPlegados[claveL];
           escribir("grupos-plegados-v1", gruposPlegados);
           ponerL(pl);
         });
@@ -3079,11 +3055,8 @@ $("selTipo").addEventListener("click", ev => {
   $("buscarEj").focus();
 });
 function crearEjercicio(nombre, tipo) {
-  const nombreLimpio = nombre.trim(), tipoLimpio = TIPOS[tipo] ? tipo : "fuerza";
-  const existente = vivos("ejercicios").find(e => e.tipo === tipoLimpio && compacto(e.nombre) === compacto(nombreLimpio));
-  if (existente) return existente.id;
   const id = nuevoId();
-  cambiar("ejercicios", { id, user_id: sesion.user_id, nombre: nombreLimpio, tipo: tipoLimpio, video_url: "", notas: "", compartido: puedeEditarCatalogo(), borrado: false });
+  cambiar("ejercicios", { id, user_id: sesion.user_id, nombre: nombre.trim(), tipo: TIPOS[tipo] ? tipo : "fuerza", video_url: "", notas: "", compartido: puedeEditarCatalogo(), borrado: false });
   return id;
 }
 let grupoSel = "";
@@ -3215,7 +3188,7 @@ function pintarCatalogo() {
   Object.keys(TIPOS).forEach(tipo => {
     const deTipo = ejs.filter(e => tipoDe(e.id) === tipo);
     if (!deTipo.length) return;
-    const abierta = q ? true : catAbiertas[tipo] === true;
+    const abierta = q ? true : catAbiertas[tipo] !== false;
     const sec = document.createElement("section");
     sec.className = "cat-sec t-" + tipo + (abierta ? "" : " cerrada");
     sec.innerHTML = '<button type="button" class="sec-toggle"><span class="flecha-dia" aria-hidden="true">▸</span><h3></h3><span class="sec-n"></span></button><div class="sec-cuerpo"><div class="sec-cuerpo-in"><div class="cat-grid"></div></div></div>';
@@ -3237,12 +3210,12 @@ function pintarCatalogo() {
     cont.appendChild(sec);
   });
 }
-let catAbiertas = {}; // tipos de ejercicios empiezan plegados en cada apertura
+let catAbiertas = leer("catalogo-abiertas-v1") || {};
 
 // ---------- Listas de entrenamientos: cada lista ordena entrenamientos guardados (plantillas) para elegir y poner en un día ----------
 // items: en orden, id de entrenamiento (string) o separador de semana/bloque ({ sep: id, titulo }). Un entrenamiento puede repetirse
 // en varias semanas. «siguiente» es la posición (contando solo entrenamientos) del que toca después, para rotar A, B, C…
-let listasAbiertas = {}; // listas, semanas y bloques empiezan plegados en cada apertura
+let listasAbiertas = leer("listas-abiertas-v1") || {};
 const esSep = x => !!(x && typeof x === "object" && x.sep);
 // Mesociclo (o fase) de una lista: agrupa todo lo que va debajo (semanas o bloques y entrenamientos) hasta el siguiente
 const esGrupoL = x => !!(x && typeof x === "object" && x.grupo);
@@ -3316,7 +3289,7 @@ function pintarListas() {
     return;
   }
   ls.forEach(l => {
-    const rec = recorrerLista(l), abierta = listasAbiertas[l.id] === true;
+    const rec = recorrerLista(l), abierta = listasAbiertas[l.id] !== false;
     const sig = rec.length ? n0(l.siguiente) % rec.length : -1;
     const nSem = (l.items || []).filter(esSep).length;
     const sec = document.createElement("section");
@@ -3412,7 +3385,7 @@ function pintarListas() {
         const g = document.createElement("div");
         g.className = "lista-grupo";
         g.dataset.i = i;
-        const claveG = "g|" + x.grupo, plegado = listasAbiertas[claveG] !== true;
+        const claveG = "g|" + x.grupo, plegado = listasAbiertas[claveG] === false;
         g.classList.toggle("lg-plegado", plegado);
         const its = l.items || [], fin = finGrupo(i);
         const nB = its.slice(i + 1, fin + 1).filter(esSep).length, nE = its.slice(i + 1, fin + 1).filter(y => typeof y === "string" && db.plantillas[y] && !db.plantillas[y].borrado).length;
@@ -3494,7 +3467,7 @@ function pintarListas() {
         const caj = document.createElement("div");
         caj.className = "lista-bloque";
         caj.dataset.i = i;
-        const claveB = "b|" + x.sep, plegado = listasAbiertas[claveB] !== true;
+        const claveB = "b|" + x.sep, plegado = listasAbiertas[claveB] === false;
         caj.classList.toggle("lb-plegado", plegado);
         const tit = fs.querySelector(".ls-tit");
         const tg = document.createElement("button");
@@ -3987,7 +3960,7 @@ $("detalle").addEventListener("close", () => {
 
 // ---------- Rendimiento: marcas, forma (VDOT de Daniels), predicciones y ritmos objetivo ----------
 // Son estimaciones orientativas calculadas con las series hechas.
-const DIST_MARCAS = [100, 200, 250, 300, 400, 500, 600, 700, 800, 900, 1000, 1500, 2000, 3000, 5000, 10000, 21097, 42195];
+const DIST_MARCAS = [100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 1500, 2000, 3000, 5000, 10000, 21097, 42195];
 // Marcas con décimas cuando las hay (100 m en 13,2 s; o una marca sacada de una serie más larga): sin redondear
 const fmtMarca = seg => {
   const t = n0(seg);
@@ -3996,7 +3969,7 @@ const fmtMarca = seg => {
   return m + ":" + (x < 10 ? "0" : "") + x.toFixed(1).replace(".", ",");
 };
 const DIST_NADO = [50, 100, 200, 400, 800, 1500];
-const nombreDist = d => ({ 250: "250 m", 1000: "1 km", 2000: "2 km", 21097: "Media maratón", 42195: "Maratón" })[d] || fmtDist(d);
+const nombreDist = d => ({ 1000: "1 km", 2000: "2 km", 21097: "Media maratón", 42195: "Maratón" })[d] || fmtDist(d);
 const vo2 = v => -4.6 + 0.182258 * v + 0.000104 * v * v;                                   // v en m/min
 // t en min; por debajo de 5 min la fórmula de Daniels deja de ser fiable, así que se toma 5 como mínimo
 const fraccion = t => { t = Math.max(t, 5); return 0.8 + 0.1894393 * Math.exp(-0.012778 * t) + 0.2989558 * Math.exp(-0.1932605 * t); };
@@ -4218,13 +4191,13 @@ function marcasDe(tipo) {
 function seccionMarcas(titulo) {
   const s = document.createElement("section");
   const k = "s:" + titulo;
-  s.className = "plan-sec ms-plegable" + (marcasAbiertas[k] === true ? "" : " plegada");
+  s.className = "plan-sec ms-plegable" + (marcasAbiertas[k] === false ? " plegada" : "");
   const h = document.createElement("h3");
   h.className = "ms-tit";
   h.innerHTML = '<span class="flecha-dia" aria-hidden="true">▸</span><span></span>';
   h.lastChild.textContent = titulo;
   h.tabIndex = 0; h.setAttribute("role", "button");
-  h.setAttribute("aria-expanded", String(marcasAbiertas[k] === true));
+  h.setAttribute("aria-expanded", String(marcasAbiertas[k] !== false));
   const alternar = () => { const pl = !s.classList.contains("plegada"); s.classList.toggle("plegada", pl); h.setAttribute("aria-expanded", String(!pl)); marcasAbiertas[k] = !pl; escribir("marcas-abiertas-v1", marcasAbiertas); };
   h.addEventListener("click", alternar);
   h.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); alternar(); } });
@@ -4257,9 +4230,9 @@ function tablaSimple(cabecera, filas) {
 }
 let distGrafica = "";
 // Marcas en tres apartados desplegables (como el catálogo): Fuerza por zonas del cuerpo, Carrera y Piscina
-let marcasAbiertas = {}; // apartados de Marcas empiezan plegados en cada apertura
+let marcasAbiertas = leer("marcas-abiertas-v1") || {};
 function apartadoMarcas(cont, clave, titulo, n) {
-  const abierta = marcasAbiertas[clave] === true;
+  const abierta = marcasAbiertas[clave] !== false;
   const sec = document.createElement("section");
   sec.className = "cat-sec marcas-sec t-" + clave + (abierta ? "" : " cerrada");
   sec.innerHTML = '<button type="button" class="sec-toggle"><span class="flecha-dia" aria-hidden="true">▸</span><h3></h3><span class="sec-n"></span></button><div class="sec-cuerpo"><div class="sec-cuerpo-in"></div></div>';
@@ -4350,7 +4323,7 @@ function editarPulso() {
   ]);
 }
 // Mis carreras: próximas (objetivo y cuenta atrás) y hechas por distancia, con la mejor (PB), su evolución y previsto frente a real
-const DIST_CARRERA = [[250, "250 m"], [2000, "2 km"], [5000, "5 km"], [10000, "10 km"], [21097, "Media maratón (21,1 km)"], [42195, "Maratón (42,2 km)"]];
+const DIST_CARRERA = [[2000, "2 km"], [5000, "5 km"], [10000, "10 km"], [21097, "Media maratón (21,1 km)"], [42195, "Maratón (42,2 km)"]];
 let distCarreraGraf = 0;
 let marcaEdit = null;
 function abrirMarcaManual(c) {
@@ -4640,11 +4613,11 @@ function pintarMarcas() {
     const s2 = seccionMarcas("Marcas previstas");
     // Predicción según tu forma (VDOT) y por Riegel desde tu mejor marca, con su ritmo; al lado, tu marca real si la tienes
     s2.appendChild(tablaSimple(["Distancia", "Según VDOT", "Ritmo", ref ? "Riegel (desde " + nombreDist(ref.d) + ")" : "Riegel", "Real"],
-      [250, 1000, 2000, 5000, 10000, 21097, 42195].map(d => {
+      [1000, 2000, 5000, 10000, 21097, 42195].map(d => {
         const t = tiempoPrevisto(f.vdot, d), real = marcas.find(m => m.d === d);
         return { celdas: [nombreDist(d), fmtTiempo(t), fmtTiempo(t / d * 1000) + "/km", ref ? fmtTiempo(ref.t * Math.pow(d / ref.d, 1.06)) : "—", real ? fmtMarca(real.t) + (real.exacta ? "" : " *") : "—"] };
       })));
-    s2.appendChild(nota("«Real»: tu mejor marca en esa distancia (* sacada de una serie algo más larga, a su ritmo medio). La predicción de 250 m es muy orientativa: VDOT y Riegel son menos fiables en distancias cortas de velocidad; un tiempo medido en pista es más representativo."));
+    s2.appendChild(nota("«Real»: tu mejor marca en esa distancia (* sacada de una serie algo más larga, a su ritmo medio). En 1 y 2 km la predicción es más aproximada: la fórmula de Daniels es menos fiable en esfuerzos de menos de 5 minutos."));
     const s3 = seccionMarcas("Ritmos de entrenamiento");
     s3.appendChild(tablaSimple(["Zona", "Por km", "Por 400 m"], ZONAS.map(([n, fr]) => { const r = ritmoZona(f.vdot, fr) * (1 + carga.ajuste); return { celdas: [n, fmtTiempo(r), fmtTiempo(r * 0.4)] }; })));
     s3.appendChild(nota("Cada serie de carrera planificada muestra su objetivo calculado con todo el entrenamiento de ese día (series, bloques, volumen y recuperaciones) y se ajusta según cómo te van saliendo."));
@@ -4735,6 +4708,7 @@ function pintarPlan() {
   const hoy = iso(new Date());
   const ms = vivos("mesociclos").sort((a, b) => (b.inicio || "").localeCompare(a.inicio || ""));
   contadorSec("mesociclos", ms.length);
+  contadorSec("molestias", molestiasActivas().length ? molestiasActivas().length + " activa" + (molestiasActivas().length === 1 ? "" : "s") : vivos("molestias").length);
   contadorSec("rutinas", RUTINAS_TIPO.length);
   contadorSec("usuarios", usuarios.filter(u => !u.aprobado).length ? usuarios.filter(u => !u.aprobado).length + " pendientes" : usuarios.length);
   if (!ms.length) lm.innerHTML = '<p class="vacio-lista">Un mesociclo reparte tus plantillas por los días de la semana durante varias semanas, con progresión de peso si quieres.</p>';
@@ -4795,7 +4769,6 @@ function pintarPlan() {
       lu.appendChild(fila);
     });
   }
-  aplicarGrupoPlan();
 }
 function menuPlantilla(p) {
   abrirMenu(p.nombre, resumenItems(p.items || []) + ": " + nombresItems(p.items || []), [
@@ -4816,7 +4789,7 @@ async function cambiarPerfil(uid, cambios, aviso) {
 }
 function avisoUsuarios() {
   const n = usuarios.filter(u => !u.aprobado).length;
-  $("tabPlan").querySelector("span").textContent = n ? "Ajustes · " + n : "Ajustes";
+  $("tabPlan").querySelector("span").textContent = n ? "Plan · " + n : "Plan";
   $("tabPlan").classList.toggle("con-aviso", n > 0);
 }
 
@@ -5098,7 +5071,6 @@ $("calAnt").addEventListener("click", () => { mesCal = new Date(mesCal.getFullYe
 $("calSig").addEventListener("click", () => { mesCal = new Date(mesCal.getFullYear(), mesCal.getMonth() + 1, 1); pintarCalendario(); });
 $("calHoy").addEventListener("click", () => irAFecha(iso(new Date())));
 
-let subVistaOrganizar = leer("organizar-vista-v1") || "listas";
 const VISTAS = { semana: "vistaSemana", ejercicios: "vistaEjercicios", listas: "vistaListas", plan: "vistaPlan", marcas: "vistaMarcas" };
 const TABS = { semana: "tabSemana", ejercicios: "tabEjercicios", listas: "tabListas", plan: "tabPlan", marcas: "tabMarcas" };
 function verPestana(cual) {
@@ -5108,14 +5080,11 @@ function verPestana(cual) {
     $(VISTAS[k]).hidden = k !== cual;
     $(TABS[k]).setAttribute("aria-selected", String(k === cual));
   });
-  $("organizarNav").hidden = cual !== "listas";
-  if (cual === "plan") { $("vistaListas").hidden = true; mostrarGrupoPlan("cuenta"); }
-  else if (cual === "listas") mostrarSubVistaOrganizar(subVistaOrganizar);
   escribir("pestana-v1", cual);
   if (cual === "ejercicios") pintarCatalogo();
   else if (cual === "plan") { pintarPlan(); if (perfil && perfil.es_admin && sesion) { cargarPerfil().catch(() => {}); cargarInicios(); } }
   else if (cual === "marcas") pintarMarcas();
-  else if (cual === "listas") { if (subVistaOrganizar === "listas") pintarListas(); else pintarPlan(); }
+  else if (cual === "listas") pintarListas();
   else pintarSemana();
 }
 Object.keys(TABS).forEach(k => $(TABS[k]).addEventListener("click", () => verPestana(k)));
@@ -5374,7 +5343,6 @@ function datosSemana(lunes) {
 }
 let claveResumen = "";
 function pintarResumen() {
-  pintarMolestias();
   const lunes = lunesVista(), clave = versionDatos + "|" + iso(lunes);
   if (clave === claveResumen) return;
   claveResumen = clave;
@@ -5462,66 +5430,6 @@ function exportarDias() {
     .forEach(e => filas.push([e.fecha, diaSemana(e.fecha), aTexto(e.html || "").trim(), n0(e.rpe) || "", e.sensacion || ""]));
   descargarArchivo("entreno-dias-" + iso(new Date()) + ".csv", csv(filas), "text/csv");
 }
-function limitesInforme() {
-  const ref = deIso($("fechaInforme").value || iso(new Date())), modo = $("periodoInforme").value;
-  let ini, fin;
-  if (modo === "semana") { ini = lunesDe(ref); fin = sumarDias(ini, 7); }
-  else if (modo === "mes") { ini = new Date(ref.getFullYear(), ref.getMonth(), 1); fin = new Date(ref.getFullYear(), ref.getMonth() + 1, 1); }
-  else { ini = new Date(ref.getFullYear(), 0, 1); fin = new Date(ref.getFullYear() + 1, 0, 1); }
-  return { desde: iso(ini), hasta: iso(fin), titulo: modo === "semana" ? "Semana del " + fmt(ini) + " a " + fmt(sumarDias(fin, -1)) : modo === "mes" ? "Mes de " + MESES[ref.getMonth()] + " de " + ref.getFullYear() : "Año " + ref.getFullYear() };
-}
-let mesCalendarioInforme = deIso(iso(new Date()));
-function pintarCalendarioInforme() {
-  const anio = mesCalendarioInforme.getFullYear(), mes = mesCalendarioInforme.getMonth();
-  $("fechaInformeMes").textContent = new Intl.DateTimeFormat("es-ES", { month: "long", year: "numeric" }).format(mesCalendarioInforme);
-  const primero = new Date(anio, mes, 1), inicio = (primero.getDay() + 6) % 7;
-  const total = new Date(anio, mes + 1, 0).getDate(), elegido = $("fechaInforme").value, hoy = iso(new Date());
-  const nombres = ["L", "M", "X", "J", "V", "S", "D"];
-  $("fechaInformeDias").innerHTML = nombres.map((n, i) => `<span role="columnheader" aria-label="${["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"][i]}">${n}</span>`).join("");
-  for (let i = 0; i < inicio; i++) $("fechaInformeDias").insertAdjacentHTML("beforeend", "<span aria-hidden=\"true\"></span>");
-  for (let dia = 1; dia <= total; dia++) {
-    const valor = iso(new Date(anio, mes, dia)), clases = [valor === hoy ? "hoy" : "", valor === elegido ? "seleccionado" : ""].filter(Boolean).join(" ");
-    const mesLargo = new Intl.DateTimeFormat("es-ES", { month: "long" }).format(new Date(anio, mes, 1));
-    $("fechaInformeDias").insertAdjacentHTML("beforeend", `<button type="button" role="gridcell" class="${clases}" aria-label="${dia} de ${mesLargo} de ${anio}" aria-pressed="${valor === elegido}">${dia}</button>`);
-  }
-  $("fechaInformeDias").querySelectorAll("button").forEach(b => b.addEventListener("click", () => {
-    const dia = Number(b.textContent); $("fechaInforme").value = iso(new Date(anio, mes, dia)); actualizarFechaInforme(); cerrarCalendarioInforme(); $("fechaInformeAbrir").focus();
-  }));
-}
-function actualizarFechaInforme() {
-  const fecha = deIso($("fechaInforme").value || iso(new Date()));
-  $("fechaInformeAbrir").textContent = new Intl.DateTimeFormat("es-ES", { day: "2-digit", month: "2-digit", year: "numeric" }).format(fecha);
-}
-function abrirCalendarioInforme() {
-  mesCalendarioInforme = deIso($("fechaInforme").value || iso(new Date()));
-  $("calendarioInforme").hidden = false; $("fechaInformeAbrir").setAttribute("aria-expanded", "true");
-  pintarCalendarioInforme();
-  $("fechaInformeDias").querySelector(".seleccionado")?.focus();
-}
-function cerrarCalendarioInforme() {
-  $("calendarioInforme").hidden = true; $("fechaInformeAbrir").setAttribute("aria-expanded", "false");
-}
-$("fechaInformeAbrir").addEventListener("click", () => $("calendarioInforme").hidden ? abrirCalendarioInforme() : cerrarCalendarioInforme());
-$("fechaInformeAnterior").addEventListener("click", () => { mesCalendarioInforme = new Date(mesCalendarioInforme.getFullYear(), mesCalendarioInforme.getMonth() - 1, 1); pintarCalendarioInforme(); });
-$("fechaInformeSiguiente").addEventListener("click", () => { mesCalendarioInforme = new Date(mesCalendarioInforme.getFullYear(), mesCalendarioInforme.getMonth() + 1, 1); pintarCalendarioInforme(); });
-$("calendarioInforme").addEventListener("keydown", e => { if (e.key === "Escape") { cerrarCalendarioInforme(); $("fechaInformeAbrir").focus(); } });
-document.addEventListener("pointerdown", e => { if (!e.target.closest(".informe-fecha-campo")) cerrarCalendarioInforme(); });
-function descargarResumenPeriodo() {
-  const { desde, hasta, titulo } = limitesInforme();
-  const filas = seriesVivas().filter(s => s.fecha >= desde && s.fecha < hasta && hecha(s) && !s.calentamiento);
-  const dias = new Set(filas.map(s => s.fecha)), sesiones = new Set(filas.map(s => s.fecha + "|" + (s.grupo || "Entreno"))), correr = filas.filter(s => tipoDe(s.ejercicio_id) === "carrera"), nadar = filas.filter(s => tipoDe(s.ejercicio_id) === "natacion"), fuerza = filas.filter(s => tipoDe(s.ejercicio_id) === "fuerza");
-  const metros = xs => xs.reduce((a, s) => a + n0(s.distancia), 0), segundos = xs => xs.reduce((a, s) => a + n0(s.tiempo), 0), desnivel = correr.reduce((a, s) => a + n0(s.desnivel_pos), 0);
-  const registros = new Map();
-  fuerza.forEach(s => { const nombre = nombreEj(s.ejercicio_id), r = rm(s); if (r > 0 && (!registros.has(nombre) || r > registros.get(nombre).valor)) registros.set(nombre, { nombre, valor: r, detalle: num(n0(s.peso)) + " kg × " + num(n0(s.reps)) + " reps · 1RM estimado " + num(r) + " kg" }); });
-  correr.filter(s => n0(s.distancia) && n0(s.tiempo)).forEach(s => { const nombre = nombreEj(s.ejercicio_id), r = n0(s.tiempo) / n0(s.distancia); if (!registros.has(nombre) || r < registros.get(nombre).valor) registros.set(nombre, { nombre, valor: r, detalle: fmtDist(s.distancia) + " · " + fmtTiempo(s.tiempo) + " · " + ritmo(s, "carrera") }); });
-  const esc = x => String(x).replace(/[&<>\"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;" })[c]);
-  const top = [...registros.values()].sort((a, b) => a.nombre.localeCompare(b.nombre, "es")).slice(0, 30);
-  const contenido = `<!doctype html><html lang="es"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>${esc(titulo)} · Fuerza y Ritmo</title><style>body{font:16px system-ui,sans-serif;max-width:760px;margin:36px auto;padding:0 20px;color:#20252b}h1{font-size:28px}small{color:#667}section{border-top:1px solid #ddd;padding:14px 0}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:12px}.k{padding:14px;background:#f3f5f7;border-radius:12px}.k b{display:block;font-size:22px}li{margin:8px 0}@media print{body{margin:0 auto}}</style><h1>${esc(titulo)}</h1><p>Resumen de entrenamientos registrados · ${desde} a ${iso(sumarDias(deIso(hasta),-1))}</p><section class="grid"><div class="k"><b>${sesiones.size}</b>sesiones</div><div class="k"><b>${filas.length}</b>series completadas</div><div class="k"><b>${dias.size}</b>días activos</div><div class="k"><b>${fmtDist(metros(correr))}</b>distancia de carrera</div><div class="k"><b>${fmtDist(metros(nadar))}</b>distancia de natación</div><div class="k"><b>${fmtTiempo(segundos(correr)+segundos(nadar))}</b>tiempo de carrera y natación</div><div class="k"><b>${Math.round(desnivel)} m</b>desnivel positivo registrado</div></section><section><h2>Mejores resultados registrados</h2>${top.length ? `<ul>${top.map(x=>`<li><b>${esc(x.nombre)}</b>: ${esc(x.detalle)}</li>`).join("")}</ul>` : "<p>No hay marcas de fuerza o carrera en este periodo.</p>"}</section><p>Generado por Fuerza y Ritmo. Los datos reflejan lo registrado en la app.</p></html>`;
-  descargarArchivo("resumen-entrenamiento-" + desde + "-" + iso(sumarDias(deIso(hasta),-1)) + ".html", contenido, "text/html");
-}
-$("fechaInforme").value = iso(new Date());
-actualizarFechaInforme();
-$("descargarInforme").addEventListener("click", descargarResumenPeriodo);
 // Restaurar: recupera lo que falta, lo borrado o lo más antiguo aquí; nunca borra nada
 function restaurar(archivo) {
   const lector = new FileReader();
@@ -6018,7 +5926,7 @@ function textoPrompt() {
   const corre = !!CARRERA_IA[obj] || obj === "combinado", carrera = CARRERA_IA[obj];
   // Marcas previstas (VDOT y Riegel desde tu mejor marca) para que la IA ajuste el plan a tu nivel real
   const marcas = marcasDe("carrera"), ref = marcas.filter(m => m.d >= 1000).sort((x, y) => vdotDe(y.d, y.t) - vdotDe(x.d, x.t))[0];
-  const previstas = f ? [250, 1000, 2000, 5000, 10000, 21097, 42195].map(d => nombreDist(d) + " " + fmtTiempo(tiempoPrevisto(f.vdot, d)) + (ref ? " (Riegel " + fmtTiempo(ref.t * Math.pow(d / ref.d, 1.06)) + ")" : "")).join(", ") : "";
+  const previstas = f ? [1000, 2000, 5000, 10000, 21097, 42195].map(d => nombreDist(d) + " " + fmtTiempo(tiempoPrevisto(f.vdot, d)) + (ref ? " (Riegel " + fmtTiempo(ref.t * Math.pow(d / ref.d, 1.06)) + ")" : "")).join(", ") : "";
   const fechaCarrera = g("iaFechaCarrera"), semanasHasta = fechaCarrera ? Math.max(1, Math.round((deIso(fechaCarrera) - lunesDe(new Date())) / 6048e5)) : 0;
   const datos = [
     "Objetivo: " + OBJETIVOS_IA[obj] + (g("iaMeta") ? " (" + g("iaMeta") + ")" : ""),
@@ -6355,8 +6263,6 @@ const molestiasActivas = () => vivos("molestias").filter(m => m.estado === "acti
 const molestiasDe = id => { const z = zonasDe(id); return molestiasActivas().filter(m => z.includes(m.zona)); };
 function pintarMolestias() {
   const cont = $("listaMolestias");
-  const activas = molestiasActivas().length;
-  $("molestiasLinea").textContent = activas ? activas + (activas === 1 ? " activa" : " activas") : "Sin activas";
   cont.textContent = "";
   const lista = vivos("molestias").sort((a, b) => (a.estado === b.estado ? 0 : a.estado === "activa" ? -1 : 1) || (b.inicio || "").localeCompare(a.inicio || ""));
   if (!lista.length) { cont.appendChild(nota("Apunta aquí una molestia o lesión (zona, qué notas y desde cuándo). Los ejercicios que trabajan esa zona te avisarán con ⚠ y la IA la tendrá en cuenta.")); return; }
@@ -6788,12 +6694,12 @@ function asaArrastreDia(el, caja, hermanos, alSoltar, nombre, zonas) {
           if (info.cls === "l-plegada") info.cont.appendChild(ph);
           else if (fin) fin.before(ph); else info.cont.appendChild(ph);
           info.cont.classList.remove(info.cls);
-          gruposPlegados[info.key] = 0; cambioPl = true;
+          delete gruposPlegados[info.key]; cambioPl = true;
         }
       }
       // Lo desplegado al pasar: donde ha caído se queda abierto; lo demás vuelve a plegarse
       abiertasTemp.forEach(info => {
-        if (!zona && ev.type !== "pointercancel" && info.cont.contains(ph)) { gruposPlegados[info.key] = 0; cambioPl = true; }
+        if (!zona && ev.type !== "pointercancel" && info.cont.contains(ph)) { delete gruposPlegados[info.key]; cambioPl = true; }
         else info.cont.classList.add(info.cls);
       });
       if (cambioPl) escribir("grupos-plegados-v1", gruposPlegados);
@@ -6857,8 +6763,8 @@ $("semana").addEventListener("touchend", e => {
   if (Math.abs(dx) > 70 && Math.abs(dx) > 2 * Math.abs(dy)) abrirDia(iso(sumarDias(deIso(diaAbierto), dx < 0 ? 1 : -1)));
 }, { passive: true });
 // Días desplegados o plegados a mano; se recuerdan unas semanas
-let desplegados = {}; // todos los días empiezan plegados en cada apertura
-const desplegado = id => desplegados[id] ?? false;
+let desplegados = leer("dias-desplegados-v1") || {};
+const desplegado = id => desplegados[id] ?? id === iso(new Date());
 function ponerPlegado(d, plegado) {
   d.col.classList.toggle("plegado", plegado);
   d.col.querySelector(".dia-abrir").setAttribute("aria-expanded", String(!plegado));
@@ -7244,7 +7150,7 @@ $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); 
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
 // VERSION_APP es interna (sube en cada publicación para que los móviles se actualicen); la que se ve es siempre la 26
-const VERSION_APP = "v151" + (BETA ? " beta" : "");
+const VERSION_APP = "v142" + (BETA ? " beta" : "");
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";
@@ -7973,7 +7879,7 @@ function guardarPaqueteCompartido(c) {
 }
 
 // ---------- Plan: secciones desplegables con contador; se recuerda cuáles quedan abiertas ----------
-let seccionesPlan = {}; // todas las secciones empiezan plegadas en cada apertura
+let seccionesPlan = { plantillas: true, mesociclos: true, ...(leer("plan-abiertas-v1") || {}) };
 function ponerSeccion(sec, abierta) {
   sec.classList.toggle("cerrada", !abierta);
   sec.querySelector(".sec-toggle").setAttribute("aria-expanded", String(abierta));
@@ -8007,38 +7913,6 @@ document.querySelectorAll("#vistaPlan > .plan-sec[data-sec]").forEach(sec => {
     if (seccionesPlan[clave]) verAlAbrir(sec);
   });
 });
-const GRUPOS_PLAN = {
-  crear: ["importar", "ia", "compartido"],
-  entrenos: ["plantillas", "mesociclos", "rutinas"],
-  cuenta: ["copia", "ajustes", "sugerencias", "usuarios"]
-};
-function aplicarGrupoPlan() {
-  const grupo = leer("plan-grupo-v1") || "crear", secciones = GRUPOS_PLAN[grupo] || GRUPOS_PLAN.crear;
-  document.querySelectorAll("#vistaPlan > .plan-sec[data-sec]").forEach(sec => { sec.hidden = !secciones.includes(sec.dataset.sec); });
-}
-function mostrarGrupoPlan(grupo) {
-  const elegido = GRUPOS_PLAN[grupo] ? grupo : "crear";
-  escribir("plan-grupo-v1", elegido);
-  aplicarGrupoPlan();
-}
-function mostrarSubVistaOrganizar(vista) {
-  subVistaOrganizar = ["listas", "crear", "entrenos"].includes(vista) ? vista : "listas";
-  const esLista = subVistaOrganizar === "listas";
-  $("vistaListas").hidden = esLista ? false : true;
-  $("vistaPlan").hidden = esLista ? true : false;
-  if (!esLista) mostrarGrupoPlan(subVistaOrganizar);
-  document.querySelectorAll(".plan-nav-btn[data-organizar]").forEach(b => {
-    const activa = b.dataset.organizar === subVistaOrganizar;
-    b.classList.toggle("activa", activa);
-    b.setAttribute("aria-pressed", String(activa));
-  });
-  escribir("organizar-vista-v1", subVistaOrganizar);
-}
-document.querySelectorAll(".plan-nav-btn[data-organizar]").forEach(b => b.addEventListener("click", () => {
-  mostrarSubVistaOrganizar(b.dataset.organizar);
-  if (b.dataset.organizar === "listas") pintarListas(); else pintarPlan();
-}));
-mostrarGrupoPlan(leer("plan-grupo-v1") || "crear");
 $("buscarPlantilla").addEventListener("input", () => {
   const sec = $("buscarPlantilla").closest(".plan-sec");
   if (sec.classList.contains("cerrada")) { seccionesPlan.plantillas = true; escribir("plan-abiertas-v1", seccionesPlan); ponerSeccion(sec, true); }
