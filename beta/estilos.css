@@ -553,6 +553,7 @@ dialog.pantalla[open] { display: flex; flex-direction: column; }
 .en-grupo { color: var(--accent); font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; font-size: 13px; }
 .en-ej { margin: 0; font-family: var(--display); font-size: 32px; line-height: 1.1; text-transform: uppercase; letter-spacing: 0.02em; overflow-wrap: anywhere; }
 .en-ej .tipo-tag { font-size: 12px; vertical-align: middle; }
+.en-video { align-self: flex-start; flex-shrink: 0; min-height: 44px; height: auto; padding: 8px 12px; border-radius: 10px; color: var(--accent); background: var(--accent-soft); font-size: 14px; font-weight: 650; white-space: normal; text-align: left; }
 .en-serie { color: var(--muted); font-weight: 600; }
 .en-valor { font-family: var(--display); font-weight: 700; font-size: 44px; line-height: 1.05; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .en-valor.hecha { color: var(--accent); }

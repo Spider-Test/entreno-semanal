@@ -7273,6 +7273,9 @@ function pintarEntreno() {
   $("enGrupo").textContent = (s.grupo || NOMBRES[ent.dia.i] + " " + fmt(deIso(ent.dia.id))) + (s.seccion ? " · " + s.seccion : "");
   $("enEj").textContent = nombreEj(s.ejercicio_id);
   $("enEj").appendChild(etiquetaTipo(tipo));
+  const videoEj = ejercicioVivo(s.ejercicio_id);
+  $("enVideo").hidden = !idYoutube(videoEj?.video_url);
+  $("enVideo").setAttribute("aria-label", "Ver el vídeo de " + nombreEj(s.ejercicio_id));
   $("enNota").textContent = s.nota || "";
   $("enNota").hidden = !s.nota;
   if (s.bloque_id) {
@@ -7424,6 +7427,11 @@ const moverDescanso = seg => {
 $("enMenos").addEventListener("click", () => moverDescanso(-15));
 $("enMas").addEventListener("click", () => moverDescanso(15));
 $("enSaltarD").addEventListener("click", () => { clearInterval(ent.timer); ent.timer = null; ent.fin = 0; $("enDescanso").hidden = true; });
+// Abre el mismo visor de la ficha sin cerrar ni repintar el entrenamiento.
+$("enVideo").addEventListener("click", () => {
+  const s = serieEnt(), e = s && ejercicioVivo(s.ejercicio_id);
+  if ($("dlgEntreno").open && e && idYoutube(e.video_url)) verVideo(e);
+});
 $("enAnt").addEventListener("click", () => { if (ent.i > 0) { ent.i--; pintarEntreno(); } });
 $("enDesmarcar").addEventListener("click", () => { const s = serieEnt(); if (!s || !hecha(s)) return; $("enFin").hidden = true; desmarcar(s); pintarEntreno(); });
 $("enCalentSi").addEventListener("click", () => {
@@ -7452,7 +7460,7 @@ $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); 
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
 // VERSION_APP es interna (sube en cada publicación para que los móviles se actualicen); la que se ve es siempre la 26
-const VERSION_APP = "v209" + (BETA ? " beta" : "");
+const VERSION_APP = "v211" + (BETA ? " beta" : "");
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";
