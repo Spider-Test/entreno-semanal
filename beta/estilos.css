@@ -1648,3 +1648,24 @@ input:focus, textarea:focus, select:focus { border-color: var(--accent); box-sha
 }
 @media (prefers-reduced-motion: reduce) { .informe-toggle::before { transition: none; } }
 
+/* Molestias: una banda compacta bajo el resumen; el panel mantiene su contenido al abrirse. */
+.sem-resumenes { grid-template-columns: minmax(0, 1fr); }
+.sem-resumenes > .lesiones-sem,
+.sem-resumenes > .lesiones-sem[open] { grid-column: 1; width: 100%; }
+.lesiones-sem:not([open]) { padding-top: 0; padding-bottom: 0; }
+.lesiones-sem:not([open]) summary { min-height: 46px; padding: 7px 10px; flex-wrap: nowrap; }
+.lesiones-sem:not([open]) .rs-t { white-space: nowrap; }
+.lesiones-sem:not([open]) .rs-l { margin-left: auto; white-space: nowrap; }
+.lesiones-sem.sin-activas { border-color: color-mix(in srgb, var(--accent) 36%, var(--line)); border-left-color: var(--accent); background: linear-gradient(110deg, color-mix(in srgb, var(--accent-soft) 72%, var(--card)), var(--card) 78%); }
+.lesiones-sem.sin-activas .rs-t, .lesiones-sem.sin-activas .rs-l { color: var(--accent); }
+.rutina-parte-acordeon { list-style: none; margin: 4px 0; }
+.rutina-parte-det { border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--line)); border-radius: 9px; padding: 6px 9px; background: color-mix(in srgb, var(--accent-soft) 28%, var(--card)); }
+.rutina-parte-det > summary { cursor: pointer; font-size: 12px; font-weight: 750; letter-spacing: 0.04em; text-transform: uppercase; color: var(--accent); }
+.rutina-parte-det > ul { margin: 6px 0 2px; padding-left: 1.2em; }
+.rutina-parte-det > ul > li { margin: 3px 0; }
+@media (max-width: 390px) {
+  .lesiones-sem:not([open]) summary { gap: 4px; }
+  .lesiones-sem:not([open]) .rs-t { font-size: 11px; letter-spacing: 0.03em; }
+  .lesiones-sem:not([open]) .rs-l { font-size: 11px; }
+}
+

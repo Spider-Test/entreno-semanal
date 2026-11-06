@@ -714,14 +714,21 @@ function listaItems(items) {
   const comp = items.map(it => it.ejercicio || (it.tramos && it.tramos[0] && it.tramos[0].ejercicio) ? it : paraCompartir([it])[0]);
   const ul = document.createElement("ul");
   ul.className = "vp-lista";
-  let parte = "";
-  comp.forEach(it => {
-    if ((it.seccion || "") !== parte && it.seccion) { const h = document.createElement("li"); h.className = "rutina-parte"; h.textContent = it.seccion; ul.appendChild(h); }
-    parte = it.seccion || "";
-    const li = document.createElement("li");
-    li.textContent = textoItemRutina(it);
-    ul.appendChild(li);
-  });
+  const linea = it => { const li = document.createElement("li"); li.textContent = textoItemRutina(it); return li; };
+  for (let i = 0; i < comp.length;) {
+    const parte = comp[i].seccion || "";
+    if (!parte) { ul.appendChild(linea(comp[i++])); continue; }
+    const itemsParte = [];
+    while (i < comp.length && (comp[i].seccion || "") === parte) itemsParte.push(comp[i++]);
+    const li = document.createElement("li"); li.className = "rutina-parte-acordeon";
+    const d = document.createElement("details"); d.className = "rutina-parte-det"; d.open = true;
+    const s = document.createElement("summary");
+    const n = contarSeries(itemsParte);
+    s.textContent = parte + " · " + n + (n === 1 ? " serie" : " series");
+    const dentro = document.createElement("ul");
+    itemsParte.forEach(it => dentro.appendChild(linea(it)));
+    d.append(s, dentro); li.appendChild(d); ul.appendChild(li);
+  }
   if (!comp.length) { const li = document.createElement("li"); li.textContent = "Sin ejercicios"; ul.appendChild(li); }
   return ul;
 }
@@ -5747,14 +5754,7 @@ function vistaRutina(r, cont) {
       d.className = "rutina-ses";
       const t = document.createElement("b");
       t.textContent = s.nombre + (s.dias.length ? " · " + textoDias(s.dias) : " · sin día");
-      const ul = document.createElement("ul");
-      let parteAnt = "";
-      s.items.forEach(it => {
-        if ((it.seccion || "") !== parteAnt && it.seccion) { const h = document.createElement("li"); h.className = "rutina-parte"; h.textContent = it.seccion; ul.appendChild(h); }
-        parteAnt = it.seccion || "";
-        const li = document.createElement("li"); li.textContent = textoItemRutina(it); ul.appendChild(li);
-      });
-      d.append(t, ul);
+      d.append(t, listaItems(s.items));
       cont.appendChild(d);
     });
   });
@@ -6355,6 +6355,7 @@ const molestiasDe = id => { const z = zonasDe(id); return molestiasActivas().fil
 function pintarMolestias() {
   const cont = $("listaMolestias");
   const activas = molestiasActivas().length;
+  $("molestiasSem").classList.toggle("sin-activas", activas === 0);
   $("molestiasLinea").textContent = activas ? activas + (activas === 1 ? " activa" : " activas") : "Sin activas";
   cont.textContent = "";
   const lista = vivos("molestias").sort((a, b) => (a.estado === b.estado ? 0 : a.estado === "activa" ? -1 : 1) || (b.inicio || "").localeCompare(a.inicio || ""));
