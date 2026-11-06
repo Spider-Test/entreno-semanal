@@ -2,7 +2,7 @@
 // Sube VERSION al cambiar cualquier archivo para que los dispositivos se actualicen.
 // La beta (carpeta /beta/) usa este mismo archivo con su propia caché y no toca la de la principal
 const BETA = self.location.pathname.includes("/beta/"), PREFIJO = BETA ? "beta-entreno-" : "entreno-";
-const VERSION = PREFIJO + "v167";
+const VERSION = PREFIJO + "v168";
 const ARCHIVOS = ["./", "./index.html", "./estilos.css", "./app.js", "./manifest.webmanifest", "./icono-180.png", "./icono-512.png", "./icono-maskable-192.png", "./icono-maskable-512.png"];
 
 // GitHub Pages pide guardar los archivos 10 minutos: se piden siempre al servidor para no copiar una versión vieja

@@ -1996,3 +1996,28 @@ input:focus, textarea:focus, select:focus { border-color: var(--accent); box-sha
   }
 }
 
+/* Móvil: el contenido abierto ocupa el borde superior; la fila vacía de marca se desplaza con la página. */
+@media (max-width: 760px) {
+  :root { --sticky-cabecera: env(safe-area-inset-top, 0px); }
+  #app > .cabecera { position: static; top: auto; }
+  #vistaSemana .dia-nav:not([hidden]) { position: static; top: auto; }
+  #vistaSemana:not(.solo-dia) { --sticky-entreno: var(--sticky-cabecera); }
+  #vistaSemana.solo-dia { --sticky-entreno: var(--sticky-cabecera); }
+
+  #vistaSemana .dia:not(.plegado) > .dia-cab,
+  #vistaSemana .parte-caja:not(.p-plegada) > .parte-cab,
+  #vistaSemana .grupo:not(.g-plegado) > .grupo-cab,
+  #vistaSemana .parte-caja .grupo:not(.g-plegado) > .grupo-cab,
+  #vistaEjercicios .cat-sec:not(.cerrada) > .sec-toggle,
+  #vistaMarcas .cat-sec:not(.cerrada) > .sec-toggle,
+  #vistaListas .lista-sec:not(.cerrada) > .lista-cab,
+  #vistaPlan > .plan-sec:not(.cerrada) > .sec-toggle,
+  #vistaPlan > .plan-sec:not(.cerrada) > .sec-cab:has(> .sec-toggle) {
+    top: var(--sticky-cabecera);
+  }
+
+  /* Conserva contraste en todos los apartados de navegación, también con fondo claro. */
+  .tabbar button:not([aria-selected="true"]) { color: var(--muted) !important; }
+  .tabbar button[aria-selected="true"] { color: var(--verde) !important; }
+}
+
