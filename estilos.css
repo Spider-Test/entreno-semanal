@@ -31,6 +31,16 @@
     --pulso: #67e8df; --bilbo: #c4b5fd; --bilbo-futura: #c5cfda;
   }
 }
+
+/* Apertura breve al reabrir la app: usa automáticamente el tema actual. */
+.apertura { position:fixed; inset:0; z-index:20000; display:grid; place-items:center; padding:24px; background:var(--bg); color:var(--fg); pointer-events:none; opacity:0; }
+.apertura.activa { animation: apertura-salir .25s ease-out .76s forwards; }
+.apertura h1 { margin:0; font-family:var(--display); font-size:clamp(30px, 8vw, 42px); font-weight:800; letter-spacing:.04em; text-align:center; opacity:0; transform:scale(.98); }
+.apertura.activa h1 { animation: apertura-parpadeo .86s ease-in-out both; }
+.apertura h1::after { content:""; display:block; width:68px; height:4px; margin:17px auto 0; border-radius:4px; background:var(--accent); opacity:.85; }
+@keyframes apertura-parpadeo { 0% { opacity:0; transform:scale(.98); } 34% { opacity:.78; } 48% { opacity:.32; text-shadow:0 0 20px color-mix(in srgb,var(--accent) 45%,transparent); } 68% { opacity:.92; } 100% { opacity:1; transform:scale(1); text-shadow:0 0 14px color-mix(in srgb,var(--accent) 23%,transparent); } }
+@keyframes apertura-salir { to { opacity:0; visibility:hidden; } }
+@media (prefers-reduced-motion: reduce) { .apertura.activa, .apertura.activa h1 { animation:none !important; } .apertura.activa { display:none; } }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 html, body { margin: 0; min-height: 100%; }
@@ -107,6 +117,12 @@ input, textarea { font-size: 16px; border: 1px solid var(--line); background: va
 .bloques:not(:empty) { padding-top: 8px; border-top: 1px dashed var(--line); }
 .bloque { border: 1px solid var(--line); border-radius: 10px; padding: 6px 8px 8px; display: flex; flex-direction: column; gap: 4px; }
 .bloque-cab { display: flex; align-items: center; gap: 6px; }
+.bloque-toggle { flex: none; width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: 8px; padding: 0; background: transparent; color: var(--muted); cursor: pointer; }
+.bloque-toggle:hover, .bloque-toggle:focus-visible { background: var(--accent-soft); color: var(--accent); }
+.bloque-toggle .flecha-dia { transform: rotate(90deg); }
+.bloque.carrera-plegada > :not(.bloque-cab) { display: none !important; }
+.bloque.carrera-plegada .bloque-toggle .flecha-dia { transform: none; }
+.bloque.carrera-plegada { padding-bottom: 6px; }
 .ej-nombre { flex: 1; min-width: 0; text-align: left; border: 0; background: none; padding: 2px 0; font-weight: 700; font-size: 15px; overflow-wrap: anywhere; }
 .ico { color: var(--accent); font-size: 12px; margin-left: 4px; font-weight: 600; }
 .tipo-tag { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); border: 1px solid var(--line); border-radius: 5px; padding: 0 5px; margin-left: 6px; vertical-align: 2px; }
@@ -705,7 +721,7 @@ dialog.pantalla[open] { display: flex; flex-direction: column; }
 .series li .asa { margin-left: auto; }
 .arrastrando { position: relative; z-index: 5; background: var(--card); box-shadow: 0 10px 28px rgba(0, 0, 0, 0.22); border-radius: 10px; opacity: 0.97; }
 .bloque-cab .menu-btn { width: 32px; height: 32px; }
-@media (max-width: 760px) { .asa { width: 40px; height: 44px; font-size: 20px; } .bloque-cab .menu-btn { width: 40px; height: 44px; } }
+@media (max-width: 760px) { .asa { width: 40px; height: 44px; font-size: 20px; } .bloque-cab .menu-btn { width: 40px; height: 44px; } .bloque-toggle { width: 40px; height: 40px; } }
 @media (hover: hover) and (pointer: fine) {
   .asa { opacity: 0; transition: opacity 0.15s; }
   .series li:hover .asa, .bloque:hover > .bloque-cab .asa, .grupo-cab:hover .asa, .bloque:hover > .bloque-cab .menu-btn, .asa:focus-visible, .arrastrando .asa { opacity: 1; }
@@ -1463,10 +1479,280 @@ html[data-tam="125"] { --zoom: 1.25; }
   .sem-resumenes { grid-template-columns: minmax(0, 1fr); gap: 8px; }
   .sem-resumenes > details,
   .sem-resumenes > details[open] { grid-column: 1; width: 100%; min-width: 0; }
+  /* Resumen y molestias funcionan como paneles informativos, distintos de las tarjetas neutras de cada día. */
+  .resumen-sem {
+    border: 1px solid color-mix(in srgb, var(--accent) 32%, var(--line));
+    border-left: 5px solid var(--accent);
+    background: linear-gradient(110deg, var(--accent-soft), var(--card) 76%);
+  }
+  .resumen-sem[open] { box-shadow: 0 4px 14px rgba(20, 35, 27, 0.10); }
+  .resumen-sem summary { min-height: 60px; padding: 11px 12px; }
+  .resumen-sem summary::before { color: var(--accent); font-size: 16px; font-weight: 800; }
+  .resumen-sem .rs-t { color: var(--accent); }
+  .lesiones-sem {
+    border-color: color-mix(in srgb, var(--error) 30%, var(--line));
+    border-left-color: var(--error);
+    background: linear-gradient(110deg, var(--error-soft), var(--card) 76%);
+  }
+  .lesiones-sem summary::before { color: var(--error); }
+  .lesiones-sem .rs-t { color: var(--fg); }
+  .lesiones-sem .rs-l { color: var(--error); }
   .resumen-sem summary { display: grid; grid-template-columns: 14px minmax(0, 1fr); align-items: start; gap: 3px 8px; }
   .resumen-sem summary::before { grid-row: 1 / span 2; align-self: center; }
   .rs-t { font-size: 14px; line-height: 1.25; }
   .rs-l { grid-column: 2; line-height: 1.4; overflow-wrap: anywhere; }
   .lesiones-sem summary { align-items: start; }
+}
+
+/* Ejercicios en móvil: la categoría abierta mantiene su control plegable a mano al recorrer la lista. */
+@media (max-width: 760px) {
+  #vistaEjercicios .cat-sec:not(.cerrada) > .sec-toggle {
+    position: sticky;
+    top: calc(env(safe-area-inset-top, 0px) + 52px);
+    z-index: 12;
+    margin: -8px -14px 4px;
+    padding: 8px 14px;
+    border: 1px solid var(--line);
+    border-radius: 13px 13px 10px 10px;
+    background: var(--card);
+    box-shadow: 0 4px 12px rgba(18, 28, 22, 0.14);
+  }
+}
+
+/* Acabado general: relieve suave, colores de sección y controles con respuesta clara. */
+:root {
+  --sombra-panel: 0 2px 5px rgba(22, 36, 28, 0.06), 0 12px 28px rgba(22, 36, 28, 0.055);
+  --sombra-panel-hover: 0 5px 12px rgba(22, 36, 28, 0.08), 0 16px 34px rgba(22, 36, 28, 0.09);
+  --sombra-resumen: 0 4px 10px rgba(22, 36, 28, 0.07), 0 14px 32px rgba(22, 36, 28, 0.08);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --sombra-panel: 0 2px 8px rgba(0, 0, 0, 0.20), 0 14px 32px rgba(0, 0, 0, 0.15);
+    --sombra-panel-hover: 0 6px 16px rgba(0, 0, 0, 0.28), 0 18px 38px rgba(0, 0, 0, 0.22);
+    --sombra-resumen: 0 5px 14px rgba(0, 0, 0, 0.25), 0 16px 36px rgba(0, 0, 0, 0.19);
+  }
+}
+body {
+  background: radial-gradient(ellipse at 50% -18%, color-mix(in srgb, var(--accent-soft) 62%, transparent), transparent 58%), var(--bg);
+}
+#app { gap: 14px; }
+.cabecera { border-radius: 16px; }
+.dia, .plan-sec, .usuario, #catalogo > .cat-sec, .sem-resumenes > .resumen-sem {
+  box-shadow: var(--sombra-panel);
+  border: 1px solid color-mix(in srgb, var(--line) 82%, var(--fg));
+  border-radius: 16px;
+}
+.dia { overflow: hidden; }
+.dia.hoy {
+  border-color: color-mix(in srgb, var(--accent) 72%, var(--line));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent), var(--sombra-panel);
+}
+.resumen-sem:not(.lesiones-sem) {
+  border-color: color-mix(in srgb, var(--accent) 38%, var(--line));
+  border-left: 5px solid var(--accent);
+  background: linear-gradient(115deg, color-mix(in srgb, var(--accent-soft) 75%, var(--card)), var(--card) 78%);
+  box-shadow: var(--sombra-resumen);
+}
+.resumen-sem:not(.lesiones-sem) .rs-t { color: var(--accent); }
+.lesiones-sem {
+  border-color: color-mix(in srgb, var(--error) 34%, var(--line));
+  border-left: 5px solid var(--error);
+  background: linear-gradient(115deg, color-mix(in srgb, var(--error-soft) 76%, var(--card)), var(--card) 78%);
+  box-shadow: var(--sombra-resumen);
+}
+.cat-sec { border: 1px solid var(--line); transition: box-shadow 0.18s ease, border-color 0.18s ease; }
+.cat-sec.t-fuerza { border-left: 4px solid var(--fuerza); }
+.cat-sec.t-carrera { border-left: 4px solid var(--carrera); }
+.cat-sec.t-natacion { border-left: 4px solid var(--natacion); }
+.cat-sec.t-movilidad { border-left: 4px solid var(--movilidad); }
+.cat-grid .tarjeta { box-shadow: none; }
+.tabs button, .tabbar button, .nav-btn, .primario, .anadir { transition: color 0.16s ease, background-color 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease; }
+.nav-btn:hover:not(:disabled) { border-color: color-mix(in srgb, var(--accent) 50%, var(--line)); background: var(--accent-soft); }
+.primario, .anadir { box-shadow: 0 4px 12px color-mix(in srgb, var(--accent) 20%, transparent); }
+.primario:hover:not(:disabled), .anadir:hover:not(:disabled) { box-shadow: 0 7px 18px color-mix(in srgb, var(--accent) 28%, transparent); transform: translateY(-1px); }
+input, textarea, select { transition: border-color 0.16s ease, box-shadow 0.16s ease; }
+input:focus, textarea:focus, select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent); }
+.dia-abrir:hover { background: color-mix(in srgb, var(--accent-soft) 55%, transparent); }
+@media (hover: hover) and (pointer: fine) {
+  .dia, .plan-sec, .usuario, #catalogo > .cat-sec { transition: box-shadow 0.18s ease, transform 0.18s ease; }
+  .dia:hover, .plan-sec:hover, .usuario:hover, #catalogo > .cat-sec:hover { box-shadow: var(--sombra-panel-hover); transform: translateY(-1px); }
+}
+@media (max-width: 760px) {
+  #app { gap: 10px; }
+  .dia, .plan-sec, .usuario, #catalogo > .cat-sec, .sem-resumenes > .resumen-sem { border-radius: 15px; }
+  .sem-resumenes { gap: 10px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tabs button, .tabbar button, .nav-btn, .primario, .anadir, input, textarea, select,
+  .cat-sec, .dia, .plan-sec, .usuario { transition: none !important; }
+  .primario:hover:not(:disabled), .anadir:hover:not(:disabled), .dia:hover, .plan-sec:hover, .usuario:hover, #catalogo > .cat-sec:hover { transform: none; }
+}
+@media (prefers-contrast: more) {
+  .dia, .plan-sec, .usuario, #catalogo > .cat-sec, .sem-resumenes > .resumen-sem { border-color: var(--fg); }
+  .dia, .plan-sec, .usuario, #catalogo > .cat-sec, .sem-resumenes > .resumen-sem { box-shadow: none; }
+}
+
+/* Semana: igual que en Ejercicios, la cabecera abierta queda accesible mientras se recorre su contenido. */
+@media (max-width: 760px) {
+  :root { --sticky-cabecera: calc(max(10px, env(safe-area-inset-top, 0px)) + 50px); }
+  #vistaSemana:not(.solo-dia) .dia { overflow: clip; }
+  #vistaSemana:not(.solo-dia) .dia:not(.plegado) > .dia-cab {
+    position: sticky;
+    top: var(--sticky-cabecera);
+    z-index: 11;
+    background: var(--card);
+    box-shadow: 0 5px 12px -12px rgba(12, 26, 18, 0.6);
+  }
+  #vistaSemana:not(.solo-dia) .dia.hoy:not(.plegado) > .dia-cab {
+    background: color-mix(in srgb, var(--accent-soft) 86%, var(--card));
+  }
+  #vistaEjercicios .cat-sec:not(.cerrada) > .sec-toggle { top: var(--sticky-cabecera); }
+
+  /* Selector de Entrenamientos: tres opciones en una sola banda, sin apilarse en móviles estrechos. */
+  .organizar-nav.plan-nav {
+    position: sticky;
+    top: var(--sticky-cabecera);
+    z-index: 13;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 4px;
+    padding: 5px;
+    border: 1px solid color-mix(in srgb, var(--accent) 20%, var(--line));
+    border-radius: 16px;
+    background: color-mix(in srgb, var(--card) 92%, transparent);
+    -webkit-backdrop-filter: blur(16px);
+    backdrop-filter: blur(16px);
+    box-shadow: var(--sombra-panel);
+  }
+  .organizar-nav .plan-nav-btn {
+    min-width: 0;
+    min-height: 48px;
+    padding: 6px 4px;
+    border: 1px solid transparent;
+    border-radius: 12px;
+    font-size: clamp(11px, 3.15vw, 13px);
+    line-height: 1.15;
+    text-align: center;
+    white-space: normal;
+  }
+  .organizar-nav .plan-nav-btn.activa {
+    border-color: color-mix(in srgb, var(--accent) 42%, var(--line));
+    background: linear-gradient(135deg, color-mix(in srgb, var(--accent-soft) 85%, var(--card)), var(--card));
+    color: var(--accent);
+    box-shadow: inset 0 -3px 0 var(--accent), 0 3px 8px color-mix(in srgb, var(--accent) 12%, transparent);
+  }
+}
+
+/* Marcas: el resumen descargable queda recogido para que los resultados destaquen al entrar. */
+.informe-sec { gap: 0; padding-top: 0; padding-bottom: 0; }
+.informe-toggle {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  align-items: center;
+  gap: 4px 9px;
+  min-height: 58px;
+  cursor: pointer;
+  list-style: none;
+}
+.informe-toggle::-webkit-details-marker { display: none; }
+.informe-toggle::before { content: "▸"; grid-row: 1 / span 2; color: var(--accent); font-size: 16px; font-weight: 800; transition: transform 0.16s ease; }
+.informe-sec[open] .informe-toggle::before { transform: rotate(90deg); }
+.informe-tit { font-family: var(--display); font-size: 15px; font-weight: 750; letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent); }
+.informe-sub { grid-column: 2; color: var(--muted); font-size: 12px; line-height: 1.35; }
+.informe-cuerpo { display: flex; flex-direction: column; gap: 10px; border-top: 1px solid var(--line); padding: 12px 0 4px; }
+@media (min-width: 761px) {
+  .informe-toggle { grid-template-columns: 16px minmax(0, 1fr); }
+}
+@media (prefers-reduced-motion: reduce) { .informe-toggle::before { transition: none; } }
+
+/* Navegación del día en móvil: nombre completo arriba y controles en una fila ordenada. */
+.dia-nav[hidden] { display: none !important; }
+@media (max-width: 760px) {
+  .dia-nav {
+    display: grid;
+    grid-template-columns: minmax(84px, 1fr) 44px minmax(64px, auto) 44px;
+    grid-template-areas: "titulo titulo titulo titulo" "semana anterior hoy siguiente";
+    align-items: center;
+    gap: 6px;
+    padding: 8px;
+    border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--line));
+    border-radius: 15px;
+    background: color-mix(in srgb, var(--card) 94%, var(--accent-soft));
+    box-shadow: 0 3px 10px rgba(10, 25, 18, 0.07);
+  }
+  .dia-nav-t {
+    grid-area: titulo;
+    width: 100%;
+    padding: 2px 2px 5px;
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
+    font-size: clamp(18px, 5vw, 22px);
+    line-height: 1.15;
+    letter-spacing: 0.04em;
+  }
+  #volverSemana { grid-area: semana; width: 100%; min-width: 0; padding: 0 6px; white-space: nowrap; font-size: 14px; }
+  #diaAnt { grid-area: anterior; width: 44px; font-size: 23px; }
+  #diaHoy { grid-area: hoy; width: 100%; min-width: 64px; padding: 0 10px; }
+  #diaSig { grid-area: siguiente; width: 44px; font-size: 23px; }
+  .dia-nav > .nav-btn { min-height: 44px; }
+  #diaHoy[aria-current="date"] { box-shadow: inset 0 -3px 0 color-mix(in srgb, var(--fg) 20%, transparent); }
+}
+
+/* Molestias: una banda compacta bajo el resumen; el panel mantiene su contenido al abrirse. */
+.sem-resumenes { grid-template-columns: minmax(0, 1fr); }
+.sem-resumenes > .lesiones-sem,
+.sem-resumenes > .lesiones-sem[open] { grid-column: 1; width: 100%; }
+.lesiones-sem:not([open]) { padding-top: 0; padding-bottom: 0; }
+.lesiones-sem:not([open]) summary { min-height: 46px; padding: 7px 10px; flex-wrap: nowrap; }
+.lesiones-sem:not([open]) .rs-t { white-space: nowrap; }
+.lesiones-sem:not([open]) .rs-l { margin-left: auto; white-space: nowrap; }
+.lesiones-sem.sin-activas { border-color: color-mix(in srgb, var(--accent) 36%, var(--line)); border-left-color: var(--accent); background: linear-gradient(110deg, color-mix(in srgb, var(--accent-soft) 72%, var(--card)), var(--card) 78%); }
+.lesiones-sem.sin-activas .rs-t, .lesiones-sem.sin-activas .rs-l { color: var(--accent); }
+.rutina-parte-acordeon { list-style: none; margin: 4px 0; }
+.rutina-parte-det { border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--line)); border-radius: 9px; padding: 6px 9px; background: color-mix(in srgb, var(--accent-soft) 28%, var(--card)); }
+.rutina-parte-det > summary { cursor: pointer; font-size: 12px; font-weight: 750; letter-spacing: 0.04em; text-transform: uppercase; color: var(--accent); }
+.rutina-parte-det > ul { margin: 6px 0 2px; padding-left: 1.2em; }
+.rutina-parte-det > ul > li { margin: 3px 0; }
+@media (max-width: 390px) {
+  .lesiones-sem:not([open]) summary { gap: 4px; }
+  .lesiones-sem:not([open]) .rs-t { font-size: 11px; letter-spacing: 0.03em; }
+  .lesiones-sem:not([open]) .rs-l { font-size: 11px; }
+}
+
+/* Barra inferior: mismos bordes y resaltado segmentado que el selector de Entrenamientos. */
+.tabbar { gap: 4px; }
+.tabbar button { min-width: 0; border: 1px solid transparent; padding: 3px 2px; }
+@media (max-width: 760px) {
+  .tabbar { gap: 3px; padding: 4px 6px; }
+  .tabbar button { flex: 1 1 0; max-width: none; min-height: 52px; border-radius: 20px; }
+  .tabbar button span { font-size: clamp(8px, 2.7vw, 11px); line-height: 1.05; letter-spacing: 0; }
+  .tabbar svg { width: 23px; height: 23px; }
+  .tabbar button[aria-selected="true"] {
+    border-color: color-mix(in srgb, var(--verde) 35%, transparent) !important;
+    background: linear-gradient(135deg, color-mix(in srgb, var(--verde) 25%, var(--azul)), color-mix(in srgb, var(--verde) 12%, var(--azul))) !important;
+    color: var(--verde);
+    box-shadow: inset 0 -3px 0 var(--verde), 0 3px 8px color-mix(in srgb, var(--verde) 13%, transparent);
+  }
+  .tabbar button:focus-visible { outline: 2px solid var(--verde); outline-offset: 1px; }
+}
+
+/* Tema oscuro más sereno y sin el rebote de «tirar para actualizar» en móvil. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --accent: #86ad98;
+    --accent-soft: #20312b;
+    --verde: #92b8a2;
+    --marca: #86ad98;
+    --toast-acento: #5b8b70;
+    --p1: #86ad98;
+    --natacion: #69b6b3;
+    --pulso: #75b9b2;
+  }
+  body {
+    background: radial-gradient(ellipse at 50% -18%, color-mix(in srgb, var(--accent-soft) 30%, transparent), transparent 58%), var(--bg);
+  }
+}
+@media (max-width: 760px) {
+  html, body { overscroll-behavior-y: none; }
 }
 
