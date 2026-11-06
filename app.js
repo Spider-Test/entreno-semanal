@@ -1085,18 +1085,23 @@ function prepararTextoImportado(texto, nombre) {
 }
 
 function validarEdicionIA() {
+  $("iaMensaje").textContent = "";
   try { comprobarSesion(contextoIA); }
-  catch { $("iaAvisoDias").textContent = "La sesión ha cambiado. Vuelve a importar desde tu cuenta."; return false; }
+  catch { avisoImportacionIA("La sesión ha cambiado. Vuelve a importar desde tu cuenta."); return false; }
   if (!validarCamposBorradorIA()) return false;
   if (!rutinaIA?.nombre.trim() || sesionesImportadas().some(({s}) => !s.nombre.trim() || s.items.some(it => (it.bloque ? it.tramos : [it]).some(t => !t.ejercicio.trim())))) {
-    $("iaAvisoDias").textContent = "Completa los nombres del entrenamiento y sus ejercicios antes de guardar."; return false;
+    avisoImportacionIA("Completa los nombres del entrenamiento y sus ejercicios antes de guardar."); return false;
   }
   if (sesionesImportadas().some(({s}) => !s.items.length || (s.partesBorrador || []).some(p => !s.items.some(it => it.seccion === p)))) {
-    $("iaAvisoDias").textContent = "Añade un ejercicio a las partes vacías o quítalas antes de guardar."; return false;
+    avisoImportacionIA("Añade un ejercicio a las partes vacías o quítalas antes de guardar."); return false;
   }
   if (sesionesImportadas().some(({s}) => s.items.some(it => (it.bloque ? it.tramos : [it]).some(e => e.series.some(v => v.rango_min && v.rango_max && v.rango_min > v.rango_max))))) {
-    $("iaAvisoDias").textContent = "Las repeticiones mínimas no pueden superar las máximas."; return false;
+    avisoImportacionIA("Las repeticiones mínimas no pueden superar las máximas."); return false;
   }
+  if (sesionesImportadas().some(({s}) => s.items.some(it => (it.bloque ? it.tramos : [it]).some(e => {
+    const id=catalogoElegidoIA.get(e); return id && !vivos("ejercicios").some(x=>x.id===id && x.tipo===e.tipo);
+  })))) { avisoImportacionIA("Un ejercicio elegido ya no está disponible. Vuelve a elegirlo en el catálogo."); return false; }
+  sesionesImportadas().forEach(({s})=>partesImportacionIA(s));
   return true;
 }
 function sesionesImportadas() {
@@ -6503,7 +6508,7 @@ function guardarRutina(r, comoMeso, inicio, semanas, enLista) {
     b.sesiones.forEach(s => {
       const id = nuevoId();
       porSemana[w].push(id);
-      cambiar("plantillas", { id, nombre: libre(r.multi ? prefijo + " · S" + (w + 1) + " · " + s.nombre : s.nombre), items: desdeCompartido(s.items), borrado: false }, true);
+      cambiar("plantillas", { id, nombre: libre(r.multi ? prefijo + " · S" + (w + 1) + " · " + s.nombre : s.nombre), items: itemsDesdeImportacion(s.items), borrado: false }, true);
       n++;
       s.dias.forEach(d => (destino[d] = destino[d] || []).push(id));
     });
@@ -6532,12 +6537,58 @@ function guardarRutina(r, comoMeso, inicio, semanas, enLista) {
   }
 }
 // Editor del borrador importado: no escribe en db hasta elegir un destino y guardar.
+// Selecciones explícitas solo en memoria; los documentos no pueden proporcionar IDs de catálogo.
+const catalogoElegidoIA = new WeakMap();
+function claveEjercicioIA(nombre) {
+  return norm(nombre).replace(/[()]/g, " ").replace(/\s+/g, " ").trim();
+}
+function afinidadEjercicioIA(a, b) {
+  const x = claveEjercicioIA(a), y = claveEjercicioIA(b);
+  if (x === y) return 100;
+  const alias = t => t.replace(/\bhorizontal\b/g, "").replace(/\s+/g," ").trim();
+  if (x.includes("press banca") && y.includes("press banca") && alias(x) === alias(y)) return 90;
+  const palabras = x.split(" ").filter(p => p.length > 2);
+  return palabras.filter(p => y.split(" ").includes(p)).length * 10;
+}
+function catalogoImportacionIA(e) {
+  return vivos("ejercicios").filter(x => x.tipo === e.tipo).sort((a,b) => afinidadEjercicioIA(e.ejercicio,b.nombre)-afinidadEjercicioIA(e.ejercicio,a.nombre) || a.nombre.localeCompare(b.nombre));
+}
+function itemsDesdeImportacion(items) {
+  const resolver = e => {
+    const id = catalogoElegidoIA.get(e);
+    const lista = vivos("ejercicios");
+    if (id) {
+      if (!lista.some(x => x.id === id && x.tipo === e.tipo)) throw new Error("El ejercicio elegido ya no está disponible. Vuelve a elegirlo.");
+      return id;
+    }
+    return lista.find(x => x.tipo === e.tipo && compacto(x.nombre) === compacto(e.ejercicio))?.id || crearEjercicio(e.ejercicio,e.tipo);
+  };
+  const copias = new Map();
+  return items.map(it => it.bloque
+    ? {bloque:true,seccion:it.seccion||"",tramos:it.tramos.map(e => ({ejercicio_id:resolver(e),series:e.series}))}
+    : (() => {
+      const id=resolver(it), clave=JSON.stringify([id,it.seccion||""]), copia=(copias.get(clave)||0)+1;
+      copias.set(clave,copia);
+      return {ejercicio_id:id,seccion:it.seccion||"",series:it.series,copia:copia>1?copia:0};
+    })());
+}
+function partesImportacionIA(s) {
+  const disponibles = [...new Set(s.items.map(it=>it.seccion||"").concat(s.partesBorrador||[]))];
+  s.ordenPartesIA = [...(s.ordenPartesIA||[]).filter(p=>disponibles.includes(p)),...disponibles.filter(p=>!(s.ordenPartesIA||[]).includes(p))];
+  s.items.sort((a,b)=>s.ordenPartesIA.indexOf(a.seccion||"")-s.ordenPartesIA.indexOf(b.seccion||""));
+  return s.ordenPartesIA;
+}
+function avisoImportacionIA(texto) {
+  $("iaMensaje").textContent = texto;
+  $("iaAvisoDias").textContent = texto;
+}
+
 const ejerciciosEditandoIA = new WeakSet();
 function validarCamposBorradorIA() {
   for (const campo of $("iaVista").querySelectorAll("input, textarea, select")) {
     if (!campo.checkValidity()) {
       for (let p = campo.parentElement; p && p !== $("iaVista"); p = p.parentElement) if (p.tagName === "DETAILS") p.open = true;
-      campo.reportValidity(); return false;
+      avisoImportacionIA("Revisa el campo marcado antes de continuar."); campo.scrollIntoView({block:"center"}); campo.reportValidity(); return false;
     }
   }
   return true;
@@ -6559,13 +6610,13 @@ function vistaRutina(r, cont) {
   const campo = (padre, texto, objeto, clave, numerico = false, entero = false) => {
     const lab = document.createElement("label"); lab.className = "campo"; lab.textContent = texto;
     const input = document.createElement(clave === "nota" ? "textarea" : "input");
-    if (numerico) { input.type = "number"; input.min = "0"; input.max = "1000000"; input.step = entero ? "1" : "any"; input.inputMode = "decimal"; input.required = true; }
+    if (numerico) { input.type = "number"; input.min = "0"; input.max = "1000000"; input.step = entero ? "1" : "any"; input.inputMode = "decimal"; }
     else { input.maxLength = clave === "nota" ? 300 : 80; input.required = clave !== "nota"; }
     input.value = objeto[clave] ?? (numerico ? 0 : "");
     input.addEventListener("input", () => {
       input.setCustomValidity(!numerico && input.required && !input.value.trim() ? "Escribe un nombre." : "");
       if (numerico) { if (input.checkValidity()) objeto[clave] = Number(input.value); }
-      else objeto[clave] = input.value;
+      else { objeto[clave] = input.value; if (clave === "ejercicio") catalogoElegidoIA.delete(objeto); }
     });
     lab.appendChild(input); padre.appendChild(lab); return input;
   };
@@ -6589,8 +6640,8 @@ function vistaRutina(r, cont) {
       cab.append(t, boton("Cambiar nombre", () => renombrar("Nombre del entrenamiento", s.nombre, n => {
         s.nombre = n.slice(0,60); actualizarDestinoIA();
       }))); d.appendChild(cab);
-      const partes = [...new Set(s.items.map(it => it.seccion || "").concat(s.partesBorrador || []))];
-      partes.forEach(parte => {
+      const partes = partesImportacionIA(s);
+      partes.forEach((parte, posicionParte) => {
         const items = s.items.filter(it => (it.seccion || "") === parte);
         const caja = document.createElement("details"); caja.className = "rutina-parte-det ia-parte-editor"; caja.open = true;
         const summary = document.createElement("summary"); summary.textContent = (parte || "Sin parte") + " · " + contarSeries(items) + " series";
@@ -6599,14 +6650,68 @@ function vistaRutina(r, cont) {
         acciones.appendChild(boton("Renombrar parte", () => renombrar("Nombre de la parte", parte, n => {
           n = n.slice(0,40);
           if (n !== parte && partes.includes(n)) { $("iaAvisoDias").textContent = "Ya existe una parte con ese nombre. Elige uno diferente."; return; }
-          items.forEach(it => { it.seccion = n; });
+          items.forEach((it, posicionEjercicio) => { it.seccion = n; });
           s.partesBorrador = (s.partesBorrador || []).map(p => p === parte ? n : p);
+          s.ordenPartesIA = partes.map(p => p === parte ? n : p);
         })));
+        [-1,1].forEach(paso => {
+          const b = boton(paso < 0 ? "↑ Subir parte" : "↓ Bajar parte", () => {
+            if (!validarCamposBorradorIA()) return;
+            const orden = [...partes], otro = posicionParte + paso;
+            [orden[posicionParte],orden[otro]] = [orden[otro],orden[posicionParte]];
+            s.ordenPartesIA = orden; repintar();
+          });
+          b.disabled = posicionParte + paso < 0 || posicionParte + paso >= partes.length; acciones.appendChild(b);
+        });
         if (!items.length) acciones.appendChild(boton("Quitar parte vacía", () => { s.partesBorrador = (s.partesBorrador || []).filter(p => p !== parte); repintar(); }));
         caja.appendChild(acciones);
-        items.forEach(it => {
+        items.forEach((it, posicionEjercicio) => {
           const fila = document.createElement("div"); fila.className = "ia-ej-editor";
           const titulo = document.createElement("p"); titulo.textContent = textoItemRutina(it); fila.appendChild(titulo);
+          const mover = document.createElement("div"); mover.className = "ia-editor-acciones";
+          [-1,1].forEach(paso => {
+            const b = boton(paso < 0 ? "↑ Subir ejercicio" : "↓ Bajar ejercicio", () => {
+              if (!validarCamposBorradorIA()) return;
+              const a = s.items.indexOf(it), b = s.items.indexOf(items[posicionEjercicio+paso]);
+              [s.items[a],s.items[b]] = [s.items[b],s.items[a]]; repintar();
+            });
+            b.disabled = posicionEjercicio+paso < 0 || posicionEjercicio+paso >= items.length; mover.appendChild(b);
+          });
+          const labMover = document.createElement("label"); labMover.className="campo"; labMover.textContent="Mover a otra parte";
+          const destino = document.createElement("select"); destino.appendChild(new Option("Elegir parte…",""));
+          partes.forEach((p,i)=>{if(p!==parte)destino.appendChild(new Option(p||"Sin parte",String(i)));});
+          destino.addEventListener("change",()=>{
+            if(destino.value === "" || !validarCamposBorradorIA())return;
+            const nueva = partes[Number(destino.value)];
+            s.items.splice(s.items.indexOf(it),1); it.seccion=nueva;
+            const ultimo=s.items.map(x=>x.seccion||"").lastIndexOf(nueva); s.items.splice(ultimo+1,0,it);
+            if(!s.items.some(x=>(x.seccion||"")===parte)) s.partesBorrador=(s.partesBorrador||[]).filter(p=>p!==parte);
+            repintar();
+          });
+          labMover.appendChild(destino); mover.appendChild(labMover); fila.appendChild(mover);
+          // La vinculación está disponible sin desplegar todos los campos de las series.
+          (it.bloque ? it.tramos : [it]).forEach(e => {
+            const lab = document.createElement("label"); lab.className="campo ia-catalogo";
+            lab.appendChild(document.createTextNode("Ejercicio guardado · " + e.ejercicio));
+            const sel = document.createElement("select"); sel.setAttribute("aria-label","Vincular " + e.ejercicio);
+            const lista = catalogoImportacionIA(e), exacto = lista.find(x=>compacto(x.nombre)===compacto(e.ejercicio));
+            sel.appendChild(new Option("Crear si no existe: " + e.ejercicio,""));
+            lista.forEach(x=>sel.appendChild(new Option(x.nombre+(afinidadEjercicioIA(e.ejercicio,x.nombre)===90 ? " (posible coincidencia)" : ""),x.id)));
+            sel.value=catalogoElegidoIA.get(e)||exacto?.id||"";
+            sel.addEventListener("change",()=>{
+              if(!validarCamposBorradorIA())return;
+              const elegido=lista.find(x=>x.id===sel.value), anterior=e.ejercicio;
+              // La misma denominación importada se vincula también en sus calentamientos y partes.
+              r.bloques.flatMap(b=>b.sesiones).flatMap(s=>s.items).flatMap(it=>it.bloque?it.tramos:[it]).forEach(t=>{
+                if(t.tipo!==e.tipo || t.ejercicio!==anterior)return;
+                if(elegido){t.ejercicio=elegido.nombre;catalogoElegidoIA.set(t,elegido.id);} else catalogoElegidoIA.delete(t);
+              }); repintar();
+            });
+            lab.appendChild(sel); fila.appendChild(lab);
+            if(!exacto && lista.some(x=>afinidadEjercicioIA(e.ejercicio,x.nombre)>=90)) {
+              const n=document.createElement("p"); n.className="nota"; n.textContent="Hay una posible coincidencia. Elígela arriba si es el mismo ejercicio; las variantes no se unen automáticamente."; fila.appendChild(n);
+            }
+          });
           const editando = ejerciciosEditandoIA.has(it);
           fila.appendChild(boton(editando ? "Terminar edición" : "Editar ejercicio y series", () => {
             if (!validarCamposBorradorIA()) return;
@@ -6658,6 +6763,8 @@ function vistaRutina(r, cont) {
         n = n.slice(0,40);
         if (partes.includes(n)) { $("iaAvisoDias").textContent = "Ya existe esa parte."; return; }
         (s.partesBorrador = s.partesBorrador || []).push(n);
+        // El calentamiento nuevo empieza arriba; después el usuario puede moverlo libremente.
+        s.ordenPartesIA = /^calentamiento\b/i.test(n) ? [n,...partes] : [...partes,n];
       })));
       cont.appendChild(d);
     });
@@ -7120,7 +7227,7 @@ function guardarPlantillasImportadas(m) {
     let nombre = p.nombre, n = 2;
     while (usados.has(norm(nombre))) nombre = p.nombre + " (" + n++ + ")";
     usados.add(norm(nombre));
-    cambiar("plantillas", { id: p.id, nombre, items: desdeCompartido(p.items), borrado: false }, true);
+    cambiar("plantillas", { id: p.id, nombre, items: itemsDesdeImportacion(p.items), borrado: false }, true);
   });
   mesoImportacion = null;
   return true;
@@ -7132,10 +7239,12 @@ function pasoIA(paso) {
   $("iaPrompt").hidden = paso !== "prompt";
   $("iaPegar").hidden = paso !== "pegar";
   $("iaVistaCaja").hidden = paso === "prompt" || (paso === "pegar" && !rutinaIA);
+  $("iaGuardarBarra").hidden = $("iaVistaCaja").hidden;
 }
 function abrirIA(paso) {
   contextoIA = contextoSesion();
   $("iaDiaOp").open = false;
+  $("iaMensaje").textContent = "";
   $("iaDestino").value = "calendario";
   rutinaIA = null;
   docIA = null;
@@ -7150,6 +7259,7 @@ function abrirIA(paso) {
 function pintarVistaIA() {
   const r = rutinaIA;
   $("iaVistaCaja").hidden = !r;
+  $("iaGuardarBarra").hidden = !r;
   if (!r) return;
   vistaRutina(r, $("iaVista"));
   const n = sesionesImportadas().length;
@@ -7210,6 +7320,12 @@ function actualizarGuardadoIA(cambiarNombre = false) {
     : "Se añadirá al día elegido. Allí podrás editar las partes, ejercicios y series con los controles habituales.";
   if (cambiarNombre) $("iaNombreSesion").value = sesionesImportadas()[Number($("iaDiaSesion").value)]?.s.nombre.replace(/_/g, " ") || "";
 }
+$("iaContinuar").addEventListener("click", () => {
+  if (!rutinaIA || !validarEdicionIA()) return;
+  $("iaDiaOp").open = true;
+  $("iaDiaOp").scrollIntoView({block:"start"});
+  $("iaDestino").focus({preventScroll:true});
+});
 $("iaDestino").addEventListener("change", () => actualizarGuardadoIA());
 $("iaDiaSesion").addEventListener("change", () => actualizarGuardadoIA(true));
 $("iaAnadirDia").addEventListener("click", () => {
@@ -7217,8 +7333,8 @@ $("iaAnadirDia").addEventListener("click", () => {
   if (!r || !validarEdicionIA()) return;
   const original = sesionesImportadas()[Number($("iaDiaSesion").value)]?.s;
   const titulo = $("iaNombreSesion").value.trim();
-  if (!original || !titulo) { $("iaNombreSesion").reportValidity(); return; }
-  if (destino !== "plantilla" && !fechaSerieValida(f)) { $("iaDiaFecha").reportValidity(); return; }
+  if (!original || !titulo) { avisoImportacionIA("Escribe el nombre del entrenamiento para guardarlo."); $("iaDiaOp").open=true; $("iaNombreSesion").focus(); return; }
+  if (destino !== "plantilla" && !fechaSerieValida(f)) { avisoImportacionIA("Elige un día válido para el calendario."); $("iaDiaOp").open=true; $("iaDiaFecha").focus(); $("iaDiaFecha").reportValidity(); return; }
   const s = { ...original, nombre: titulo };
   if (destino !== "calendario") guardarRutina({ ...r, multi: false, bloques: [{ sesiones: [s] }] }, false);
   if (destino === "plantilla") { $("dlgIA").close(); return; }
@@ -7226,7 +7342,7 @@ $("iaAnadirDia").addEventListener("click", () => {
   (sesionesVacias[f] || []).forEach(g => usados.add(g));
   let nombre = s.nombre, n = 2;
   while (usados.has(nombre)) nombre = s.nombre + " (" + n++ + ")";
-  pegarItems(f, desdeCompartido(s.items), nombre);
+  pegarItems(f, itemsDesdeImportacion(s.items), nombre);
   gruposPlegados[f + "|" + nombre] = 0;
   persistir(); $("dlgIA").close(); abrirDia(f);
   setEstado("«" + nombre + "» añadido al " + fechaCorta(f) + ". Edita cada parte desde su menú ⋯; usa + Parte o + Ejercicio para ampliarlo.");
@@ -8257,7 +8373,7 @@ $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); 
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
 // VERSION_APP es interna (sube en cada publicación para que los móviles se actualicen); la que se ve es siempre la 26
-const VERSION_APP = "v234" + (BETA ? " beta" : "");
+const VERSION_APP = "v236" + (BETA ? " beta" : "");
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";

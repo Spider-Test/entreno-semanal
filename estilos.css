@@ -2427,3 +2427,18 @@ input:focus, textarea:focus, select:focus { border-color: var(--accent); box-sha
 
 /* Los menús de nombres siempre están visibles, sin depender de hover. */
 #vistaSemana .dia-cab > .menu-btn, #vistaSemana .grupo-cab > .menu-btn, #vistaSemana .parte-cab > .menu-btn { opacity: 1 !important; visibility: visible !important; }
+
+/* Importación: acción accesible durante la edición, sin tocar la navegación general. */
+#dlgIA[open] { display:flex; flex-direction:column; overflow:hidden; }
+#dlgIA > .d-cab { flex-shrink:0; }
+#dlgIA > .d-cuerpo { min-height:0; overflow-y:auto; overscroll-behavior:contain; }
+#iaGuardarBarra { flex-shrink:0; padding:10px 16px; background:var(--card); border-top:1px solid var(--line); }
+#iaGuardarBarra[hidden] { display:none; }
+#iaGuardarBarra button { width:100%; white-space:normal; }
+#iaMensaje:empty { display:none; }
+#iaMensaje { margin:0 0 8px; max-height:100px; overflow-y:auto; }
+.ia-editor-acciones > .campo { flex:1 1 100%; min-width:0; }
+.ia-editor-acciones button { min-height:40px; }
+.ia-editor-acciones button:disabled { opacity:.4; cursor:default; }
+.ia-catalogo select, .ia-editor-acciones select { width:100%; min-width:0; }
+.ia-catalogo { margin:10px 0; overflow-wrap:anywhere; }

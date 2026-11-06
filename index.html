@@ -26,7 +26,7 @@
   window.addEventListener("pageshow", actualizar);
 })();
 </script>
-<link rel="stylesheet" href="estilos.css?v=v234">
+<link rel="stylesheet" href="estilos.css?v=v236">
 </head>
 <body>
 
@@ -547,6 +547,10 @@
       </details>
     </div>
   </div>
+  <div id="iaGuardarBarra" hidden>
+    <p id="iaMensaje" class="aviso" role="alert"></p>
+    <button type="button" class="anadir" id="iaContinuar">Elegir destino y guardar…</button>
+  </div>
 </dialog>
 
 <dialog id="dlgAyuda" aria-label="Instrucciones de uso">
@@ -930,6 +934,6 @@
 <div class="toast" id="toast" role="status" hidden><span id="toastTxt"></span><button type="button" id="toastBtn">Deshacer</button></div>
 <div class="fiesta" id="fiesta" aria-hidden="true"></div>
 
-<script src="app.js?v=v234"></script>
+<script src="app.js?v=v236"></script>
 </body>
 </html>
