@@ -3987,7 +3987,7 @@ $("detalle").addEventListener("close", () => {
 
 // ---------- Rendimiento: marcas, forma (VDOT de Daniels), predicciones y ritmos objetivo ----------
 // Son estimaciones orientativas calculadas con las series hechas.
-const DIST_MARCAS = [100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 1500, 2000, 3000, 5000, 10000, 21097, 42195];
+const DIST_MARCAS = [100, 200, 250, 300, 400, 500, 600, 700, 800, 900, 1000, 1500, 2000, 3000, 5000, 10000, 21097, 42195];
 // Marcas con décimas cuando las hay (100 m en 13,2 s; o una marca sacada de una serie más larga): sin redondear
 const fmtMarca = seg => {
   const t = n0(seg);
@@ -3996,7 +3996,7 @@ const fmtMarca = seg => {
   return m + ":" + (x < 10 ? "0" : "") + x.toFixed(1).replace(".", ",");
 };
 const DIST_NADO = [50, 100, 200, 400, 800, 1500];
-const nombreDist = d => ({ 1000: "1 km", 2000: "2 km", 21097: "Media maratón", 42195: "Maratón" })[d] || fmtDist(d);
+const nombreDist = d => ({ 250: "250 m", 1000: "1 km", 2000: "2 km", 21097: "Media maratón", 42195: "Maratón" })[d] || fmtDist(d);
 const vo2 = v => -4.6 + 0.182258 * v + 0.000104 * v * v;                                   // v en m/min
 // t en min; por debajo de 5 min la fórmula de Daniels deja de ser fiable, así que se toma 5 como mínimo
 const fraccion = t => { t = Math.max(t, 5); return 0.8 + 0.1894393 * Math.exp(-0.012778 * t) + 0.2989558 * Math.exp(-0.1932605 * t); };
@@ -4350,7 +4350,7 @@ function editarPulso() {
   ]);
 }
 // Mis carreras: próximas (objetivo y cuenta atrás) y hechas por distancia, con la mejor (PB), su evolución y previsto frente a real
-const DIST_CARRERA = [[2000, "2 km"], [5000, "5 km"], [10000, "10 km"], [21097, "Media maratón (21,1 km)"], [42195, "Maratón (42,2 km)"]];
+const DIST_CARRERA = [[250, "250 m"], [2000, "2 km"], [5000, "5 km"], [10000, "10 km"], [21097, "Media maratón (21,1 km)"], [42195, "Maratón (42,2 km)"]];
 let distCarreraGraf = 0;
 let marcaEdit = null;
 function abrirMarcaManual(c) {
@@ -4640,11 +4640,11 @@ function pintarMarcas() {
     const s2 = seccionMarcas("Marcas previstas");
     // Predicción según tu forma (VDOT) y por Riegel desde tu mejor marca, con su ritmo; al lado, tu marca real si la tienes
     s2.appendChild(tablaSimple(["Distancia", "Según VDOT", "Ritmo", ref ? "Riegel (desde " + nombreDist(ref.d) + ")" : "Riegel", "Real"],
-      [1000, 2000, 5000, 10000, 21097, 42195].map(d => {
+      [250, 1000, 2000, 5000, 10000, 21097, 42195].map(d => {
         const t = tiempoPrevisto(f.vdot, d), real = marcas.find(m => m.d === d);
         return { celdas: [nombreDist(d), fmtTiempo(t), fmtTiempo(t / d * 1000) + "/km", ref ? fmtTiempo(ref.t * Math.pow(d / ref.d, 1.06)) : "—", real ? fmtMarca(real.t) + (real.exacta ? "" : " *") : "—"] };
       })));
-    s2.appendChild(nota("«Real»: tu mejor marca en esa distancia (* sacada de una serie algo más larga, a su ritmo medio). En 1 y 2 km la predicción es más aproximada: la fórmula de Daniels es menos fiable en esfuerzos de menos de 5 minutos."));
+    s2.appendChild(nota("«Real»: tu mejor marca en esa distancia (* sacada de una serie algo más larga, a su ritmo medio). La predicción de 250 m es muy orientativa: VDOT y Riegel son menos fiables en distancias cortas de velocidad; un tiempo medido en pista es más representativo."));
     const s3 = seccionMarcas("Ritmos de entrenamiento");
     s3.appendChild(tablaSimple(["Zona", "Por km", "Por 400 m"], ZONAS.map(([n, fr]) => { const r = ritmoZona(f.vdot, fr) * (1 + carga.ajuste); return { celdas: [n, fmtTiempo(r), fmtTiempo(r * 0.4)] }; })));
     s3.appendChild(nota("Cada serie de carrera planificada muestra su objetivo calculado con todo el entrenamiento de ese día (series, bloques, volumen y recuperaciones) y se ajusta según cómo te van saliendo."));
@@ -4735,7 +4735,6 @@ function pintarPlan() {
   const hoy = iso(new Date());
   const ms = vivos("mesociclos").sort((a, b) => (b.inicio || "").localeCompare(a.inicio || ""));
   contadorSec("mesociclos", ms.length);
-  contadorSec("molestias", molestiasActivas().length ? molestiasActivas().length + " activa" + (molestiasActivas().length === 1 ? "" : "s") : vivos("molestias").length);
   contadorSec("rutinas", RUTINAS_TIPO.length);
   contadorSec("usuarios", usuarios.filter(u => !u.aprobado).length ? usuarios.filter(u => !u.aprobado).length + " pendientes" : usuarios.length);
   if (!ms.length) lm.innerHTML = '<p class="vacio-lista">Un mesociclo reparte tus plantillas por los días de la semana durante varias semanas, con progresión de peso si quieres.</p>';
@@ -5375,6 +5374,7 @@ function datosSemana(lunes) {
 }
 let claveResumen = "";
 function pintarResumen() {
+  pintarMolestias();
   const lunes = lunesVista(), clave = versionDatos + "|" + iso(lunes);
   if (clave === claveResumen) return;
   claveResumen = clave;
@@ -5470,6 +5470,42 @@ function limitesInforme() {
   else { ini = new Date(ref.getFullYear(), 0, 1); fin = new Date(ref.getFullYear() + 1, 0, 1); }
   return { desde: iso(ini), hasta: iso(fin), titulo: modo === "semana" ? "Semana del " + fmt(ini) + " a " + fmt(sumarDias(fin, -1)) : modo === "mes" ? "Mes de " + MESES[ref.getMonth()] + " de " + ref.getFullYear() : "Año " + ref.getFullYear() };
 }
+let mesCalendarioInforme = deIso(iso(new Date()));
+function pintarCalendarioInforme() {
+  const anio = mesCalendarioInforme.getFullYear(), mes = mesCalendarioInforme.getMonth();
+  $("fechaInformeMes").textContent = new Intl.DateTimeFormat("es-ES", { month: "long", year: "numeric" }).format(mesCalendarioInforme);
+  const primero = new Date(anio, mes, 1), inicio = (primero.getDay() + 6) % 7;
+  const total = new Date(anio, mes + 1, 0).getDate(), elegido = $("fechaInforme").value, hoy = iso(new Date());
+  const nombres = ["L", "M", "X", "J", "V", "S", "D"];
+  $("fechaInformeDias").innerHTML = nombres.map((n, i) => `<span role="columnheader" aria-label="${["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"][i]}">${n}</span>`).join("");
+  for (let i = 0; i < inicio; i++) $("fechaInformeDias").insertAdjacentHTML("beforeend", "<span aria-hidden=\"true\"></span>");
+  for (let dia = 1; dia <= total; dia++) {
+    const valor = iso(new Date(anio, mes, dia)), clases = [valor === hoy ? "hoy" : "", valor === elegido ? "seleccionado" : ""].filter(Boolean).join(" ");
+    const mesLargo = new Intl.DateTimeFormat("es-ES", { month: "long" }).format(new Date(anio, mes, 1));
+    $("fechaInformeDias").insertAdjacentHTML("beforeend", `<button type="button" role="gridcell" class="${clases}" aria-label="${dia} de ${mesLargo} de ${anio}" aria-pressed="${valor === elegido}">${dia}</button>`);
+  }
+  $("fechaInformeDias").querySelectorAll("button").forEach(b => b.addEventListener("click", () => {
+    const dia = Number(b.textContent); $("fechaInforme").value = iso(new Date(anio, mes, dia)); actualizarFechaInforme(); cerrarCalendarioInforme(); $("fechaInformeAbrir").focus();
+  }));
+}
+function actualizarFechaInforme() {
+  const fecha = deIso($("fechaInforme").value || iso(new Date()));
+  $("fechaInformeAbrir").textContent = new Intl.DateTimeFormat("es-ES", { day: "2-digit", month: "2-digit", year: "numeric" }).format(fecha);
+}
+function abrirCalendarioInforme() {
+  mesCalendarioInforme = deIso($("fechaInforme").value || iso(new Date()));
+  $("calendarioInforme").hidden = false; $("fechaInformeAbrir").setAttribute("aria-expanded", "true");
+  pintarCalendarioInforme();
+  $("fechaInformeDias").querySelector(".seleccionado")?.focus();
+}
+function cerrarCalendarioInforme() {
+  $("calendarioInforme").hidden = true; $("fechaInformeAbrir").setAttribute("aria-expanded", "false");
+}
+$("fechaInformeAbrir").addEventListener("click", () => $("calendarioInforme").hidden ? abrirCalendarioInforme() : cerrarCalendarioInforme());
+$("fechaInformeAnterior").addEventListener("click", () => { mesCalendarioInforme = new Date(mesCalendarioInforme.getFullYear(), mesCalendarioInforme.getMonth() - 1, 1); pintarCalendarioInforme(); });
+$("fechaInformeSiguiente").addEventListener("click", () => { mesCalendarioInforme = new Date(mesCalendarioInforme.getFullYear(), mesCalendarioInforme.getMonth() + 1, 1); pintarCalendarioInforme(); });
+$("calendarioInforme").addEventListener("keydown", e => { if (e.key === "Escape") { cerrarCalendarioInforme(); $("fechaInformeAbrir").focus(); } });
+document.addEventListener("pointerdown", e => { if (!e.target.closest(".informe-fecha-campo")) cerrarCalendarioInforme(); });
 function descargarResumenPeriodo() {
   const { desde, hasta, titulo } = limitesInforme();
   const filas = seriesVivas().filter(s => s.fecha >= desde && s.fecha < hasta && hecha(s) && !s.calentamiento);
@@ -5484,6 +5520,7 @@ function descargarResumenPeriodo() {
   descargarArchivo("resumen-entrenamiento-" + desde + "-" + iso(sumarDias(deIso(hasta),-1)) + ".html", contenido, "text/html");
 }
 $("fechaInforme").value = iso(new Date());
+actualizarFechaInforme();
 $("descargarInforme").addEventListener("click", descargarResumenPeriodo);
 // Restaurar: recupera lo que falta, lo borrado o lo más antiguo aquí; nunca borra nada
 function restaurar(archivo) {
@@ -5981,7 +6018,7 @@ function textoPrompt() {
   const corre = !!CARRERA_IA[obj] || obj === "combinado", carrera = CARRERA_IA[obj];
   // Marcas previstas (VDOT y Riegel desde tu mejor marca) para que la IA ajuste el plan a tu nivel real
   const marcas = marcasDe("carrera"), ref = marcas.filter(m => m.d >= 1000).sort((x, y) => vdotDe(y.d, y.t) - vdotDe(x.d, x.t))[0];
-  const previstas = f ? [1000, 2000, 5000, 10000, 21097, 42195].map(d => nombreDist(d) + " " + fmtTiempo(tiempoPrevisto(f.vdot, d)) + (ref ? " (Riegel " + fmtTiempo(ref.t * Math.pow(d / ref.d, 1.06)) + ")" : "")).join(", ") : "";
+  const previstas = f ? [250, 1000, 2000, 5000, 10000, 21097, 42195].map(d => nombreDist(d) + " " + fmtTiempo(tiempoPrevisto(f.vdot, d)) + (ref ? " (Riegel " + fmtTiempo(ref.t * Math.pow(d / ref.d, 1.06)) + ")" : "")).join(", ") : "";
   const fechaCarrera = g("iaFechaCarrera"), semanasHasta = fechaCarrera ? Math.max(1, Math.round((deIso(fechaCarrera) - lunesDe(new Date())) / 6048e5)) : 0;
   const datos = [
     "Objetivo: " + OBJETIVOS_IA[obj] + (g("iaMeta") ? " (" + g("iaMeta") + ")" : ""),
@@ -6318,6 +6355,8 @@ const molestiasActivas = () => vivos("molestias").filter(m => m.estado === "acti
 const molestiasDe = id => { const z = zonasDe(id); return molestiasActivas().filter(m => z.includes(m.zona)); };
 function pintarMolestias() {
   const cont = $("listaMolestias");
+  const activas = molestiasActivas().length;
+  $("molestiasLinea").textContent = activas ? activas + (activas === 1 ? " activa" : " activas") : "Sin activas";
   cont.textContent = "";
   const lista = vivos("molestias").sort((a, b) => (a.estado === b.estado ? 0 : a.estado === "activa" ? -1 : 1) || (b.inicio || "").localeCompare(a.inicio || ""));
   if (!lista.length) { cont.appendChild(nota("Apunta aquí una molestia o lesión (zona, qué notas y desde cuándo). Los ejercicios que trabajan esa zona te avisarán con ⚠ y la IA la tendrá en cuenta.")); return; }
@@ -7971,7 +8010,7 @@ document.querySelectorAll("#vistaPlan > .plan-sec[data-sec]").forEach(sec => {
 const GRUPOS_PLAN = {
   crear: ["importar", "ia", "compartido"],
   entrenos: ["plantillas", "mesociclos", "rutinas"],
-  cuenta: ["molestias", "copia", "ajustes", "sugerencias", "usuarios"]
+  cuenta: ["copia", "ajustes", "sugerencias", "usuarios"]
 };
 function aplicarGrupoPlan() {
   const grupo = leer("plan-grupo-v1") || "crear", secciones = GRUPOS_PLAN[grupo] || GRUPOS_PLAN.crear;

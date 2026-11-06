@@ -369,6 +369,9 @@ dialog::backdrop { background: rgba(0,0,0,0.45); }
 /* Ayuda, resumen semanal, esfuerzo (RPE), Crear con IA y copia de seguridad */
 .titulo { display: flex; align-items: center; gap: 8px; }
 .ayuda-btn { flex: none; width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--line); background: var(--card); color: var(--accent); font-weight: 800; font-size: 15px; padding: 0; }
+.sem-resumenes { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 8px; }
+.sem-resumenes > details { min-width: 0; }
+.sem-resumenes > details[open] { grid-column: 1 / -1; }
 .resumen-sem { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 0 12px; }
 .resumen-sem summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; padding: 10px 0; cursor: pointer; list-style: none; }
 .resumen-sem summary::-webkit-details-marker { display: none; }
@@ -378,6 +381,12 @@ dialog::backdrop { background: rgba(0,0,0,0.45); }
 .rs-l { color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
 .resumen-sem .records { padding-bottom: 12px; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); }
 .resumen-sem .rec .r-val { font-size: 20px; }
+.lesiones-sem { min-width: 220px; }
+.lesiones-sem summary { align-items: center; }
+.lesiones-sem .rs-l { color: var(--error); font-weight: 650; }
+.molestias-semana { padding: 0 0 12px; }
+.molestias-semana .menu-det { margin-top: 8px; }
+.molestias-semana .lista-tarjetas { margin-top: 8px; }
 .rpe-dia { margin: 0 8px 8px; border: 0; background: none; color: var(--muted); font-size: 13px; text-align: left; padding: 4px 2px; overflow-wrap: anywhere; }
 .rpe-dia.con-rpe { color: var(--fg); background: var(--bg); border-radius: 8px; padding: 6px 10px; }
 .rpe-escala { display: grid; grid-template-columns: repeat(10, 1fr); gap: 4px; }
@@ -401,6 +410,11 @@ dialog::backdrop { background: rgba(0,0,0,0.45); }
 .ayuda summary { font-weight: 700; cursor: pointer; padding-bottom: 2px; }
 .d-cuerpo.ayuda { gap: 10px; }
 @media (max-width: 760px) {
+  .sem-resumenes { grid-template-columns: minmax(0, 1fr) minmax(0, auto); gap: 6px; }
+  .lesiones-sem { min-width: 0; }
+  .lesiones-sem .rs-t { font-size: 13px; }
+  .lesiones-sem summary { gap: 4px; }
+  .lesiones-sem .rs-l { font-size: 12px; }
   .ayuda-btn { width: 34px; height: 34px; font-size: 17px; }
   .rpe-escala { grid-template-columns: repeat(5, 1fr); }
   .rpe-escala button { padding: 12px 0; font-size: 17px; }
@@ -476,7 +490,7 @@ body { padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 104px); }
 .dia-nav { display: flex; align-items: center; gap: 8px; }
 .dia-nav-t { flex: 1; min-width: 0; text-align: center; font-family: var(--display); font-weight: 700; font-size: 20px; text-transform: uppercase; letter-spacing: 0.05em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dia-nav .volver { color: var(--accent); }
-.solo-dia .resumen-sem { display: none !important; }
+.solo-dia #resumenSem { display: none !important; }
 .solo-dia .semana { grid-template-columns: 1fr; max-width: 720px; width: 100%; margin: 0 auto; }
 .solo-dia .dia-abrir { pointer-events: none; }
 
@@ -550,11 +564,24 @@ dialog.pantalla[open] { display: flex; flex-direction: column; }
 .plan-nav-btn.activa { color: var(--accent); background: var(--accent-soft); border-color: var(--accent); }
 .plan-sec[hidden] { display: none !important; }
 @media (max-width: 430px) { .plan-nav { grid-template-columns: 1fr; position: static; } }
-.informe-controles { align-items: flex-end; }
+.informe-controles { align-items: flex-end; gap: 10px; }
 .informe-controles > .campo { min-width: 180px; }
-.informe-controles #periodoInforme, .informe-controles #fechaInforme { box-sizing: border-box; width: 100%; height: 48px; min-height: 48px; font-size: 16px; }
-.informe-controles #fechaInforme::-webkit-calendar-picker-indicator { width: 22px; height: 22px; cursor: pointer; }
-.informe-controles #descargarInforme { align-self: flex-end; min-height: 48px; padding: 0 16px; }
+.informe-controles #periodoInforme, .informe-fecha-boton { box-sizing: border-box; width: 100%; height: 40px; min-height: 40px; font-size: 15px; }
+.informe-fecha-campo { position: relative; }
+.informe-fecha { position: relative; display: block; }
+.informe-fecha-boton { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 0 11px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--fg); text-align: left; font-weight: 400; }
+.informe-fecha-boton::after { content: "▾"; color: var(--muted); font-size: 13px; }
+.calendario-informe { position: absolute; z-index: 8; top: calc(100% + 8px); left: 0; width: min(340px, calc(100vw - 32px)); padding: 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--card); box-shadow: 0 12px 32px rgba(0,0,0,.28); }
+.cal-informe-cab { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+.cal-informe-cab strong { font-size: 16px; text-transform: capitalize; }
+.cal-informe-dias { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.cal-informe-dias > span, .cal-informe-dias > button { display: flex; align-items: center; justify-content: center; min-width: 0; min-height: 40px; padding: 0; border-radius: 8px; }
+.cal-informe-dias > span { color: var(--muted); font-size: 12px; font-weight: 700; }
+.cal-informe-dias > button { border: 1px solid transparent; background: transparent; color: var(--fg); font-size: 15px; font-variant-numeric: tabular-nums; }
+.cal-informe-dias > button:hover, .cal-informe-dias > button:focus-visible { border-color: var(--accent); outline: none; }
+.cal-informe-dias > button.hoy { border-color: var(--line); }
+.cal-informe-dias > button.seleccionado { background: var(--accent); color: var(--card); font-weight: 700; }
+.informe-controles #descargarInforme { align-self: flex-end; height: 40px; min-height: 40px; padding: 0 12px; font-size: 14px; }
 @media (max-width: 600px) { .informe-controles > .campo { flex-basis: 100%; min-width: 0; } .informe-controles #descargarInforme { width: 100%; } }
 .plan-sec { background: var(--card); border-radius: 14px; padding: 14px 16px; }
 #marcasCont { gap: 14px; }

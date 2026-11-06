@@ -70,10 +70,20 @@
       <button type="button" class="nav-btn btn-hoy" id="diaHoy" hidden>Hoy</button>
     </nav>
     <p class="meso-banda" id="mesoBanda" hidden></p>
-    <details class="resumen-sem" id="resumenSem" hidden>
-      <summary><span class="rs-t">Resumen de la semana</span><span class="rs-l" id="resumenLinea"></span></summary>
-      <div class="records" id="resumenCont"></div>
-    </details>
+    <div class="sem-resumenes">
+      <details class="resumen-sem" id="resumenSem" hidden>
+        <summary><span class="rs-t">Resumen de la semana</span><span class="rs-l" id="resumenLinea"></span></summary>
+        <div class="records" id="resumenCont"></div>
+      </details>
+      <details class="resumen-sem lesiones-sem" id="molestiasSem">
+        <summary><span class="rs-t">Molestias y lesiones</span><span class="rs-l" id="molestiasLinea"></span></summary>
+        <section class="molestias-semana">
+          <div class="sec-cab"><h3>Molestias y lesiones</h3><button type="button" class="nav-btn" id="nuevaMolestia">+ Nueva</button></div>
+          <p class="menu-det nota">Anota aquí una molestia para que aparezca como aviso en los ejercicios relacionados y se tenga en cuenta al crear planes con IA.</p>
+          <div class="lista-tarjetas" id="listaMolestias"></div>
+        </section>
+      </details>
+    </div>
     <main class="semana" id="semana"></main>
   </div>
 
@@ -111,11 +121,6 @@
       <p class="vacio-lista">Importa una actividad del reloj (FIT, GPX o TCX), COROS o un CSV de Strava/Garmin. Las vueltas se guardan como series y sus recuperaciones como descanso.</p>
       <div class="botonera"><button type="button" class="anadir" id="impAbrir">Elegir archivo de carrera…</button></div>
     </section>
-    <section class="plan-sec" data-sec="molestias">
-      <div class="sec-cab"><h3>Molestias y lesiones</h3><button type="button" class="nav-btn" id="nuevaMolestia">+ Nueva</button></div>
-      <p class="menu-det nota">Anota aquí una molestia para que aparezca como aviso en los ejercicios relacionados y se tenga en cuenta al crear planes con IA.</p>
-      <div class="lista-tarjetas" id="listaMolestias"></div>
-    </section>
     <section class="plan-sec" data-sec="ia">
       <h3>Crear con IA</h3>
       <p class="vacio-lista">Elige tu objetivo, copia el prompt, pégalo en ChatGPT, Claude u otra IA y pega aquí su respuesta: la app crea las plantillas (o el mesociclo) y los ejercicios que falten.</p>
@@ -132,13 +137,12 @@
       <div class="barra"><input id="codigoComp" placeholder="Pega el enlace o el código de 8 letras" autocomplete="off" autocapitalize="characters"><button type="button" class="nav-btn" id="abrirComp">Abrir</button></div>
     </section>
     <section class="plan-sec" data-sec="copia">
-      <h3>Copia de seguridad</h3>
+      <div class="sec-cab"><h3>Copia de seguridad</h3><label class="nav-btn">Restaurar copia…<input type="file" id="impJson" accept="application/json,.json" hidden></label></div>
       <p class="vacio-lista">Descarga todos tus datos. La copia completa (JSON) sirve para restaurarlos; los CSV se abren con Excel o Numbers.</p>
       <div class="botonera">
         <button type="button" class="nav-btn" id="expJson">Copia completa (JSON)</button>
         <button type="button" class="nav-btn" id="expCsv">Series (CSV)</button>
         <button type="button" class="nav-btn" id="expDias">Días y notas (CSV)</button>
-        <label class="nav-btn">Restaurar copia…<input type="file" id="impJson" accept="application/json,.json" hidden></label>
       </div>
     </section>
     <section class="plan-sec" data-sec="ajustes">
@@ -178,7 +182,20 @@
       <h3>Resumen descargable</h3>
       <div class="fila informe-controles">
         <label class="campo">Periodo <select id="periodoInforme"><option value="semana">Semana</option><option value="mes">Mes</option><option value="ano">Año</option></select></label>
-        <label class="campo">Fecha de referencia <input id="fechaInforme" type="date"></label>
+        <label class="campo informe-fecha-campo">Fecha de referencia
+          <input id="fechaInforme" type="date" hidden>
+          <span class="informe-fecha">
+            <button type="button" class="informe-fecha-boton" id="fechaInformeAbrir" aria-haspopup="dialog" aria-expanded="false" aria-controls="calendarioInforme"></button>
+            <div class="calendario-informe" id="calendarioInforme" role="dialog" aria-label="Elige una fecha" hidden>
+              <div class="cal-informe-cab">
+                <button type="button" class="nav-btn" id="fechaInformeAnterior" aria-label="Mes anterior">‹</button>
+                <strong id="fechaInformeMes"></strong>
+                <button type="button" class="nav-btn" id="fechaInformeSiguiente" aria-label="Mes siguiente">›</button>
+              </div>
+              <div class="cal-informe-dias" id="fechaInformeDias" role="grid"></div>
+            </div>
+          </span>
+        </label>
         <button type="button" class="anadir" id="descargarInforme">Descargar resumen</button>
       </div>
       <p class="menu-det nota">Incluye sesiones, días activos, distancia y tiempo registrados, desnivel y mejores resultados del periodo. Se descarga como HTML imprimible; desde el navegador puedes guardarlo como PDF.</p>
@@ -603,7 +620,7 @@
       <p>Hoy, antes de la primera serie de un ejercicio con peso, la app te propone un <b>calentamiento</b> (barra × 10, 50 % × 5, 70 % × 3, 85 % × 1). <b>Añadir</b> lo pone delante como series de calentamiento, que no cuentan para récords ni volumen; <b>No</b> deja de proponerlo ese día.</p>
     </details>
     <details><summary>Molestias y lesiones</summary>
-      <p>En <b>Ajustes → Molestias y lesiones</b> apuntas la zona, qué notas y desde cuándo, y la marcas como resuelta cuando pase.</p>
+      <p>En <b>Semana → Molestias y lesiones</b>, junto al resumen semanal, anotas la zona, qué notas y desde cuándo; puedes marcarla como resuelta cuando pase. Los ejercicios relacionados muestran un aviso ⚠ y la IA tiene en cuenta las molestias activas.</p>
       <p>Los ejercicios que trabajan esa zona muestran un aviso ⚠ (en la ficha de cada ejercicio puedes ajustar sus zonas) y «Crear con IA» la tiene en cuenta. No sustituye la opinión de un profesional.</p>
     </details>
     <details><summary>Mesociclos y semana de descarga</summary>
@@ -637,7 +654,7 @@
       <p>Si una carrera ya está en tu calendario, la app lo detecta y no la duplica. Los rodajes con vuelta automática cada km se guardan como una sola serie.</p>
     </details>
     <details><summary>Marcas y ritmos recomendados</summary>
-      <p>La pestaña <b>Marcas</b> tiene tres apartados desplegables. <b>Fuerza:</b> el récord y el 1RM estimado de cada ejercicio, separados en pierna, torso, brazos y core según las zonas que trabaja (las de su ficha); toca uno para ver su gráfica e historial. <b>Carrera:</b> «Mis carreras» (tus competiciones: «+ Carrera» o, desde el día, ⋯ del ejercicio → «Marcar como carrera»; por distancia con tu PB ★, evolución y lo que la app preveía antes de cada una; las futuras salen como objetivo con cuenta atrás y «Preparar con IA»; cuentan como tus marcas reales y pesan un 50 % más en la forma), tu forma (VDOT), tus marcas previstas en 1 km, 2 km, 5 km, 10 km, media y maratón (según tu forma y por Riegel, con su ritmo y tu marca real al lado para comparar), tus ritmos de entrenamiento, tus pulsaciones y tus mejores marcas. <b>Piscina:</b> tus mejores marcas en 50, 100, 200, 400, 800 y 1500 m y su evolución.</p>
+      <p>La pestaña <b>Marcas</b> tiene tres apartados desplegables. <b>Fuerza:</b> el récord y el 1RM estimado de cada ejercicio, separados en pierna, torso, brazos y core según las zonas que trabaja (las de su ficha); toca uno para ver su gráfica e historial. <b>Carrera:</b> «Mis carreras» (tus competiciones: «+ Carrera» o, desde el día, ⋯ del ejercicio → «Marcar como carrera»; por distancia con tu PB ★, evolución y lo que la app preveía antes de cada una; las futuras salen como objetivo con cuenta atrás y «Preparar con IA»; cuentan como tus marcas reales y pesan un 50 % más en la forma), tu forma (VDOT), tus marcas previstas en 250 m, 1 km, 2 km, 5 km, 10 km, media y maratón (según tu forma y por Riegel, con su ritmo y tu marca real al lado para comparar), tus ritmos de entrenamiento, tus pulsaciones y tus mejores marcas. <b>Piscina:</b> tus mejores marcas en 50, 100, 200, 400, 800 y 1500 m y su evolución.</p>
       <p>Las series de carrera planificadas muestran un objetivo que se ajusta según cómo te van saliendo. Si tus últimos días tienen esfuerzo alto, el objetivo se suaviza un poco. Son estimaciones orientativas.</p>
     </details>
     <details><summary>Esfuerzo (RPE) y resumen semanal</summary>
@@ -650,8 +667,8 @@
       <p>Un <b>mesociclo</b> entero se comparte desde su editor: tu amigo ve una vista previa y lo guarda con todas sus plantillas.</p>
     </details>
     <details><summary>Copia de seguridad</summary>
-      <p>En <b>Ajustes → Copia de seguridad</b> descargas todos tus datos: la copia completa (JSON) sirve para restaurar; los CSV se abren con Excel o Numbers.</p>
-      <p><b>Restaurar copia</b> recupera lo que falte sin borrar nada de lo que tienes.</p>
+      <p>En <b>Ajustes → Copia de seguridad</b>, «Restaurar copia…» queda visible en la cabecera; las opciones para descargar las copias aparecen al desplegar el apartado.</p>
+      <p><b>Restaurar copia</b> recupera lo que falte sin borrar nada de lo que tienes. La copia completa (JSON) sirve para restaurar; los CSV se abren con Excel o Numbers.</p>
     </details>
     <details><summary>Sin conexión</summary>
       <p>Todo se guarda primero en el dispositivo y se sincroniza con tu cuenta en cuanto hay conexión. Puedes usar la app sin internet; abajo verás si hay cambios pendientes de subir.</p>
@@ -772,7 +789,7 @@
     </div>
     <div class="fila">
       <label class="campo">Distancia
-        <select id="carDist"><option value="2000">2 km</option><option value="5000">5 km</option><option value="10000" selected>10 km</option><option value="21097">Media maratón (21,1 km)</option><option value="42195">Maratón (42,2 km)</option><option value="otra">Otra…</option></select>
+        <select id="carDist"><option value="250">250 m</option><option value="2000">2 km</option><option value="5000">5 km</option><option value="10000" selected>10 km</option><option value="21097">Media maratón (21,1 km)</option><option value="42195">Maratón (42,2 km)</option><option value="otra">Otra…</option></select>
       </label>
       <label class="campo" id="carOtraL" hidden>Kilómetros <input id="carOtra" inputmode="decimal" placeholder="7,5" autocomplete="off"></label>
     </div>
