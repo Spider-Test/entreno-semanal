@@ -60,7 +60,7 @@ let perfil = leer("perfil-v1");                 // {aprobado, es_admin, email}
 let usuarios = leer("usuarios-v1") || [];        // solo para el administrador (se guarda para no verla vacía al abrir)
 let db = leer("datos-v2") || { entrenos: leer("entrenos-v1") || {} };
 Object.keys(TABLAS).forEach(t => { db[t] = db[t] || {}; });
-let cursores = leer("cursores-v5") || {};       // v5 reconstruye la copia local desde el servidor para recuperar filas que faltan
+let cursores = leer("cursores-v3") || {};       // última marca de servidor leída por tabla (v3: relee todo al añadir campos)
 let enEspera = leer("bloques-v1") || {};
 // Entrenos del día aún sin series (fecha -> nombres) y en qué entreno va cada ejercicio añadido sin series (fecha|id -> nombre)
 let gruposPlegados = {};   // los grupos y partes empiezan plegados en cada apertura
@@ -75,7 +75,7 @@ const guardarSesiones = () => { escribir("sesiones-v1", sesionesVacias); escribi
 // Nombres de las partes de un entreno: las que tienen series y las creadas vacías
 const nombresPartes = (fecha, grupo) => [...new Set(seriesDelDia(fecha).filter(s => (s.grupo || "") === grupo).map(s => s.seccion || "").concat(partesVacias[fecha + "|" + grupo] || []))];        // fecha -> ejercicios añadidos que aún no tienen series
 let porta = leer("portapapeles-v1");            // lo último copiado: {nombre, html, items}
-const guardarLocal = () => { escribir("datos-v2", db); escribir("cursores-v5", cursores); };
+const guardarLocal = () => { escribir("datos-v2", db); escribir("cursores-v3", cursores); };
 const guardarEspera = () => escribir("bloques-v1", enEspera);
 
 const estado = $("estado");
@@ -1565,8 +1565,6 @@ let arrastreActivo = false;   // mientras se arrastra con ≡, la sincronizació
 function pintarBloques(forzar) {
   if (arrastreActivo || (!forzar && escribiendoSerie())) { repintarLuego = true; return; }
   repintarLuego = false;
-  // Actualiza primero los resúmenes plegados de todos los días, aunque el render de algún ejercicio falle.
-  dias.forEach(pintarCabDia);
   dias.forEach(pintarDia);
   pintarProgresoSemana();
 }
@@ -1904,20 +1902,6 @@ function pintarDiaSinAncla(dia) {
       add.children[1].addEventListener("click", () => abrirBloque(dia, g.nombre));
       plegarAdd(add, !g.ids.length);
       caja.appendChild(add);
-
-      // Con varias sesiones en el día, cada tarjeta inicia solo su propio entrenamiento.
-      const activo = dia.id === iso(new Date()) || dia.id === diaAbierto;
-      const pendientes = deG.filter(s => !hecha(s)).length;
-      if (activo && pendientes) {
-        const iniciar = document.createElement("button");
-        iniciar.type = "button";
-        iniciar.className = "primario empezar empezar-grupo";
-        const hechasGrupo = deG.length - pendientes;
-        iniciar.textContent = hechasGrupo ? "▶ Seguir este entreno (" + hechasGrupo + "/" + deG.length + ")" : "▶ Empezar este entreno";
-        iniciar.setAttribute("aria-label", (hechasGrupo ? "Seguir" : "Empezar") + " el entreno " + (g.nombre || "sin nombre"));
-        iniciar.addEventListener("click", () => empezarEntreno(dia, g.nombre));
-        caja.appendChild(iniciar);
-      }
     }
     cont.appendChild(caja);
   });
@@ -5193,14 +5177,7 @@ function pintarTodo() {
 }
 
 // Sincronizar al abrir, al volver a la app, al recuperar conexión y cada 30 s
-let segundoPlanoDesde = 0;
-document.addEventListener("visibilitychange", () => {
-  if (document.hidden) { segundoPlanoDesde = Date.now(); return; }
-  const instalada = matchMedia("(display-mode: standalone)").matches || navigator.standalone;
-  if (instalada && sesion && !$("app").hidden && segundoPlanoDesde && Date.now() - segundoPlanoDesde > 1200) reproducirApertura();
-  segundoPlanoDesde = 0;
-  registrarAcceso(); if (!$("vistaSemana").hidden && !escribiendoSerie()) pintarSemana(); sincronizar();
-});
+document.addEventListener("visibilitychange", () => { if (!document.hidden) { registrarAcceso(); if (!$("vistaSemana").hidden && !escribiendoSerie()) pintarSemana(); sincronizar(); } });
 addEventListener("online", sincronizar);
 setInterval(() => { if (!document.hidden) sincronizar(); }, 30000);
 
@@ -5357,27 +5334,10 @@ async function cargarInicios() {
     if (!$("vistaPlan").hidden) pintarPlan();
   } catch {}
 }
-let temporizadorApertura;
-function reproducirApertura() {
-  const panel = $("aperturaApp");
-  if (!panel || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-  clearTimeout(temporizadorApertura);
-  panel.hidden = false;
-  panel.setAttribute("aria-hidden", "false");
-  panel.classList.remove("activa");
-  void panel.offsetWidth;
-  panel.classList.add("activa");
-  temporizadorApertura = setTimeout(() => {
-    panel.classList.remove("activa");
-    panel.hidden = true;
-    panel.setAttribute("aria-hidden", "true");
-  }, 1080);
-}
-function mostrarApp(reapertura = false) {
+function mostrarApp() {
   if (perfil && perfil.aprobado === false) { mostrarPendiente(); return; }
   $("login").hidden = true; $("pendiente").hidden = true; $("app").hidden = false;
   verPestana(leer("pestana-v1") || "semana");
-  if (reapertura) reproducirApertura();
   setEstado("Sincronizando…");
   sincronizar();
   registrarAcceso();
@@ -6980,15 +6940,6 @@ function anilloSvg(f) {
   return '<svg viewBox="0 0 36 36" aria-hidden="true"><circle class="a-fondo" cx="18" cy="18" r="15"/><circle class="a-hecho" cx="18" cy="18" r="15" stroke-dasharray="' +
     (f * c).toFixed(1) + " " + c.toFixed(1) + '" transform="rotate(-90 18 18)"/></svg>';
 }
-function gruposEnDia(fecha, del = seriesDelDia(fecha)) {
-  const grupos = new Set(del.map(s => s.grupo || ""));
-  (sesionesVacias[fecha] || []).forEach(g => grupos.add(g || ""));
-  (enEspera[fecha] || []).forEach(id => grupos.add(esperaGrupo[fecha + "|" + id] || ""));
-  const pref = fecha + "|";
-  Object.keys(partesVacias).forEach(k => { if (k.startsWith(pref) && (partesVacias[k] || []).length) grupos.add(k.slice(pref.length)); });
-  Object.keys(bloquesVacios).forEach(k => { if (k.startsWith(pref)) grupos.add((bloquesVacios[k] || {}).g || ""); });
-  return grupos;
-}
 function pintarCabDia(dia) {
   const del = seriesDelDia(dia.id), h = del.filter(hecha).length, e = db.entrenos[dia.id] || {};
   dia.anillo.hidden = !del.length;
@@ -7007,7 +6958,7 @@ function pintarCabDia(dia) {
   dia.resumenEl.textContent = nombre ? (km ? km + " · " : "") + nombre.slice(0, 140)
     : [km, del.length ? h + "/" + del.length + " series" : "", n0(e.rpe) ? "esfuerzo " + e.rpe + "/10" : ""].filter(Boolean).join(" · ") || "Nada apuntado";
   dia.resumenEl.title = nombre;
-  dia.empezarEl.hidden = !del.length || h === del.length || gruposEnDia(dia.id, del).size > 1 || !(dia.id === iso(new Date()) || dia.id === diaAbierto);
+  dia.empezarEl.hidden = !del.length || h === del.length || !(dia.id === iso(new Date()) || dia.id === diaAbierto);
   dia.empezarEl.textContent = h ? "▶ Seguir entreno (" + h + "/" + del.length + ")" : "▶ Empezar entreno";
 }
 function pintarProgresoSemana() {
@@ -7130,8 +7081,8 @@ function deslizable(li, derecha, izquierda) {
 // ---------- Modo entreno: una serie cada vez, en grande, con el descanso integrado ----------
 let ent = null, bloqueoPantalla = null;
 // Mismo orden que en pantalla: por sesión y, dentro, ejercicio a ejercicio o bloque ronda a ronda
-function colaEntreno(fecha, grupo = null) {
-  const delDia = seriesDelDia(fecha).filter(s => grupo === null || (s.grupo || "") === grupo), grupos = [], cola = [];
+function colaEntreno(fecha) {
+  const delDia = seriesDelDia(fecha), grupos = [], cola = [];
   delDia.forEach(s => { if (!grupos.includes(s.grupo || "")) grupos.push(s.grupo || ""); });
   grupos.forEach(g => {
     const deG = delDia.filter(s => (s.grupo || "") === g), claves = [];
@@ -7145,8 +7096,8 @@ function colaEntreno(fecha, grupo = null) {
   return cola;
 }
 const serieEnt = () => ent && db.series[ent.cola[ent.i]];
-function empezarEntreno(dia, grupo = null) {
-  const cola = colaEntreno(dia.id, grupo);
+function empezarEntreno(dia) {
+  const cola = colaEntreno(dia.id);
   if (!cola.length) return;
   const i = cola.findIndex(id => !hecha(db.series[id]));
   ent = { dia, cola, i: Math.max(0, i), fin: 0, timer: null, audio: null, campos: [] };
@@ -7346,7 +7297,7 @@ $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); 
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
 // VERSION_APP es interna (sube en cada publicación para que los móviles se actualicen); la que se ve es siempre la 26
-const VERSION_APP = "v180" + (BETA ? " beta" : "");
+const VERSION_APP = "v156" + (BETA ? " beta" : "");
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";
@@ -8112,7 +8063,7 @@ document.querySelectorAll("#vistaPlan > .plan-sec[data-sec]").forEach(sec => {
 const GRUPOS_PLAN = {
   crear: ["importar", "ia", "compartido"],
   entrenos: ["plantillas", "mesociclos", "rutinas"],
-  cuenta: ["copia", "ajustes", "ayuda", "sugerencias", "usuarios"]
+  cuenta: ["copia", "ajustes", "sugerencias", "usuarios"]
 };
 function aplicarGrupoPlan() {
   const grupo = leer("plan-grupo-v1") || "crear", secciones = GRUPOS_PLAN[grupo] || GRUPOS_PLAN.crear;
@@ -8189,41 +8140,8 @@ pintarAvisoNovedades();
 $("ayudaBtn").addEventListener("click", abrirAyuda);
 $("dlgAyuda").querySelectorAll("details").forEach(d => d.addEventListener("toggle", () => { if (d.open) verAlAbrir(d); }));
 
-// La transparencia solo se aplica al encabezado desplegable que ya está pegado arriba mientras se desplaza.
-(() => {
-  const selector = [
-    "#vistaSemana:not(.solo-dia) .dia:not(.plegado) > .dia-cab",
-    "#vistaSemana .parte-caja:not(.p-plegada) > .parte-cab",
-    "#vistaSemana .grupo:not(.g-plegado) > .grupo-cab",
-    "#vistaSemana .sem-resumenes > details[open] > summary",
-    "#vistaEjercicios .cat-sec:not(.cerrada) > .sec-toggle",
-    "#vistaMarcas .cat-sec:not(.cerrada) > .sec-toggle",
-    "#vistaMarcas .informe-sec[open] > .informe-toggle",
-    "#vistaListas .lista-sec:not(.cerrada) > .lista-cab",
-    "#vistaPlan > .plan-sec:not(.cerrada) > .sec-toggle",
-    "#vistaPlan > .plan-sec:not(.cerrada) > .sec-cab:has(> .sec-toggle)"
-  ].join(",");
-  let pendiente = false;
-  const actualizar = () => {
-    pendiente = false;
-    const arriba = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--sticky-cabecera")) || 0;
-    const desplazada = scrollY > 2;
-    document.querySelectorAll(selector).forEach(el => {
-      const r = el.getBoundingClientRect();
-      const pegada = desplazada && Math.abs(r.top - arriba) <= 3;
-      if (el.classList.contains("cab-pegada") !== pegada) el.classList.toggle("cab-pegada", pegada);
-    });
-  };
-  const programar = () => { if (!pendiente) { pendiente = true; requestAnimationFrame(actualizar); } };
-  document.addEventListener("scroll", programar, { passive: true, capture: true });
-  window.addEventListener("resize", programar, { passive: true });
-  const app = document.getElementById("app");
-  if (app) new MutationObserver(programar).observe(app, { childList: true, subtree: true, attributes: true, attributeFilter: ["class", "open", "hidden"] });
-  programar();
-})();
-
 if (/type=recovery|error_code=/.test(location.hash)) entrarDesdeEnlace();
-else if (sesion) mostrarApp(true); else $("login").hidden = false;
+else if (sesion) mostrarApp(); else $("login").hidden = false;
 
 // Aviso en la propia app cuando hay una versión publicada más nueva que la que se está usando
 async function comprobarVersionNueva() {
