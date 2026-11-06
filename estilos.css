@@ -2214,20 +2214,20 @@ input:focus, textarea:focus, select:focus { border-color: var(--accent); box-sha
 /* Franja de cristal solo en la app instalada en iOS; los títulos quedan debajo. */
 @media (max-width: 760px) {
   html.ios-instalada {
-    --sticky-cabecera: calc(env(safe-area-inset-top, 0px) + 42px);
+    --sticky-cabecera: calc(env(safe-area-inset-top, 0px) + 46px);
     background: var(--bg);
   }
   html.ios-instalada #vistaSemana:not(.solo-dia) { --sticky-entreno: var(--sticky-cabecera) !important; }
   html.ios-instalada #vistaSemana.solo-dia { --sticky-entreno: calc(var(--sticky-cabecera) + 44px) !important; }
   html.ios-instalada body {
     background: var(--bg);
-    padding-top: calc(env(safe-area-inset-top, 0px) + 50px) !important;
+    padding-top: calc(env(safe-area-inset-top, 0px) + 54px) !important;
   }
   html.ios-instalada body::before {
     content: "";
     position: fixed;
     /* Empieza debajo del área de estado: evita superponer las dos capas. */
-    inset: calc(env(safe-area-inset-top, 0px) + 6px) 0 auto;
+    inset: calc(env(safe-area-inset-top, 0px) + 10px) 0 auto;
     height: 36px;
     z-index: 1000;
     background: var(--bg);
