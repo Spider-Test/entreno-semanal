@@ -14,6 +14,7 @@
   --carrera: #2563a8; --carrera-soft: #e2ecf8;
   --natacion: #0b7f80; --natacion-soft: #d8f1f0;
   --movilidad: #7a4fb5; --movilidad-soft: #efe7f8;
+  --pulso: #0f766e; --bilbo: #7c3aed; --bilbo-futura: #5b6470;
   --display: "Avenir Next Condensed", "Barlow Condensed", "Arial Narrow", system-ui, sans-serif;
   --body: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
   color-scheme: light;
@@ -27,6 +28,7 @@
     --carrera: #7fb1ec; --carrera-soft: #172a41;
     --natacion: #5fd2cd; --natacion-soft: #113433;
     --movilidad: #c3a3ef; --movilidad-soft: #2a1f3b;
+    --pulso: #67e8df; --bilbo: #c4b5fd; --bilbo-futura: #c5cfda;
   }
 }
 * { box-sizing: border-box; }
@@ -368,7 +370,7 @@ dialog::backdrop { background: rgba(0,0,0,0.45); }
 /* Ayuda, resumen semanal, esfuerzo (RPE), Crear con IA y copia de seguridad */
 .titulo { display: flex; align-items: center; gap: 8px; }
 .ayuda-btn { flex: none; width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--line); background: var(--card); color: var(--accent); font-weight: 800; font-size: 15px; padding: 0; }
-.sem-resumenes { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 8px; }
+.sem-resumenes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: 8px; }
 .sem-resumenes > details { min-width: 0; }
 .sem-resumenes > details[open] { grid-column: 1 / -1; }
 .resumen-sem { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 0 12px; }
@@ -972,7 +974,7 @@ body.sel-series .series li.sel::before { background: var(--accent); border-color
 .zonas-fc { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; }
 .zf-barra { display: flex; height: 8px; border-radius: 4px; overflow: hidden; background: var(--line); }
 .zf-1 { background: #9ca3af; } .zf-2 { background: #3b82f6; } .zf-3 { background: #22c55e; } .zf-4 { background: #f59e0b; } .zf-5 { background: #ef4444; }
-.zf-texto { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.zf-texto { font-size: 12px; color: var(--fg); font-weight: 550; font-variant-numeric: tabular-nums; }
 .por-que { font-size: 13px; }
 
 /* Marcas: apartados desplegables con sus secciones dentro */
@@ -981,6 +983,8 @@ body.sel-series .series li.sel::before { background: var(--accent); border-color
 .marcas-sec.t-carrera h3 { color: var(--carrera, var(--fg)); }
 .marcas-sec.t-natacion h3 { color: var(--natacion, var(--fg)); }
 .marcas-sec.t-movilidad h3 { color: var(--movilidad, var(--fg)); }
+.marcas-sec.t-pulso h3, .marcas-sec.t-pulso .sec-n { color: var(--pulso); }
+.marcas-sec.t-bilbo h3, .marcas-sec.t-bilbo .sec-n { color: var(--bilbo); }
 
 /* Mis carreras */
 .carrera-prox { border-left: 3px solid var(--gold); margin-bottom: 8px; }
@@ -1374,7 +1378,7 @@ h1 { color: var(--titulo); }
 .breg-ciclo.activo { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 .breg-ciclo h4 { margin: 0; font-size: 15px; }
 .breg-ciclo .menu-det { margin: 2px 0 6px; }
-.breg-futura td { color: var(--muted); font-style: italic; }
+.breg-futura td { color: var(--bilbo-futura); font-style: italic; }
 .breg-ciclo .tabla-bilbo { font-size: 13px; }
 .breg-ciclo .tabla-bilbo th, .breg-ciclo .tabla-bilbo td { padding: 5px 4px; white-space: nowrap; }
 @media (max-width: 420px) { .breg-ciclo { padding: 8px 6px; } .breg-ciclo .tabla-bilbo { font-size: 12px; } .breg-ciclo .tabla-bilbo th, .breg-ciclo .tabla-bilbo td { padding: 4px 3px; } }
@@ -1452,3 +1456,17 @@ html[data-tam="125"] { --zoom: 1.25; }
   #vistaEjercicios, #vistaListas, #vistaPlan, #vistaMarcas { max-width: 940px; }
   .solo-dia .semana, .solo-dia .dia-nav { max-width: 860px; }
 }
+
+
+/* Semana en móvil: tarjetas apiladas y desplegables a todo el ancho. */
+@media (max-width: 760px) {
+  .sem-resumenes { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .sem-resumenes > details,
+  .sem-resumenes > details[open] { grid-column: 1; width: 100%; min-width: 0; }
+  .resumen-sem summary { display: grid; grid-template-columns: 14px minmax(0, 1fr); align-items: start; gap: 3px 8px; }
+  .resumen-sem summary::before { grid-row: 1 / span 2; align-self: center; }
+  .rs-t { font-size: 14px; line-height: 1.25; }
+  .rs-l { grid-column: 2; line-height: 1.4; overflow-wrap: anywhere; }
+  .lesiones-sem summary { align-items: start; }
+}
+
