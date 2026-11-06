@@ -33,12 +33,11 @@
 }
 
 /* Apertura breve al reabrir la app: usa automáticamente el tema actual. */
-.apertura { position:fixed; inset:0; z-index:20000; display:grid; place-items:center; padding:24px; background:var(--bg); color:var(--fg); pointer-events:none; opacity:0; }
+.apertura { position:fixed; inset:0; z-index:20000; display:grid; place-items:center; padding:24px; background:var(--bg); pointer-events:none; opacity:0; }
 .apertura.activa { animation: apertura-salir .25s ease-out .76s forwards; }
-.apertura h1 { margin:0; font-family:var(--display); font-size:clamp(30px, 8vw, 42px); font-weight:800; letter-spacing:.04em; text-align:center; opacity:0; transform:scale(.98); }
-.apertura.activa h1 { animation: apertura-parpadeo .86s ease-in-out both; }
-.apertura h1::after { content:""; display:block; width:68px; height:4px; margin:17px auto 0; border-radius:4px; background:var(--accent); opacity:.85; }
-@keyframes apertura-parpadeo { 0% { opacity:0; transform:scale(.98); } 34% { opacity:.78; } 48% { opacity:.32; text-shadow:0 0 20px color-mix(in srgb,var(--accent) 45%,transparent); } 68% { opacity:.92; } 100% { opacity:1; transform:scale(1); text-shadow:0 0 14px color-mix(in srgb,var(--accent) 23%,transparent); } }
+.apertura img { display:block; width:clamp(112px, 30vw, 148px); height:auto; aspect-ratio:1; object-fit:contain; border-radius:24px; opacity:0; transform:scale(.94); box-shadow:0 0 0 1px color-mix(in srgb,var(--accent) 22%,transparent), 0 12px 34px color-mix(in srgb,var(--accent) 16%,transparent); }
+.apertura.activa img { animation: apertura-parpadeo .86s ease-in-out both; }
+@keyframes apertura-parpadeo { 0% { opacity:0; transform:scale(.94); } 34% { opacity:1; transform:scale(1.02); } 48% { opacity:.48; transform:scale(.98); } 68% { opacity:1; transform:scale(1.015); } 100% { opacity:1; transform:scale(1); } }
 @keyframes apertura-salir { to { opacity:0; visibility:hidden; } }
 @media (prefers-reduced-motion: reduce) { .apertura.activa, .apertura.activa h1 { animation:none !important; } .apertura.activa { display:none; } }
 * { box-sizing: border-box; }
