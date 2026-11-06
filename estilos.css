@@ -2187,3 +2187,17 @@ input:focus, textarea:focus, select:focus { border-color: var(--accent); box-sha
   #vistaPlan > .plan-sec:not(.cerrada) > .sec-cab:has(> .sec-toggle) { background: var(--card) !important; }
   #vistaSemana:not(.solo-dia) .dia.hoy:not(.plegado) > .dia-cab { background: var(--accent-soft) !important; }
 }
+
+/* La navegación superior nunca debe quedarse fija ni difuminar el texto que pasa detrás. */
+@media (max-width: 760px) {
+  #navSemana, #vistaSemana .dia-nav, #organizarNav,
+  #organizarNav.organizar-nav.plan-nav {
+    position: static !important;
+    top: auto !important;
+    opacity: 1 !important;
+    filter: none !important;
+    background: var(--card) !important;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+}
