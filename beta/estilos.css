@@ -2177,20 +2177,20 @@ input:focus, textarea:focus, select:focus { border-color: var(--accent); box-sha
 /* Franja de cristal solo en la app instalada en iOS; los títulos quedan debajo. */
 @media (max-width: 760px) {
   html.ios-instalada {
-    --sticky-cabecera: calc(env(safe-area-inset-top, 0px) + 46px);
+    --sticky-cabecera: calc(env(safe-area-inset-top, 0px) + 50px);
     background: var(--bg);
   }
   html.ios-instalada #vistaSemana:not(.solo-dia) { --sticky-entreno: var(--sticky-cabecera) !important; }
   html.ios-instalada #vistaSemana.solo-dia { --sticky-entreno: calc(var(--sticky-cabecera) + 44px) !important; }
   html.ios-instalada body {
     background: var(--bg);
-    padding-top: calc(env(safe-area-inset-top, 0px) + 54px) !important;
+    padding-top: calc(env(safe-area-inset-top, 0px) + 58px) !important;
   }
   html.ios-instalada body::before {
     content: "";
     position: fixed;
     /* Empieza debajo del área de estado: evita superponer las dos capas. */
-    inset: calc(env(safe-area-inset-top, 0px) + 10px) 0 auto;
+    inset: calc(env(safe-area-inset-top, 0px) + 14px) 0 auto;
     height: 36px;
     z-index: 1000;
     background: var(--bg);
@@ -2215,4 +2215,32 @@ input:focus, textarea:focus, select:focus { border-color: var(--accent); box-sha
       mask-image: none;
     }
   }
+}
+
+/* Semana: nombres completos y una sola cabecera fija por día abierto. */
+#vistaSemana .dia-resumen.es-titulo,
+#vistaSemana .g-toggle .gn-txt,
+#vistaSemana .p-toggle .p-nombre,
+#vistaSemana .letra-cab .l-nombres {
+  white-space: normal !important; overflow: visible !important; text-overflow: clip !important;
+  max-width: 100% !important; overflow-wrap: anywhere;
+}
+#vistaSemana .g-toggle .gn-txt { flex: 1 1 auto; }
+#vistaSemana .g-toggle .g-res { display: none; }
+.grupo-iniciar { border: 1px solid var(--line); background: var(--card); color: var(--accent); border-radius: 10px; min-height: 36px; padding: 5px 10px; font: inherit; font-size: 13px; font-weight: 700; }
+@media (max-width: 760px) {
+  #vistaSemana .dia:not(.plegado) > .dia-cab,
+  #vistaSemana .grupo > .grupo-cab,
+  #vistaSemana .parte-caja > .parte-cab { position: static !important; top: auto !important; }
+  #vistaSemana .grupo:not(.g-plegado):not(:has(.parte-caja:not(.p-plegada))) > .grupo-cab,
+  #vistaSemana .parte-caja:not(.p-plegada) > .parte-cab {
+    position: sticky !important; top: var(--sticky-cabecera) !important; z-index: 12;
+    background: var(--card) !important; border-radius: 0;
+  }
+  #vistaSemana .grupo-cab { display: grid; grid-template-columns: 1fr auto auto auto; gap: 4px 8px; padding: 8px; align-items: center; }
+  #vistaSemana .grupo-cab .g-toggle { grid-column: 1 / -1; width: auto; overflow: visible; }
+  #vistaSemana .g-toggle .gn-txt { font-size: 16px; line-height: 1.25; }
+  #vistaSemana .grupo-cab .g-prog { justify-self: start; }
+  #vistaSemana .grupo-cab .menu-btn, #vistaSemana .grupo-cab .asa { min-width: 32px; }
+  #vistaSemana .parte-cab .p-toggle { min-width: 0; overflow: visible; }
 }

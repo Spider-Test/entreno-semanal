@@ -1368,63 +1368,104 @@ function moverADia(dia, grupo, f) {
 }
 // Juntar dos entrenos del mismo día en uno («Pecho + Pierna»): primero los del primero y detrás los del segundo.
 // Partes con el mismo nombre se juntan; el mismo ejercicio en la misma parte queda como otra tarjeta (no se mezcla)
+const esNombreCalentamiento = nombre => /calent|warm[\s-]*up/i.test(nombre || "");
+function esSerieCalentamiento(s) {
+  const nombre = nombreEj(s.ejercicio_id);
+  return esNombreCalentamiento(s.seccion) || esNombreCalentamiento(nombre) ||
+    (!!s.calentamiento && !/vuelta.*calma|cool[\s-]*down/i.test(nombre + " " + (s.seccion || "")));
+}
+function tieneCalentamiento(fecha, grupo) {
+  return seriesDelDia(fecha).some(s => (s.grupo || "") === grupo && esSerieCalentamiento(s)) ||
+    (partesVacias[fecha + "|" + grupo] || []).some(esNombreCalentamiento) ||
+    (enEspera[fecha] || []).some(id => (esperaGrupo[fecha + "|" + id] || "") === grupo &&
+      (esNombreCalentamiento(esperaParte[fecha + "|" + id]) || esNombreCalentamiento(nombreEj(ejDeClave(id))))) ||
+    Object.entries(bloquesVacios).some(([k, b]) => k.startsWith(fecha + "|") && (b.g || "") === grupo && esNombreCalentamiento(b.p));
+}
 function fusionarEntrenos(dia, primero, segundo, nombre, separarCalentamientos) {
-  const delDia = seriesDelDia(dia.id), s1 = delDia.filter(s => (s.grupo || "") === primero), s2 = delDia.filter(s => (s.grupo || "") === segundo);
-  const antes = s1.concat(s2).map(s => ["series", { ...s }]);
-  const maxOrden = s1.length ? Math.max(...s1.map(s => n0(s.orden))) : 0;
-  const secciones1 = new Set(s1.map(s => s.seccion || "").concat(partesVacias[dia.id + "|" + primero] || []));
-  const renombrar = new Map();
-  if (separarCalentamientos) [...new Set(s2.map(s => s.seccion || "").concat(partesVacias[dia.id + "|" + segundo] || []))].forEach(sec => {
-    if (secciones1.has(sec) && /calentamiento/i.test(sec)) renombrar.set(sec, sec + " (" + (segundo || "Entreno 2") + ")");
-  });
-  s1.forEach(s => cambiar("series", { ...s, grupo: nombre }, true));
-  const usadas = {};
-  s1.filter(s => !s.bloque_id).forEach(s => { const k = s.ejercicio_id + "|" + (s.seccion || ""); (usadas[k] = usadas[k] || new Set()).add(n0(s.copia) > 1 ? n0(s.copia) : 1); });
-  const nuevaCopia = {};
-  s2.slice().sort((a, b) => n0(a.orden) - n0(b.orden)).forEach((s, i) => {
+  nombre = (nombre || "").trim();
+  if (!nombre || primero === segundo) return false;
+  const fecha = dia.id, delDia = seriesDelDia(fecha), deUno = g => g === primero || g === segundo;
+  const otros = new Set(delDia.map(s => s.grupo || "").concat(sesionesVacias[fecha] || []));
+  Object.keys(partesVacias).filter(k => k.startsWith(fecha + "|")).forEach(k => otros.add(k.slice(fecha.length + 1)));
+  (enEspera[fecha] || []).forEach(id => otros.add(esperaGrupo[fecha + "|" + id] || ""));
+  Object.entries(bloquesVacios).filter(([k]) => k.startsWith(fecha + "|")).forEach(([, b]) => otros.add(b.g || ""));
+  if (otros.has(nombre) && !deUno(nombre)) { avisoDeshacer("Ya hay otro entreno con ese nombre. Elige un nombre diferente."); return false; }
+  const filas = [primero, segundo].flatMap(g => delDia.filter(s => (s.grupo || "") === g).sort((a, b) => n0(a.orden) - n0(b.orden)));
+  const antes = filas.map(s => ["series", { ...s }]);
+  const mapas = { partesVacias, esperaGrupo, esperaParte, esperaAntes, bloquesVacios, gruposPlegados };
+  const copia = x => JSON.parse(JSON.stringify(x));
+  const meta = Object.fromEntries(Object.entries(mapas).map(([n, m]) => [n, copia(Object.fromEntries(Object.entries(m).filter(([k]) => k.startsWith(fecha + "|"))))]));
+  const sesionesAntes = copia(sesionesVacias[fecha] || []);
+  const destinoParte = (g, sec, calentamiento = esNombreCalentamiento(sec)) => !calentamiento ? sec || "" :
+    separarCalentamientos ? (sec || "Calentamiento") + " · " + (g || "Entreno 1") : "Calentamiento";
+  const usadas = new Map(), copias = new Map(), bloques = new Map(), claves = new Map();
+  const bloquesPrimero = new Set(filas.filter(s => (s.grupo || "") === primero && s.bloque_id).map(s => s.bloque_id));
+  filas.forEach((s, orden) => {
+    const g = s.grupo || "";
+    const calentamiento = s.bloque_id ? esNombreCalentamiento(s.seccion) || filas.filter(x => (x.grupo || "") === g && x.bloque_id === s.bloque_id).every(esSerieCalentamiento) : esSerieCalentamiento(s);
+    const sec = destinoParte(g, s.seccion || "", calentamiento);
     let extra = {};
-    if (!s.bloque_id) {
-      const k = s.ejercicio_id + "|" + (s.seccion || ""), mia = n0(s.copia) > 1 ? n0(s.copia) : 1, kc = k + "|" + mia;
-      if (nuevaCopia[kc] === undefined) nuevaCopia[kc] = usadas[k] && usadas[k].has(mia) ? Math.max(...usadas[k]) + 1 : 0;
-      if (nuevaCopia[kc]) { extra = { copia: nuevaCopia[kc] }; usadas[k].add(nuevaCopia[kc]); }
+    if (s.bloque_id) {
+      const k = g + "\0" + s.bloque_id;
+      if (!bloques.has(k)) bloques.set(k, g === segundo && bloquesPrimero.has(s.bloque_id) ? nuevoId() : s.bloque_id);
+      extra.bloque_id = bloques.get(k);
+    } else {
+      const k = s.ejercicio_id + "\0" + sec, origen = g + "\0" + claveSerie(s);
+      if (!usadas.has(k)) usadas.set(k, new Set());
+      if (!copias.has(origen)) {
+        let n = Math.max(1, n0(s.copia));
+        while (usadas.get(k).has(n)) n++;
+        usadas.get(k).add(n); copias.set(origen, n);
+      }
+      extra.copia = copias.get(origen);
     }
-    cambiar("series", { ...s, seccion: renombrar.get(s.seccion || "") || s.seccion || "", grupo: nombre, orden: maxOrden + 1 + i, ...extra }, true);
+    const nueva = { ...s, ...extra, grupo: nombre, seccion: sec, orden: orden + 1 };
+    claves.set(g + "\0" + claveSerie(s), claveSerie(nueva));
+    cambiar("series", nueva, true);
   });
-  // Lo que vive fuera de las series: ejercicios sin series, entrenos y partes vacíos, bloques vacíos, plegados
-  const deUno = g => g === primero || g === segundo;
-  (enEspera[dia.id] || []).forEach(k => { if (deUno(esperaGrupo[dia.id + "|" + k] || "")) esperaGrupo[dia.id + "|" + k] = nombre; });
-  const pv1 = partesVacias[dia.id + "|" + primero] || [], pv2 = (partesVacias[dia.id + "|" + segundo] || []).map(sec => renombrar.get(sec) || sec);
-  const pv = [...new Set(pv1.concat(pv2))];
-  delete partesVacias[dia.id + "|" + primero]; delete partesVacias[dia.id + "|" + segundo];
-  if (pv.length) partesVacias[dia.id + "|" + nombre] = pv;
-  const sv = (sesionesVacias[dia.id] || []).filter(x => !deUno(x));
-  if (!s1.length && !s2.length && !pv.length) sv.push(nombre);
-  if (sv.length) sesionesVacias[dia.id] = sv; else delete sesionesVacias[dia.id];
-  Object.keys(bloquesVacios).forEach(k => { if (k.startsWith(dia.id + "|") && deUno(bloquesVacios[k].g || "")) {
-    const eraSegundo = (bloquesVacios[k].g || "") === segundo;
-    bloquesVacios[k] = { ...bloquesVacios[k], g: nombre, p: eraSegundo ? (renombrar.get(bloquesVacios[k].p || "") || bloquesVacios[k].p || "") : bloquesVacios[k].p };
-  } });
-  if (renombrar.size) (enEspera[dia.id] || []).forEach(id => {
-    if ((esperaGrupo[dia.id + "|" + id] || "") !== segundo) return;
-    const k = dia.id + "|" + id, sec = esperaParte[k] || "";
-    if (renombrar.has(sec)) esperaParte[k] = renombrar.get(sec);
+  // Reasignar la parte antes de cambiar el grupo de los ejercicios pendientes.
+  (enEspera[fecha] || []).forEach(id => {
+    const k = fecha + "|" + id, g = esperaGrupo[k] || "";
+    if (!deUno(g)) return;
+    const sec = esperaParte[k] || "";
+    esperaParte[k] = destinoParte(g, sec, esNombreCalentamiento(sec) || esNombreCalentamiento(nombreEj(ejDeClave(id))));
+    if (esperaAntes[k]) esperaAntes[k] = claves.get(g + "\0" + esperaAntes[k]) || esperaAntes[k];
+    esperaGrupo[k] = nombre;
   });
-  delete gruposPlegados[dia.id + "|" + primero]; delete gruposPlegados[dia.id + "|" + segundo]; delete gruposPlegados[dia.id + "|" + nombre];
-  escribir("grupos-plegados-v1", gruposPlegados);
-  guardarEspera(); guardarSesiones(); guardarVacios(); persistir();
-  pintarDia(dia);
-  avisoDeshacer("Entrenos juntados en «" + nombre + "»", antes.length ? antes : null);
+  const partes = [...new Set([primero, segundo].flatMap(g => (partesVacias[fecha + "|" + g] || []).map(sec => destinoParte(g, sec))))];
+  delete partesVacias[fecha + "|" + primero]; delete partesVacias[fecha + "|" + segundo];
+  if (partes.length) partesVacias[fecha + "|" + nombre] = partes;
+  sesionesVacias[fecha] = [...new Set((sesionesVacias[fecha] || []).filter(g => !deUno(g)).concat(nombre))];
+  Object.entries(bloquesVacios).forEach(([k, b]) => {
+    if (k.startsWith(fecha + "|") && deUno(b.g || "")) bloquesVacios[k] = { ...b, g: nombre, p: destinoParte(b.g || "", b.p || "") };
+  });
+  delete gruposPlegados[fecha + "|" + primero]; delete gruposPlegados[fecha + "|" + segundo];
+  gruposPlegados[fecha + "|" + nombre] = 0;
+  const guardar = () => { guardarEspera(); guardarSesiones(); guardarVacios(); escribir("espera-antes-v1", esperaAntes); escribir("grupos-plegados-v1", gruposPlegados); persistir(); };
+  guardar(); pintarDia(dia);
+  avisoDeshacer("Entrenos fusionados en «" + nombre + "» · Deshacer", antes);
+  // Deshacer restaura también partes vacías y ejercicios pendientes de este día.
+  deshacerSug = () => {
+    antes.forEach(([t, s]) => cambiar(t, { ...s }, true));
+    Object.entries(mapas).forEach(([n, m]) => {
+      Object.keys(m).filter(k => k.startsWith(fecha + "|")).forEach(k => delete m[k]);
+      Object.assign(m, copia(meta[n]));
+    });
+    if (sesionesAntes.length) sesionesVacias[fecha] = sesionesAntes; else delete sesionesVacias[fecha];
+    guardar(); pintarDia(dia);
+  };
+  return true;
 }
 function menuGrupo(dia, grupo) {
   const series = seriesDelDia(dia.id).filter(s => (s.grupo || "") === grupo);
   const nGrupos = new Set(seriesDelDia(dia.id).map(s => s.grupo || "")).size;
   abrirMenu(grupo, resumenItems(itemsDe(series)), [
+    series.length && { texto: "▶ Iniciar solo este entrenamiento", accion: () => empezarEntreno(dia, grupo) },
     { texto: "📅 Mover a otro día…", accion: () => elegirDiaDestino(lunesDe(deIso(dia.id)), "¿A qué día muevo «" + (grupo || "Entreno 1") + "»?", f => moverADia(dia, grupo, f)) },
     ...(() => { const otros = [...dia.bloquesEl.querySelectorAll(":scope > .grupo")].map(x => x.dataset.grupo || "").filter(x => x !== grupo);
       return otros.length ? [{ texto: "🔗 Fusionar con otro entreno del día…", accion: () => abrirMenu("¿Con qué entreno lo junto?", "«" + (grupo || "Entreno 1") + "» va primero y el otro detrás, en un solo entreno", otros.map(x => ({ texto: x || "Entreno 1", accion: async () => {
-        const hayCal1 = series.some(s => s.calentamiento || /calentamiento/i.test(s.seccion || "")) || (partesVacias[dia.id + "|" + grupo] || []).some(s => /calentamiento/i.test(s));
-        const delOtro = seriesDelDia(dia.id).filter(s => (s.grupo || "") === x);
-        const hayCal2 = delOtro.some(s => s.calentamiento || /calentamiento/i.test(s.seccion || "")) || (partesVacias[dia.id + "|" + x] || []).some(s => /calentamiento/i.test(s));
+        const hayCal1 = tieneCalentamiento(dia.id, grupo);
+        const hayCal2 = tieneCalentamiento(dia.id, x);
         const nombrar = async separar => {
           const n = await pedirNombre("Nombre del entreno fusionado", (grupo || "Entreno 1") + " + " + (x || "Entreno 1"), "Por ejemplo «Pecho + Pierna». Sus ejercicios, bloques y partes pasan a ser un solo entreno.");
           if (n) fusionarEntrenos(dia, grupo, x, n, separar);
@@ -1683,6 +1724,13 @@ function pintarDiaSinAncla(dia) {
         });
       }
       cab.querySelector(".g-prog").textContent = deG.filter(hecha).length + "/" + deG.length;
+      const iniciar = document.createElement("button");
+      iniciar.type = "button"; iniciar.className = "grupo-iniciar";
+      iniciar.textContent = deG.some(hecha) ? "▶ Seguir" : "▶ Empezar";
+      iniciar.disabled = !deG.length;
+      iniciar.setAttribute("aria-label", "Iniciar solo " + (g.nombre || "Entreno 1"));
+      iniciar.addEventListener("click", () => empezarEntreno(dia, g.nombre));
+      cab.querySelector(".g-prog").after(iniciar);
       cab.querySelector(".menu-btn").setAttribute("aria-label", "Opciones del entreno " + (g.nombre || "1"));
       cab.querySelector(".menu-btn").addEventListener("click", () => menuGrupo(dia, g.nombre));
       if (conAsa) cab.appendChild(asaArrastre(caja, () => [...cont.querySelectorAll(":scope > .grupo")], n => reordenar(n.map(x => seriesDeGrupo(dia.id, x.dataset.grupo)), "Sesión movida"), "Sesión " + g.nombre));
@@ -7003,7 +7051,7 @@ function pintarCabDia(dia) {
   const nombre = titulo || sesiones.join(" + ");
   dia.resumenEl.classList.toggle("es-titulo", !!nombre);
   const km = lineasTotal(del).map(l => l.corto).join(" · ");
-  dia.resumenEl.textContent = nombre ? (km ? km + " · " : "") + nombre.slice(0, 140)
+  dia.resumenEl.textContent = nombre ? (km ? km + " · " : "") + nombre
     : [km, del.length ? h + "/" + del.length + " series" : "", n0(e.rpe) ? "esfuerzo " + e.rpe + "/10" : ""].filter(Boolean).join(" · ") || "Nada apuntado";
   dia.resumenEl.title = nombre;
   dia.empezarEl.hidden = !del.length || h === del.length || !(dia.id === iso(new Date()) || dia.id === diaAbierto);
@@ -7129,26 +7177,44 @@ function deslizable(li, derecha, izquierda) {
 // ---------- Modo entreno: una serie cada vez, en grande, con el descanso integrado ----------
 let ent = null, bloqueoPantalla = null;
 // Mismo orden que en pantalla: por sesión y, dentro, ejercicio a ejercicio o bloque ronda a ronda
-function colaEntreno(fecha) {
-  const delDia = seriesDelDia(fecha), grupos = [], cola = [];
+function colaEntreno(fecha, grupo = null) {
+  const delDia = seriesDelDia(fecha).filter(s => grupo === null || (s.grupo || "") === grupo), grupos = [], cola = [];
   delDia.forEach(s => { if (!grupos.includes(s.grupo || "")) grupos.push(s.grupo || ""); });
   grupos.forEach(g => {
-    const deG = delDia.filter(s => (s.grupo || "") === g), claves = [];
-    deG.forEach(s => { const k = s.bloque_id ? "b:" + s.bloque_id : s.ejercicio_id; if (!claves.includes(k)) claves.push(k); });
-    claves.forEach(k => {
-      const blq = k.startsWith("b:");
-      deG.filter(s => blq ? s.bloque_id === k.slice(2) : s.ejercicio_id === k && !s.bloque_id)
-        .sort((a, b) => blq ? n0(a.ronda) - n0(b.ronda) || a.orden - b.orden : a.orden - b.orden).forEach(s => cola.push(s.id));
+    const partes = [];
+    delDia.filter(s => (s.grupo || "") === g).forEach(s => {
+      const nombre = s.seccion || "";
+      let p = nombre ? partes.find(x => x.nombre === nombre) : partes[partes.length - 1];
+      if (!p || (!nombre && p.nombre)) { p = { nombre, filas: [] }; partes.push(p); }
+      p.filas.push(s);
+    });
+    partes.forEach(p => {
+      const claves = [...new Set(p.filas.map(claveSerie))];
+      claves.forEach(k => p.filas.filter(s => claveSerie(s) === k)
+        .sort((a, b) => sOrden(a, b)).forEach(s => cola.push(s.id)));
     });
   });
   return cola;
 }
+function sOrden(a, b) { return a.bloque_id ? n0(a.ronda) - n0(b.ronda) || n0(a.orden) - n0(b.orden) : n0(a.orden) - n0(b.orden); }
 const serieEnt = () => ent && db.series[ent.cola[ent.i]];
-function empezarEntreno(dia) {
-  const cola = colaEntreno(dia.id);
+function empezarEntreno(dia, grupo) {
+  if (grupo === undefined) {
+    const grupos = [...new Set(seriesDelDia(dia.id).map(s => s.grupo || ""))];
+    const abiertos = [...dia.bloquesEl.querySelectorAll(":scope > .grupo:not(.g-plegado)")].map(x => x.dataset.grupo || "").filter(g => grupos.includes(g));
+    if (grupos.length > 1 && abiertos.length !== 1) {
+      abrirMenu("¿Qué entrenamiento quieres empezar?", "Cada entrenamiento se reproduce por separado.", grupos.map(g => ({
+        texto: g || "Entreno 1", accion: () => empezarEntreno(dia, g)
+      })));
+      return;
+    }
+    grupo = abiertos.length === 1 ? abiertos[0] : grupos[0];
+  }
+  if (grupo === undefined) return;
+  const cola = colaEntreno(dia.id, grupo);
   if (!cola.length) return;
   const i = cola.findIndex(id => !hecha(db.series[id]));
-  ent = { dia, cola, i: Math.max(0, i), fin: 0, timer: null, audio: null, campos: [] };
+  ent = { dia, grupo, cola, i: Math.max(0, i), fin: 0, timer: null, audio: null, campos: [] };
   $("enDescanso").hidden = true;
   $("enFin").hidden = true;
   $("dlgEntreno").showModal();
@@ -7156,7 +7222,7 @@ function empezarEntreno(dia) {
   if (navigator.wakeLock) navigator.wakeLock.request("screen").then(w => { bloqueoPantalla = w; }).catch(() => {});
 }
 function pintarEntreno() {
-  ent.cola = ent.cola.filter(id => db.series[id] && !db.series[id].borrado && ejercicioVivo(db.series[id].ejercicio_id));
+  ent.cola = ent.cola.filter(id => db.series[id] && !db.series[id].borrado && (db.series[id].grupo || "") === ent.grupo && ejercicioVivo(db.series[id].ejercicio_id));
   if (!ent.cola.length) { salirEntreno(); return; }
   ent.i = Math.min(ent.i, ent.cola.length - 1);
   const s = serieEnt(), tipo = tipoDe(s.ejercicio_id), dist = esDistancia(tipo), lista = ent.cola.map(id => db.series[id]);
@@ -7324,7 +7390,7 @@ $("enCalentSi").addEventListener("click", () => {
   if (!s || !ent.calent) return;
   const delEj = seriesDelDia(ent.dia.id).filter(x => x.ejercicio_id === s.ejercicio_id && !x.bloque_id && (x.grupo || "") === (s.grupo || ""));
   const nuevas = aceptarCalent(ent.dia.id, s.ejercicio_id, s.grupo, delEj, ent.calent);
-  ent.cola = colaEntreno(ent.dia.id);
+  ent.cola = colaEntreno(ent.dia.id, ent.grupo);
   ent.i = Math.max(0, ent.cola.indexOf(nuevas[0].id));
   pintarEntreno();
 });
@@ -7345,7 +7411,7 @@ $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); 
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
 // VERSION_APP es interna (sube en cada publicación para que los móviles se actualicen); la que se ve es siempre la 26
-const VERSION_APP = "v189" + (BETA ? " beta" : "");
+const VERSION_APP = "v191" + (BETA ? " beta" : "");
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";
