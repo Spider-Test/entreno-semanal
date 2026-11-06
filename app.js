@@ -923,6 +923,59 @@ async function errorGuardado(tabla, respuesta) {
 
 // Conversión local y conservadora: solo se aceptan líneas que el lector ya entiende.
 // Lo ambiguo permanece en el editor; nunca se inventan ejercicios ni se descartan líneas.
+// Formato de documento: «2) Press banca:» y viñetas «Cal:», «Método Bilbo:»…
+// Solo convertir cuando todas las líneas pertenecen a esta estructura.
+function leerRutinaNumerada(texto, nombre) {
+  const lineas = String(texto || "").replace(/\r/g, "").replace(/\*\*/g, "").split("\n");
+  const ejercicios = []; let actual = null, linea = null;
+  for (const raw of lineas) {
+    const l = raw.trim(); if (!l) continue;
+    const cab = l.match(/^\d+[.)]\s+(.+?):\s*$/);
+    if (cab) {
+      if (cab[1].length > 80) return null;
+      actual = { nombre: cab[1].trim(), lineas: [] }; ejercicios.push(actual); linea = null; continue;
+    }
+    if (!actual) return null;
+    const vineta = l.match(/^[•●▪*–-]\s+(.+)$/);
+    if (vineta) { linea = { texto: vineta[1] }; actual.lineas.push(linea); }
+    else if (linea) linea.texto += " " + l; // Saltos de línea introducidos por el PDF.
+    else return null;
+  }
+  if (!ejercicios.length) return null;
+  const items = [];
+  for (const ej of ejercicios) {
+    if (!ej.lineas.length) return null;
+    const tipo = adivinarTipo(ej.nombre);
+    // Este patrón describe series de fuerza; otros deportes siguen con su lector habitual.
+    if (tipo !== "fuerza") return null;
+    const series = [];
+    for (const l of ej.lineas) {
+      const m = l.texto.match(/^([^:]+):\s*(.+)$/);
+      if (!m || l.texto.length > 300) return null;
+      const etiqueta = m[1], cuerpo = m[2];
+      const cal = /^(cal\.?|calentamiento)\b/i.test(etiqueta), bilbo = /\bbilbo\b/i.test(etiqueta);
+      if (!cal && !bilbo && !/^(resistencia|series?|principal|aproximaci[oó]n)\b/i.test(etiqueta)) return null;
+      const pctEtiqueta = etiqueta.match(/(\d+(?:[.,]\d+)?)\s*%\s*(?:1\s*)?RM\b/i);
+      for (const tramo of cuerpo.split(/\s*\+\s*/)) {
+        const q = tramo.match(/^(\d+)\s*[x×]\s*(m[aá]x(?:imas?)?|\d+(?:\s*[-–]\s*\d+)?)\s*(?:repeticiones|reps?|rep\.)?\b\s*(.*)$/i);
+        if (!q || !(+q[1] >= 1 && +q[1] <= 50)) return null;
+        const resto = q[3], pct = resto.match(/\(\s*(\d+(?:[.,]\d+)?)\s*%\s*(?:1\s*)?RM\s*\)/i) || pctEtiqueta;
+        const peso = resto.match(/\(\s*(\d+(?:[.,]\d+)?)\s*kg\s*\)/i);
+        if (pct && peso) return null; // Carga ambigua: no elegir entre kilos y porcentaje.
+        // No esconder otra prescripción incrustada sin separador.
+        if (/\d+\s*[x×]\s*\d/i.test(resto)) return null;
+        const valor = leerValor(q[2].replace(/\s/g, "").replace(/–/g, "-") + (pct ? " @" + pct[1] + "%" : "") + (peso ? " @" + peso[1] + "kg" : ""), "fuerza");
+        if (valor.error) return null;
+        // Las indicaciones originales (recámara, técnica, D/4′…) quedan intactas
+        // para revisión, sin asignar descansos ambiguos a todas las series.
+        for (let i = 0; i < +q[1]; i++) series.push({ ...valor, calentamiento: cal, bilbo, nota: l.texto });
+      }
+    }
+    items.push({ ejercicio: ej.nombre, tipo: "fuerza", seccion: "", series });
+  }
+  return { nombre: String(nombre || "Entrenamiento importado").replace(/\.[^.]+$/, "").slice(0,60), nota: "Revisa la importación antes de guardar. Las indicaciones originales están en las notas de cada serie; comprueba y completa los descansos en Editar entrenamiento.", semanas: 0, bloques: [{ sesiones: [{ nombre: "Entrenamiento importado", dias: [], items }] }], multi: false, conDias: false };
+}
+
 function prepararTextoImportado(texto, nombre) {
   const limpio = String(texto || "").replace(/\r/g, "").replace(/\*\*|__/g, "");
   if (/^\s*RUTINA\s*:/im.test(limpio)) return limpio;
@@ -6868,10 +6921,14 @@ $("iaRevisar").addEventListener("click", () => {
     return;
   }
   const preparado = prepararTextoImportado(txt, docIA?.nombre || "Entrenamiento importado");
-  const r = leerRutina(preparado);
-  if (!r.error) $("iaRespuesta").value = preparado;
+  const formato = leerRutina(preparado);
+  const numerado = formato.error ? leerRutinaNumerada(txt, docIA?.nombre || "Entrenamiento importado") : null;
+  const r = numerado || formato;
+  if (!r.error && !numerado) $("iaRespuesta").value = preparado;
   rutinaIA = r.error ? null : r;
-  $("iaError").textContent = r.error ? r.error + " Puedes editar el texto aquí. Usa ## para cada sesión y - Ejercicio [fuerza]: 3x10 para sus ejercicios." : "";
+  $("iaError").textContent = r.error ? (docIA
+    ? "El documento se ha leído, pero su estructura no se puede convertir completa automáticamente. No se ha guardado ningún entrenamiento. Puedes preparar la conversión con tu IA o adaptar el texto; añadir solo RUTINA no basta si las series tienen otro formato."
+    : r.error + " Puedes editar el texto aquí. Usa ## para cada sesión y - Ejercicio [fuerza]: 3x10 para sus ejercicios.") : "";
   $("iaVistaTit").textContent = r.error ? "" : r.nombre;
   pintarVistaIA();
 });
@@ -7932,7 +7989,7 @@ $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); 
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
 // VERSION_APP es interna (sube en cada publicación para que los móviles se actualicen); la que se ve es siempre la 26
-const VERSION_APP = "v222" + (BETA ? " beta" : "");
+const VERSION_APP = "v224" + (BETA ? " beta" : "");
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";
