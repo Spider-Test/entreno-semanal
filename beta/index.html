@@ -178,8 +178,9 @@
 
   <div id="vistaMarcas" hidden>
     <p class="aviso-estim">Tus récords de fuerza (por zonas del cuerpo), carrera y piscina. Las estimaciones de carrera son orientativas, calculadas con tus entrenamientos completos (fórmulas de Daniels y Riegel). No sustituyen a una prueba real ni a un entrenador.</p>
-    <section class="plan-sec informe-sec">
-      <h3>Resumen descargable</h3>
+    <details class="plan-sec informe-sec">
+      <summary class="informe-toggle"><span class="informe-tit">Resumen descargable</span><span class="informe-sub">Elige un periodo · HTML o PDF</span></summary>
+      <div class="informe-cuerpo">
       <div class="fila informe-controles">
         <label class="campo">Periodo <select id="periodoInforme"><option value="semana">Semana</option><option value="mes">Mes</option><option value="ano">Año</option></select></label>
         <label class="campo informe-fecha-campo">Fecha de referencia
@@ -199,7 +200,8 @@
         <button type="button" class="anadir" id="descargarInforme">Descargar resumen</button>
       </div>
       <p class="menu-det nota">Incluye sesiones, días activos, distancia y tiempo registrados, desnivel y mejores resultados del periodo. Se descarga como HTML imprimible; desde el navegador puedes guardarlo como PDF.</p>
-    </section>
+      </div>
+    </details>
     <div id="marcasCont"></div>
   </div>
 

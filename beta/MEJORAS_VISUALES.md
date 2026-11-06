@@ -6,6 +6,9 @@ El archivo `estilos.css` ya incluye los ajustes pedidos para la vista móvil:
 - Ambos paneles conservan el formato plegable. El resumen semanal ya lo era y mantiene su estado guardado.
 - En móvil, el resumen semanal se distingue con un fondo verde suave y una banda lateral verde; molestias y lesiones llevan un fondo cálido y una banda coral. Así se leen como paneles de información distintos de las tarjetas neutras de los días.
 - En móvil, el encabezado de cada categoría abierta en Ejercicios permanece accesible al desplazarse por su lista y deja de fijarse al llegar al final de esa categoría, para que no se apilen varios encabezados.
+- En móvil, los encabezados de los días abiertos en Semana también permanecen visibles durante su contenido y se liberan al llegar al siguiente día.
+- El selector Listas / Crear o importar / Mis entrenamientos queda como una banda segmentada horizontal en móvil, con una selección activa más clara.
+- En Marcas, el resumen descargable queda plegado al entrar para dar prioridad a los resultados; su cabecera indica que ofrece HTML o PDF. Los controles aparecen al desplegarlo.
 - El acabado general ahora tiene sombras suaves en paneles, un fondo con halo de color muy sutil, franjas de color por categoría y estados de interacción más claros. Se respetan el modo oscuro, el contraste alto y la preferencia de movimiento reducido.
 - Pulsaciones y Bilbo usan colores más fáciles de distinguir en modo oscuro y claro.
 - Los valores de zonas de pulso y las próximas sesiones de Bilbo tienen más contraste en modo oscuro.

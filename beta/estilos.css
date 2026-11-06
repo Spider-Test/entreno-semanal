@@ -1576,3 +1576,75 @@ input:focus, textarea:focus, select:focus { border-color: var(--accent); box-sha
   .dia, .plan-sec, .usuario, #catalogo > .cat-sec, .sem-resumenes > .resumen-sem { box-shadow: none; }
 }
 
+/* Semana: igual que en Ejercicios, la cabecera abierta queda accesible mientras se recorre su contenido. */
+@media (max-width: 760px) {
+  :root { --sticky-cabecera: calc(max(10px, env(safe-area-inset-top, 0px)) + 50px); }
+  #vistaSemana:not(.solo-dia) .dia { overflow: clip; }
+  #vistaSemana:not(.solo-dia) .dia:not(.plegado) > .dia-cab {
+    position: sticky;
+    top: var(--sticky-cabecera);
+    z-index: 11;
+    background: var(--card);
+    box-shadow: 0 5px 12px -12px rgba(12, 26, 18, 0.6);
+  }
+  #vistaSemana:not(.solo-dia) .dia.hoy:not(.plegado) > .dia-cab {
+    background: color-mix(in srgb, var(--accent-soft) 86%, var(--card));
+  }
+  #vistaEjercicios .cat-sec:not(.cerrada) > .sec-toggle { top: var(--sticky-cabecera); }
+
+  /* Selector de Entrenamientos: tres opciones en una sola banda, sin apilarse en móviles estrechos. */
+  .organizar-nav.plan-nav {
+    position: sticky;
+    top: var(--sticky-cabecera);
+    z-index: 13;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 4px;
+    padding: 5px;
+    border: 1px solid color-mix(in srgb, var(--accent) 20%, var(--line));
+    border-radius: 16px;
+    background: color-mix(in srgb, var(--card) 92%, transparent);
+    -webkit-backdrop-filter: blur(16px);
+    backdrop-filter: blur(16px);
+    box-shadow: var(--sombra-panel);
+  }
+  .organizar-nav .plan-nav-btn {
+    min-width: 0;
+    min-height: 48px;
+    padding: 6px 4px;
+    border: 1px solid transparent;
+    border-radius: 12px;
+    font-size: clamp(11px, 3.15vw, 13px);
+    line-height: 1.15;
+    text-align: center;
+    white-space: normal;
+  }
+  .organizar-nav .plan-nav-btn.activa {
+    border-color: color-mix(in srgb, var(--accent) 42%, var(--line));
+    background: linear-gradient(135deg, color-mix(in srgb, var(--accent-soft) 85%, var(--card)), var(--card));
+    color: var(--accent);
+    box-shadow: inset 0 -3px 0 var(--accent), 0 3px 8px color-mix(in srgb, var(--accent) 12%, transparent);
+  }
+}
+
+/* Marcas: el resumen descargable queda recogido para que los resultados destaquen al entrar. */
+.informe-sec { gap: 0; padding-top: 0; padding-bottom: 0; }
+.informe-toggle {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  align-items: center;
+  gap: 4px 9px;
+  min-height: 58px;
+  cursor: pointer;
+  list-style: none;
+}
+.informe-toggle::-webkit-details-marker { display: none; }
+.informe-toggle::before { content: "▸"; grid-row: 1 / span 2; color: var(--accent); font-size: 16px; font-weight: 800; transition: transform 0.16s ease; }
+.informe-sec[open] .informe-toggle::before { transform: rotate(90deg); }
+.informe-tit { font-family: var(--display); font-size: 15px; font-weight: 750; letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent); }
+.informe-sub { grid-column: 2; color: var(--muted); font-size: 12px; line-height: 1.35; }
+.informe-cuerpo { display: flex; flex-direction: column; gap: 10px; border-top: 1px solid var(--line); padding: 12px 0 4px; }
+@media (min-width: 761px) {
+  .informe-toggle { grid-template-columns: 16px minmax(0, 1fr); }
+}
+@media (prefers-reduced-motion: reduce) { .informe-toggle::before { transition: none; } }
+
