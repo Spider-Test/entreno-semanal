@@ -3567,7 +3567,6 @@ function tarjetaEjercicio(e) {
   const nombre = t.querySelector(".t-nombre");
   nombre.textContent = e.nombre || "Sin nombre";
   nombre.appendChild(etiquetaTipo(st.tipo));
-  if (e.compartido) { const c = document.createElement("span"); c.className = "comun-tag"; c.textContent = "común"; nombre.appendChild(c); }
   if (e.video_url) { const v = document.createElement("span"); v.className = "ico"; v.textContent = "▶ vídeo"; nombre.appendChild(v); }
   t.querySelector(".t-mejor").textContent = st.resumen;
   t.querySelector(".t-ultima").textContent = st.ultima;
@@ -8092,6 +8091,7 @@ else if (sesion) mostrarApp(); else $("login").hidden = false;
 
 // Aviso en la propia app cuando hay una versión publicada más nueva que la que se está usando
 async function comprobarVersionNueva() {
+  if (BETA) return; // La beta no muestra el aviso emergente de actualización.
   try {
     const txt = await (await fetch("sw.js?v=" + Date.now(), { cache: "no-store" })).text();
     const nueva = +((txt.match(/"v(\d+)"/) || [])[1] || 0), actual = +VERSION_APP.split(" ")[0].slice(1);

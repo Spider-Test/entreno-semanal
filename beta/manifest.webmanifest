@@ -1,7 +1,7 @@
 {
   "id": "./",
-  "name": "Fuerza y Ritmo (beta)",
-  "short_name": "Fuerza y Ritmo β",
+  "name": "Fuerza y Ritmo",
+  "short_name": "Fuerza y Ritmo",
   "description": "Calendario semanal de entrenamientos: fuerza, carrera y natación.",
   "start_url": "./",
   "scope": "./",
