@@ -2150,3 +2150,59 @@ input:focus, textarea:focus, select:focus { border-color: var(--accent); box-sha
   font-weight: 850;
   letter-spacing: 0.06em;
 }
+
+/* Beta: arriba todo permanece nítido; el cristal sutil solo entra al desplazar la página. */
+@media (max-width: 760px) {
+  #app > .cabecera,
+  #navSemana,
+  #vistaSemana .dia-nav:not([hidden]),
+  #organizarNav.organizar-nav,
+  #vistaSemana:not(.solo-dia) .dia:not(.plegado) > .dia-cab,
+  #vistaSemana .parte-caja:not(.p-plegada) > .parte-cab,
+  #vistaSemana .grupo:not(.g-plegado) > .grupo-cab,
+  #vistaSemana .parte-caja .grupo:not(.g-plegado) > .grupo-cab,
+  #vistaSemana .sem-resumenes > details[open] > summary,
+  #vistaEjercicios .cat-sec:not(.cerrada) > .sec-toggle,
+  #vistaMarcas .cat-sec:not(.cerrada) > .sec-toggle,
+  #vistaMarcas .informe-sec[open] > .informe-toggle,
+  #vistaListas .lista-sec:not(.cerrada) > .lista-cab,
+  #vistaPlan > .plan-sec:not(.cerrada) > .sec-toggle,
+  #vistaPlan > .plan-sec:not(.cerrada) > .sec-cab:has(> .sec-toggle) {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+  #navSemana,
+  #vistaSemana .dia-nav:not([hidden]),
+  #organizarNav.organizar-nav { background: var(--bg) !important; }
+  #vistaSemana:not(.solo-dia) .dia:not(.plegado) > .dia-cab,
+  #vistaSemana .parte-caja:not(.p-plegada) > .parte-cab,
+  #vistaSemana .grupo:not(.g-plegado) > .grupo-cab,
+  #vistaSemana .parte-caja .grupo:not(.g-plegado) > .grupo-cab,
+  #vistaSemana .sem-resumenes > details[open] > summary,
+  #vistaEjercicios .cat-sec:not(.cerrada) > .sec-toggle,
+  #vistaMarcas .cat-sec:not(.cerrada) > .sec-toggle,
+  #vistaMarcas .informe-sec[open] > .informe-toggle,
+  #vistaListas .lista-sec:not(.cerrada) > .lista-cab,
+  #vistaPlan > .plan-sec:not(.cerrada) > .sec-toggle,
+  #vistaPlan > .plan-sec:not(.cerrada) > .sec-cab:has(> .sec-toggle) { background: var(--card) !important; }
+  #vistaSemana:not(.solo-dia) .dia.hoy:not(.plegado) > .dia-cab { background: var(--accent-soft) !important; }
+
+  body.cristal-al-desplazar #vistaSemana:not(.solo-dia) .dia:not(.plegado) > .dia-cab,
+  body.cristal-al-desplazar #vistaSemana .parte-caja:not(.p-plegada) > .parte-cab,
+  body.cristal-al-desplazar #vistaSemana .grupo:not(.g-plegado) > .grupo-cab,
+  body.cristal-al-desplazar #vistaSemana .parte-caja .grupo:not(.g-plegado) > .grupo-cab,
+  body.cristal-al-desplazar #vistaSemana .sem-resumenes > details[open] > summary,
+  body.cristal-al-desplazar #vistaEjercicios .cat-sec:not(.cerrada) > .sec-toggle,
+  body.cristal-al-desplazar #vistaMarcas .cat-sec:not(.cerrada) > .sec-toggle,
+  body.cristal-al-desplazar #vistaMarcas .informe-sec[open] > .informe-toggle,
+  body.cristal-al-desplazar #vistaListas .lista-sec:not(.cerrada) > .lista-cab,
+  body.cristal-al-desplazar #vistaPlan > .plan-sec:not(.cerrada) > .sec-toggle,
+  body.cristal-al-desplazar #vistaPlan > .plan-sec:not(.cerrada) > .sec-cab:has(> .sec-toggle) {
+    background: color-mix(in srgb, var(--card) 94%, transparent) !important;
+    -webkit-backdrop-filter: blur(7px) saturate(115%) !important;
+    backdrop-filter: blur(7px) saturate(115%) !important;
+  }
+  body.cristal-al-desplazar #vistaSemana:not(.solo-dia) .dia.hoy:not(.plegado) > .dia-cab {
+    background: color-mix(in srgb, var(--accent-soft) 96%, transparent) !important;
+  }
+}

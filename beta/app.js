@@ -7345,7 +7345,7 @@ $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); 
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
 // VERSION_APP es interna (sube en cada publicación para que los móviles se actualicen); la que se ve es siempre la 26
-const VERSION_APP = "v176" + (BETA ? " beta" : "");
+const VERSION_APP = "v177" + (BETA ? " beta" : "");
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";
@@ -8187,6 +8187,11 @@ function abrirAyuda() {
 pintarAvisoNovedades();
 $("ayudaBtn").addEventListener("click", abrirAyuda);
 $("dlgAyuda").querySelectorAll("details").forEach(d => d.addEventListener("toggle", () => { if (d.open) verAlAbrir(d); }));
+
+// En beta, el cristal aparece solo después de comenzar a desplazarse; arriba el texto permanece nítido.
+const actualizarCristalAlDesplazar = () => document.body.classList.toggle("cristal-al-desplazar", window.scrollY > 12);
+window.addEventListener("scroll", actualizarCristalAlDesplazar, { passive: true });
+actualizarCristalAlDesplazar();
 
 if (/type=recovery|error_code=/.test(location.hash)) entrarDesdeEnlace();
 else if (sesion) mostrarApp(true); else $("login").hidden = false;
