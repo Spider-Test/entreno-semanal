@@ -30,17 +30,45 @@ const $ = id => document.getElementById(id);
 // La beta (carpeta /beta/ en la misma web) comparte el navegador con la principal: guarda todo con su propio prefijo
 const BETA = location.pathname.includes("/beta/"), PREFIJO = BETA ? "beta:" : "";
 const VERSION_VISIBLE = "26";   // la versión que se ve en la app (fija); la interna es VERSION_APP
-const leer = k => { try { return JSON.parse(localStorage.getItem(PREFIJO + k)); } catch { return null; } };
+// La sesión es común a las pestañas de esta versión; los datos locales pertenecen
+// a una cuenta concreta durante toda la vida de la página. Cambiar de cuenta recarga.
+let errorAlmacenamiento = false;
+const leerGeneral = k => { try { return JSON.parse(localStorage.getItem(PREFIJO + k)); } catch { return null; } };
+const cuentaLocal = leerGeneral("sesion-v1")?.user_id || null;
+const duenoAnterior = leerGeneral("entrenos-dueno");
+const claveCuenta = k => PREFIJO + "cuenta:" + cuentaLocal + ":" + k;
+const leer = k => {
+  if (k === "sesion-v1" || k === "entrenos-dueno") return leerGeneral(k);
+  if (!cuentaLocal) return null;
+  try {
+    const propia = localStorage.getItem(claveCuenta(k));
+    if (propia !== null) return JSON.parse(propia);
+    // Compatibilidad sin borrar la copia antigua: únicamente su dueño puede leerla.
+    if (duenoAnterior === cuentaLocal) return leerGeneral(k);
+  } catch { errorAlmacenamiento = true; }
+  return null;
+};
 const escribir = (k, v) => {
-  try { v === null ? localStorage.removeItem(PREFIJO + k) : localStorage.setItem(PREFIJO + k, JSON.stringify(v)); } catch {}
-  if (CLAVES_EXTRA.has(k)) marcarExtra();   // lo que antes vivía solo en este dispositivo también se sube
+  const global = k === "sesion-v1" || k === "entrenos-dueno";
+  if (!global && !cuentaLocal) return false;
+  try {
+    // null se conserva en claves de cuenta para no resucitar un valor antiguo.
+    if (global && v === null) localStorage.removeItem(PREFIJO + k);
+    else localStorage.setItem(global ? PREFIJO + k : claveCuenta(k), JSON.stringify(v));
+  } catch {
+    errorAlmacenamiento = true;
+    if (k === "sesion-v1") throw new Error("No se puede guardar la sesión en este dispositivo. Revisa el espacio disponible.");
+    return false;
+  }
+  if (!global && CLAVES_EXTRA.has(k)) marcarExtra();
+  return true;
 };
 // Datos de cada día que no son series (ejercicios añadidos aún sin series, entrenos y partes vacíos, su descripción,
 // su letra y su posición): se guardan en el día (tabla entrenos, columna extra) para verlos igual en todos los dispositivos
 const CLAVES_EXTRA = new Set(["bloques-vacios-v1", "bloques-v1", "sesiones-v1", "espera-grupo-v1", "partes-v1", "espera-parte-v1", "espera-nota-v1", "espera-letra-v1", "espera-antes-v1"]);
 if (BETA) { document.documentElement.classList.add("beta"); document.title = "Fuerza y Ritmo β"; document.querySelector('meta[name="apple-mobile-web-app-title"]').content = "Fuerza y Ritmo β"; }
 
-// Cada tabla se sincroniza igual: gana la edición más reciente de cada fila.
+// Cada tabla se sincroniza por cuenta; los cambios locales en conflicto se conservan.
 // El orden importa al subir: primero ejercicios y plantillas, después las series que los usan.
 const TABLAS = {
   ejercicios: { clave: "id", conflicto: "id", campos: ["id", "user_id", "nombre", "tipo", "video_url", "notas", "rm", "compartido", "zonas", "borrado", "actualizado"] },
@@ -57,10 +85,10 @@ const TABLAS = {
 const DEFECTOS = { medida: "", lado: false, extra: {}, seccion: "", por_lado: false, nota: "", letra_nueva: false, max_tiempo: false, max_reps: false, rango_min: 0, rango_max: 0, fecha: null, lugar: "", categoria: "", enlace: "", fc_hist: [], tipo: "fuerza", hecha: true, grupo: "", meso_id: "", bloque_id: "", ciclo_id: "", importadas: [], cerrado: false, compartido: false, items: [], dias: {}, descarga: {}, zonas: [], calentamiento: false, inicio: null, zona: "", descripcion: "", estado: "activa", nombre: "", video_url: "", notas: "", html: "", texto: "", sensacion: "", borrado: false };
 let sesion = leer("sesion-v1");                 // {access_token, refresh_token, expires_at, user_id, email}
 let perfil = leer("perfil-v1");                 // {aprobado, es_admin, email}
-let usuarios = leer("usuarios-v1") || [];        // solo para el administrador (se guarda para no verla vacía al abrir)
+let usuarios = perfil?.es_admin && perfil?.aprobado ? (leer("usuarios-v1") || []) : [];        // solo para el administrador (se guarda para no verla vacía al abrir)
 let db = leer("datos-v2") || { entrenos: leer("entrenos-v1") || {} };
-Object.keys(TABLAS).forEach(t => { db[t] = db[t] || {}; });
-let cursores = leer("cursores-v3") || {};       // última marca de servidor leída por tabla (v3: relee todo al añadir campos)
+Object.keys(TABLAS).forEach(t => { db[t] = Object.assign(Object.create(null), db[t] || {}); });
+let cursores = leer("cursores-v4") || {};       // v4: primera lectura completa con paginación, sin borrar la copia local
 let enEspera = leer("bloques-v1") || {};
 // Entrenos del día aún sin series (fecha -> nombres) y en qué entreno va cada ejercicio añadido sin series (fecha|id -> nombre)
 let gruposPlegados = {};   // los grupos y partes empiezan plegados en cada apertura
@@ -75,11 +103,11 @@ const guardarSesiones = () => { escribir("sesiones-v1", sesionesVacias); escribi
 // Nombres de las partes de un entreno: las que tienen series y las creadas vacías
 const nombresPartes = (fecha, grupo) => [...new Set(seriesDelDia(fecha).filter(s => (s.grupo || "") === grupo).map(s => s.seccion || "").concat(partesVacias[fecha + "|" + grupo] || []))];        // fecha -> ejercicios añadidos que aún no tienen series
 let porta = leer("portapapeles-v1");            // lo último copiado: {nombre, html, items}
-const guardarLocal = () => { escribir("datos-v2", db); escribir("cursores-v3", cursores); };
+const guardarLocal = () => { escribir("datos-v2", db); escribir("cursores-v4", cursores); };
 const guardarEspera = () => escribir("bloques-v1", enEspera);
 
 const estado = $("estado");
-const setEstado = (t, err) => { estado.textContent = t; estado.classList.toggle("error", !!err); };
+const setEstado = (t, err) => { estado.textContent = errorAlmacenamiento ? "No se ha podido guardar todo en este dispositivo. Exporta una copia desde Ajustes antes de cerrarlo." : t; estado.classList.toggle("error", !!err || errorAlmacenamiento); };
 
 // ---------- Fechas, números y tiempos ----------
 const iso = d => d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
@@ -169,13 +197,14 @@ const lunesVista = () => sumarDias(lunesDe(new Date()), desplazamiento * 7);
 // ---------- Texto del día: solo saltos de línea y negrita ----------
 function limpiar(html) {
   const tpl = document.createElement("template");
-  tpl.innerHTML = html;
+  tpl.innerHTML = String(html || "");
   const salida = document.createElement("div");
   (function copiar(origen, destino) {
     origen.childNodes.forEach(n => {
       if (n.nodeType === 3) { destino.appendChild(document.createTextNode(n.nodeValue)); return; }
       if (n.nodeType !== 1) return;
       const tag = n.tagName;
+      if (["SCRIPT", "STYLE", "IFRAME", "OBJECT", "EMBED", "SVG", "MATH"].includes(tag)) return;
       const peso = n.style && n.style.fontWeight;
       let nuevo = null;
       if (tag === "BR") { destino.appendChild(document.createElement("br")); return; }
@@ -186,7 +215,7 @@ function limpiar(html) {
   })(tpl.content, salida);
   return salida.innerHTML;
 }
-const aTexto = html => { const t = document.createElement("div"); t.innerHTML = html.replace(/<br>/g, "\n").replace(/<div>/g, "\n"); return t.textContent.replace(/^\n/, ""); };
+const aTexto = html => { const t = document.createElement("div"); t.innerHTML = limpiar(String(html || "")).replace(/<br>/g, "\n").replace(/<div>/g, "\n"); return t.textContent.replace(/^\n/, ""); };
 const marcarVacio = ed => ed.classList.toggle("vacio", ed.textContent.trim() === "");
 
 // ---------- Datos derivados: ejercicios, series y récords ----------
@@ -497,42 +526,157 @@ function pesoBilbo(id) {
 }
 
 // ---------- Conexión con Supabase ----------
+class SesionCaducada extends Error {}
+class SesionCambiada extends Error {}
+let generacionSesion = 0, renovacionSesion = null;
+const peticionesSesion = new Set();
+const contextoSesion = () => ({ usuario: sesion?.user_id, generacion: generacionSesion });
+function comprobarSesion(ctx) {
+  const guardada = leerGeneral("sesion-v1");
+  if (!ctx.usuario || ctx.generacion !== generacionSesion || sesion?.user_id !== ctx.usuario || guardada?.user_id !== ctx.usuario) throw new SesionCambiada();
+}
+function invalidarPeticiones() {
+  generacionSesion++;
+  for (const c of peticionesSesion) c.abort();
+  peticionesSesion.clear();
+  renovacionSesion = null;
+}
 function guardarSesion(j) {
-  sesion = {
+  if (!j?.user?.id || !j.access_token || !j.refresh_token) throw new Error("La respuesta de acceso no contiene una sesión válida.");
+  const nueva = {
     access_token: j.access_token, refresh_token: j.refresh_token,
     expires_at: j.expires_at || Math.floor(Date.now() / 1000) + (j.expires_in || 3600),
     user_id: j.user.id, email: j.user.email
   };
-  escribir("sesion-v1", sesion);
+  escribir("sesion-v1", nueva);
+  sesion = nueva;
 }
-class SesionCaducada extends Error {}
-async function refrescar() {
-  const r = await fetch(SUPA + "/auth/v1/token?grant_type=refresh_token", {
-    method: "POST", headers: { apikey: CLAVE, "Content-Type": "application/json" },
-    body: JSON.stringify({ refresh_token: sesion.refresh_token })
-  });
-  if (r.status === 400 || r.status === 401) throw new SesionCaducada();
-  if (!r.ok) throw new Error("refresh " + r.status);
-  guardarSesion(await r.json());
+async function peticionDeCuenta(url, opciones, ctx) {
+  comprobarSesion(ctx);
+  const controller = new AbortController();
+  peticionesSesion.add(controller);
+  const timer = setTimeout(() => controller.abort(), 25000);
+  try {
+    const r = await fetch(url, { ...opciones, signal: controller.signal });
+    // Termina de leer antes de liberar el control de cuenta y el tiempo límite.
+    const contenido = await r.arrayBuffer();
+    comprobarSesion(ctx);
+    const respuesta = new Response(r.status === 204 || r.status === 205 || r.status === 304 ? null : contenido, { status: r.status, statusText: r.statusText, headers: r.headers });
+    const proteger = res => {
+      for (const metodo of ["json", "text"]) {
+        const leerCuerpo = res[metodo].bind(res);
+        res[metodo] = async () => { comprobarSesion(ctx); const valor = await leerCuerpo(); comprobarSesion(ctx); return valor; };
+      }
+      const clonar = res.clone.bind(res);
+      res.clone = () => proteger(clonar());
+      return res;
+    };
+    return proteger(respuesta);
+  } catch (err) {
+    comprobarSesion(ctx);
+    throw err;
+  } finally { clearTimeout(timer); peticionesSesion.delete(controller); }
+}
+async function refrescar(forzar = false) {
+  const ctx = contextoSesion();
+  comprobarSesion(ctx);
+  if (renovacionSesion?.generacion === ctx.generacion) return renovacionSesion.promesa;
+  const tokenInicial = sesion.access_token;
+  const renovar = async () => {
+    comprobarSesion(ctx);
+    const guardada = leerGeneral("sesion-v1");
+    if (!guardada?.refresh_token) throw new SesionCaducada();
+    // Otra pestaña puede haber renovado mientras esperábamos el bloqueo.
+    if (guardada.expires_at * 1000 > Date.now() + 60000 && (!forzar || guardada.access_token !== tokenInicial)) { sesion = guardada; return; }
+    const r = await peticionDeCuenta(SUPA + "/auth/v1/token?grant_type=refresh_token", {
+      method: "POST", headers: { apikey: CLAVE, "Content-Type": "application/json" },
+      body: JSON.stringify({ refresh_token: guardada.refresh_token })
+    }, ctx);
+    if (r.status === 400 || r.status === 401) {
+      const reciente = leerGeneral("sesion-v1");
+      if (reciente?.user_id === ctx.usuario && reciente.refresh_token !== guardada.refresh_token) { sesion = reciente; return; }
+      throw new SesionCaducada();
+    }
+    if (!r.ok) throw new Error("refresh " + r.status);
+    const j = await r.json();
+    comprobarSesion(ctx);
+    if (j.user?.id !== ctx.usuario) throw new SesionCambiada();
+    guardarSesion(j);
+  };
+  const promesa = navigator.locks?.request
+    ? navigator.locks.request("fyr-auth:" + PREFIJO + ctx.usuario, renovar)
+    : renovar();
+  const pendiente = { generacion: ctx.generacion, promesa };
+  renovacionSesion = pendiente;
+  try { await promesa; }
+  finally { if (renovacionSesion === pendiente) renovacionSesion = null; }
 }
 async function api(ruta, opciones = {}, reintento = false) {
+  const ctx = contextoSesion();
+  comprobarSesion(ctx);
   if (sesion.expires_at * 1000 - 60000 < Date.now()) await refrescar();
-  const r = await fetch(SUPA + ruta, {
+  comprobarSesion(ctx);
+  const r = await peticionDeCuenta(SUPA + ruta, {
     ...opciones,
-    headers: { apikey: CLAVE, Authorization: "Bearer " + sesion.access_token, "Content-Type": "application/json", ...(opciones.headers || {}) }
-  });
-  if (r.status === 401 && !reintento) { await refrescar(); return api(ruta, opciones, true); }
+    headers: { ...(opciones.headers || {}), apikey: CLAVE, Authorization: "Bearer " + sesion.access_token, "Content-Type": "application/json" }
+  }, ctx);
+  if (r.status === 401 && !reintento) { await refrescar(true); comprobarSesion(ctx); return api(ruta, opciones, true); }
   return r;
+}
+// Aislamiento adicional en el cliente; la autorización sigue siendo responsabilidad de RLS.
+function filtroPropietario(tabla) {
+  const uid = encodeURIComponent(sesion.user_id);
+  return tabla === "ejercicios" ? "&and=(or(user_id.eq." + uid + ",compartido.eq.true))" : "&user_id=eq." + uid;
+}
+async function leerTablaCompleta(tabla, desde = "") {
+  const campos = [...new Set([...TABLAS[tabla].campos, "user_id", "servidor_ts"])];
+  const orden = "servidor_ts.asc," + TABLAS[tabla].clave + ".asc";
+  const ruta = "/rest/v1/" + tabla + "?select=" + campos.join(",") + "&order=" + orden + filtroPropietario(tabla) + desde;
+  const filas = [], tamano = 500;
+  let siguiente = "", ultimaClave = "";
+  const literal = v => '"' + String(v).replace(/\\/g, "\\\\").replace(/"/g, '\\"') + '"';
+  // Avanza por fecha de servidor + clave, sin saltarse filas cuando llegan cambios.
+  // Una página corta tampoco implica final: puede haber un límite menor en Supabase.
+  for (;;) {
+    const r = await api(ruta + siguiente + "&limit=" + tamano);
+    if (!r.ok) return { respuesta: r, filas: [] };
+    const pagina = await r.json();
+    if (!Array.isArray(pagina)) throw new Error("Respuesta de sincronización no válida");
+    if (!pagina.length) return { respuesta: r, filas };
+    for (const f of pagina) {
+      if (f.user_id !== sesion.user_id && !(tabla === "ejercicios" && f.compartido)) throw new Error("Datos ajenos rechazados");
+    }
+    filas.push(...pagina);
+    const ultima = pagina[pagina.length - 1], campo = TABLAS[tabla].clave;
+    const firma = JSON.stringify([ultima.servidor_ts, ultima[campo]]);
+    if (!ultima.servidor_ts || ultima[campo] == null || firma === ultimaClave) throw new Error("La descarga no ha podido avanzar; se reintentará sin perder el progreso.");
+    ultimaClave = firma;
+    const ts = literal(ultima.servidor_ts), clave = literal(ultima[campo]);
+    siguiente = "&or=" + encodeURIComponent("(servidor_ts.gt." + ts + ",and(servidor_ts.eq." + ts + "," + campo + ".gt." + clave + "))");
+  }
 }
 
 // Perfil: las cuentas nuevas quedan pendientes hasta que el administrador las aprueba
 async function cargarPerfil() {
-  const r = await api("/rest/v1/perfiles?select=user_id,email,aprobado,es_admin,edita_catalogo,creado,novedades_vistas,ultimo_acceso,ultimo_dispositivo,ultima_version&order=creado.asc");
+  const campos = "user_id,email,aprobado,es_admin,edita_catalogo,creado,novedades_vistas,ultimo_acceso,ultimo_dispositivo,ultima_version";
+  const r = await api("/rest/v1/perfiles?select=" + campos + "&user_id=eq." + encodeURIComponent(sesion.user_id) + "&limit=1");
   if (!r.ok) throw new Error("perfil " + r.status);
-  const lista = await r.json();
-  const mio = lista.find(p => p.user_id === sesion.user_id);
+  const lista = await r.json(), mio = Array.isArray(lista) && lista.find(p => p.user_id === sesion.user_id);
   perfil = mio ? { aprobado: mio.aprobado, es_admin: mio.es_admin, edita_catalogo: mio.edita_catalogo, email: mio.email, novedades_vistas: mio.novedades_vistas || "" } : { aprobado: false, es_admin: false, edita_catalogo: false, email: sesion.email };
-  usuarios = perfil.es_admin ? lista : [];
+  usuarios = [];
+  if (perfil.aprobado && perfil.es_admin) {
+    let ultimo = "";
+    for (;;) {
+      const rr = await api("/rest/v1/perfiles?select=" + campos + "&order=user_id.asc&limit=500" + (ultimo ? "&user_id=gt." + encodeURIComponent(ultimo) : ""));
+      if (!rr.ok) throw new Error("No se pudo cargar la lista de usuarios (" + rr.status + ").");
+      const pagina = await rr.json();
+      if (!Array.isArray(pagina)) throw new Error("Lista de usuarios no válida");
+      if (!pagina.length) break;
+      const siguiente = pagina[pagina.length - 1].user_id;
+      if (!siguiente || siguiente === ultimo) throw new Error("La lista de usuarios no pudo avanzar.");
+      usuarios.push(...pagina); ultimo = siguiente;
+    }
+  }
   escribir("usuarios-v1", usuarios);
   escribir("perfil-v1", perfil);
   if (perfil.es_admin && !$("vistaPlan").hidden) pintarPlan();
@@ -553,7 +697,11 @@ function persistir() {
 // cómo estaban antes las filas que tocó. Solo cuenta lo que pasa justo después de tocar o teclear (no la sincronización)
 let historial = [], rehechos = [], pasoHist = null, sinHistorial = false, ultimoGesto = 0;
 ["pointerdown", "keydown", "input", "change", "submit"].forEach(t => addEventListener(t, () => { ultimoGesto = Date.now(); }, true));
+function claveDatoValida(clave) {
+  return typeof clave === "string" && clave.length > 0 && !["__proto__", "constructor", "prototype"].includes(clave);
+}
 function cambiar(tabla, fila, enLote) {
+  if (!Object.prototype.hasOwnProperty.call(TABLAS, tabla) || !claveDatoValida(fila?.[TABLAS[tabla].clave])) throw new Error("El registro no tiene un identificador válido.");
   if (!sinHistorial && Date.now() - ultimoGesto < 3000) {
     const k = fila[TABLAS[tabla].clave], antes = db[tabla][k];
     if (!pasoHist) { pasoHist = []; historial.push(pasoHist); if (historial.length > 80) historial.shift(); rehechos = []; setTimeout(() => { pasoHist = null; }, 0); }
@@ -601,11 +749,23 @@ addEventListener("keydown", e => {
   deshacerPaso(k === "y" || e.shiftKey);
 });
 function mezclar(tabla, f) {
-  const k = f[TABLAS[tabla].clave], local = db[tabla][k];
+  const k = f[TABLAS[tabla].clave];
+  if (!claveDatoValida(k) || !Number.isFinite(Date.parse(f.actualizado))) throw new Error("El servidor devolvió un registro no válido en " + tabla);
+  const local = db[tabla][k];
   const tr = Date.parse(f.actualizado), tl = local ? Date.parse(local.actualizado) : 0;
   // Misma marca y sin cambios locales: solo se copia si el servidor trae algún campo distinto (p. ej. una columna nueva)
   const igual = () => TABLAS[tabla].campos.every(c => c === "actualizado" || JSON.stringify(local[c] ?? null) === JSON.stringify(f[c] ?? null));
-  if (local && ((local.sucio && tr <= tl) || (!local.sucio && tr === tl && igual()))) return false;
+  if (local?.sucio) {
+    if (tr > tl) {
+      // Conservar ambas versiones para resolver el conflicto; no sobrescribir una edición pendiente.
+      local.conflicto = f;
+      guardarLocal();
+      mostrarConflictos();
+      throw new Error("Hay cambios de otro dispositivo. Pulsa «Revisar cambios pendientes» para elegir qué conservar.");
+    }
+    return false;
+  }
+  if (local && tr === tl && igual()) return false;
   const fila = {};
   TABLAS[tabla].campos.forEach(c => { fila[c] = f[c]; });
   fila.actualizado = new Date(tr).toISOString();
@@ -640,8 +800,11 @@ function marcarExtra() {
   if (aplicandoExtra) return;
   try { esperaAntes; esperaNota; esperaLetra; } catch { return; }   // aún cargando la app
   clearTimeout(timerExtra);
-  timerExtra = setTimeout(() => {
-    if (!sesion) return;
+  timerExtra = setTimeout(volcarExtra, 400);
+}
+function volcarExtra() {
+    clearTimeout(timerExtra);
+    if (!sesion || sesion.user_id !== cuentaLocal) return;
     const fechas = new Set([...Object.keys(enEspera), ...Object.keys(sesionesVacias)]);
     [esperaGrupo, partesVacias, esperaParte, esperaNota, esperaLetra, esperaAntes, bloquesVacios].forEach(o => Object.keys(o || {}).forEach(k => fechas.add(k.split("|")[0])));
     Object.values(db.entrenos).forEach(x => { if (x.extra && Object.keys(x.extra).length) fechas.add(x.fecha); });
@@ -658,12 +821,10 @@ function marcarExtra() {
     });
     sinHistorial = sinH;
     if (hay) persistir();
-  }, 400);
 }
 const hayPendientes = () => Object.keys(TABLAS).some(t => Object.values(db[t]).some(v => v.sucio));
 
 let sincronizando = false, repetir = false;
-const faltanColumnas = new Set();   // columnas o tablas nuevas que aún no existen en Supabase
 async function sincronizar() {
   if (!sesion) return;
   if (sincronizando) { repetir = true; return; }
@@ -678,17 +839,9 @@ async function sincronizar() {
       // Bajar solo lo que ha cambiado en el servidor (con 5 s de margen)
       for (const t of Object.keys(TABLAS)) {
         const desde = cursores[t] ? "&servidor_ts=gte." + encodeURIComponent(new Date(Date.parse(cursores[t]) - 5000).toISOString()) : "";
-        let r = await api("/rest/v1/" + t + "?select=" + TABLAS[t].campos.join(",") + ",servidor_ts&order=servidor_ts.asc" + desde);
-        // Si en la base de datos falta una columna nueva (no se ejecutó su SQL), se sigue sin ella en vez de parar toda la sincronización
-        for (let intento = 0; !r.ok && r.status === 400 && intento < 5; intento++) {
-          const m = ((await r.clone().json().catch(() => ({}))).message || "").match(/column \w+\.(\w+) does not exist/);
-          if (!m || !TABLAS[t].campos.includes(m[1])) break;
-          TABLAS[t].campos = TABLAS[t].campos.filter(c => c !== m[1]);
-          faltanColumnas.add(t + "." + m[1]);
-          r = await api("/rest/v1/" + t + "?select=" + TABLAS[t].campos.join(",") + ",servidor_ts&order=servidor_ts.asc" + desde);
-        }
-        if (!r.ok) { if (TABLAS[t].opcional) { faltanColumnas.add(t); continue; } throw new Error("leer " + t + " " + r.status); }
-        for (const f of await r.json()) {
+        let lectura = await leerTablaCompleta(t, desde), r = lectura.respuesta;
+        if (!r.ok) throw new Error("No se pudo leer " + t + " (" + r.status + "). Los cambios siguen pendientes.");
+        for (const f of lectura.filas) {
           if (mezclar(t, f)) cambio = true;
           if (!cursores[t] || Date.parse(f.servidor_ts) > Date.parse(cursores[t])) cursores[t] = f.servidor_ts;
         }
@@ -699,23 +852,64 @@ async function sincronizar() {
       for (const t of Object.keys(TABLAS)) {
         const pend = Object.values(db[t]).filter(v => v.sucio);
         if (!pend.length) continue;
-        const filas = pend.map(v => { const f = {}; TABLAS[t].campos.forEach(c => { f[c] = v[c] ?? (c in DEFECTOS ? DEFECTOS[c] : 0); }); f.user_id = v.user_id || sesion.user_id; return f; });   // los ejercicios del catálogo conservan a su dueño
+        if (pend.some(v => v.conflicto)) { mostrarConflictos(); throw new Error("Revisa los cambios pendientes antes de sincronizar."); }
+        const filas = pend.map(v => { const f = {}; TABLAS[t].campos.forEach(c => { f[c] = v[c] ?? (c in DEFECTOS ? DEFECTOS[c] : 0); }); f.user_id = t === "ejercicios" ? (v.user_id || sesion.user_id) : sesion.user_id; return f; });   // los ejercicios del catálogo conservan a su dueño
         const w = await api("/rest/v1/" + t + "?on_conflict=" + TABLAS[t].conflicto, {
           method: "POST", headers: { Prefer: "resolution=merge-duplicates,return=minimal" }, body: JSON.stringify(filas)
         });
-        if (!w.ok) { if (TABLAS[t].opcional) continue; throw new Error("guardar " + t + " " + w.status); }
+        if (!w.ok) throw new Error("No se pudo guardar " + t + " (" + w.status + "). Los cambios siguen pendientes.");
         filas.forEach(f => { const v = db[t][f[TABLAS[t].clave]]; if (v && v.actualizado === f.actualizado) v.sucio = false; });
         guardarLocal();
       }
     } while (repetir);
-    await enviarSugerencias();
-    setEstado(faltanColumnas.size ? "Sincronizado, pero falta en la base de datos: " + [...faltanColumnas].join(", ") + " (hay que ejecutar su SQL en Supabase)" : "Sincronizado", faltanColumnas.size > 0);
+    const sugerenciasEnviadas = await enviarSugerencias();
+    setEstado(hayPendientes() || !sugerenciasEnviadas ? "Hay cambios pendientes de sincronizar" : "Sincronizado", hayPendientes() || !sugerenciasEnviadas);
+    mostrarConflictos();
   } catch (e) {
     if (e instanceof SesionCaducada) cerrarSesion("Tu sesión ha caducado. Vuelve a entrar; lo que escribiste sigue guardado en este dispositivo.");
-    else setEstado(hayPendientes() ? "Sin conexión · guardado en el dispositivo, se subirá al volver la conexión" : "Sin conexión · mostrando lo último guardado");
+    else if (e instanceof SesionCambiada) return;
+    else { guardarLocal(); setEstado(navigator.onLine === false ? "Sin conexión · los cambios siguen guardados en el dispositivo" : (e.message || "No se pudo sincronizar. Los cambios siguen pendientes."), true); }
   } finally {
     sincronizando = false;
   }
+}
+
+function mostrarConflictos() {
+  const conflictos = Object.keys(TABLAS).flatMap(t => Object.values(db[t]).filter(f => f.conflicto).map(f => ({ t, f })));
+  let boton = $("revisarConflictos");
+  if (!boton && conflictos.length) {
+    boton = document.createElement("button"); boton.id = "revisarConflictos"; boton.type = "button"; boton.className = "enlace";
+    boton.textContent = "Revisar cambios pendientes"; estado.after(boton);
+  }
+  if (!boton) return;
+  boton.hidden = !conflictos.length;
+  boton.onclick = () => {
+    const { t, f } = conflictos[0], k = f[TABLAS[t].clave], remoto = f.conflicto;
+    const versionElegida = f.actualizado;
+    const elegir = usarLocal => {
+      if (db[t][k] !== f || f.actualizado !== versionElegida || f.conflicto !== remoto) {
+        mostrarConflictos(); setEstado("El registro ha cambiado. Abre de nuevo la revisión antes de elegir.", true); return;
+      }
+      const copiaLocal = { ...f }; delete copiaLocal.conflicto;
+      const copias = leer("conflictos-copia-v1") || [];
+      copias.push({ tabla: t, clave: k, fecha: new Date().toISOString(), local: copiaLocal, nube: remoto });
+      if (!escribir("conflictos-copia-v1", copias)) { setEstado("Exporta una copia antes de resolver el conflicto: falta espacio local.", true); return; }
+      if (usarLocal) {
+        cambiar(t, copiaLocal, true);
+        db[t][k].actualizado = new Date(Math.max(Date.now(), Date.parse(remoto.actualizado) + 1)).toISOString();
+      } else {
+        db[t][k].sucio = false;
+        delete db[t][k].conflicto;
+        mezclar(t, remoto);
+      }
+      guardarLocal(); mostrarConflictos(); pintarTodo(); sincronizar();
+    };
+    abrirMenu("Cambios de dos dispositivos", (f.nombre || f.fecha || "Registro") + ": hay dos versiones. Se guardará una copia de ambas, incluida al exportar tus datos.", [
+      { texto: "Conservar mis cambios de este dispositivo", accion: () => elegir(true) },
+      { texto: "Usar la versión de la nube", accion: () => elegir(false) },
+      { texto: "Decidir más tarde", accion: () => {} }
+    ]);
+  };
 }
 
 // ---------- Ventanas pequeñas: menú de opciones y pedir un nombre ----------
@@ -1525,7 +1719,7 @@ async function compartir(nombre, items, crudo) {
   const codigo = nuevoCodigo();
   try {
     const r = await api("/rest/v1/compartidos", { method: "POST", headers: { Prefer: "return=minimal" },
-      body: JSON.stringify({ codigo, user_id: sesion.user_id, autor: sesion.email || "", nombre, items: crudo ? items : paraCompartir(items) }) });
+      body: JSON.stringify({ codigo, user_id: sesion.user_id, autor: "", nombre, items: crudo ? items : paraCompartir(items) }) });
     if (!r.ok) throw new Error();
   } catch { setEstado("No se ha podido compartir. Necesitas conexión.", true); return; }
   const enlace = URL_APP + "#c=" + codigo;
@@ -1539,6 +1733,30 @@ async function compartir(nombre, items, crudo) {
     navigator.share && { texto: "Enviar…", mantener: true, accion: () => navigator.share({ title: nombre, text: "Entrenamiento «" + nombre + "» para Fuerza y Ritmo. Código: " + codigo, url: enlace }).catch(() => {}) }
   ], caja);
 }
+function compartidoValido(c) {
+  const objeto = x => x && typeof x === "object" && !Array.isArray(x);
+  const texto = x => x == null || typeof x === "string";
+  let total = 0;
+  const serie = x => objeto(x) && texto(x.nota) && ++total <= 20000;
+  const ejercicio = x => objeto(x) && typeof x.ejercicio === "string" && texto(x.tipo) && Array.isArray(x.series) && x.series.every(serie);
+  const items = xs => Array.isArray(xs) && xs.length <= 5000 && xs.every(x => objeto(x) && texto(x.seccion) && (x.bloque ? Array.isArray(x.tramos) && x.tramos.length <= 5000 && x.tramos.every(ejercicio) : ejercicio(x)));
+  const plantillas = ps => Array.isArray(ps) && ps.length <= 5000 && ps.every(p => objeto(p) && typeof p.nombre === "string" && items(p.items));
+  if (!objeto(c) || typeof c.nombre !== "string" || !Array.isArray(c.items) || c.items.length > 5000) return false;
+  const x = c.items[0];
+  if (x?.paquete || x?.mesociclo) {
+    if (c.items.length !== 1 || !plantillas(x.plantillas)) return false;
+    if (x.mesociclo) {
+      const m = x.mesociclo;
+      if (!objeto(m) || !objeto(m.dias) || !texto(m.notas)) return false;
+      const dia = ids => Array.isArray(ids) && ids.length <= 5000 && ids.every(i => Number.isInteger(i) && i >= 0 && i < x.plantillas.length);
+      const semana = d => objeto(d) && Object.keys(d).filter(k => /^\d$/.test(k)).every(k => dia(d[k]));
+      if (!semana(m.dias) || !Object.keys(m.dias).filter(k => /^s\d+$/.test(k)).every(k => semana(m.dias[k]))) return false;
+    }
+    return true;
+  }
+  return items(c.items);
+}
+
 async function abrirCompartido(texto) {
   const m = (texto || "").toUpperCase().match(/([A-Z2-9]{8})\s*$/);
   if (!m) { setEstado("Ese código no es válido: son 8 letras y números.", true); return; }
@@ -1548,6 +1766,7 @@ async function abrirCompartido(texto) {
     if (r.ok) c = await r.json();
   } catch { setEstado("Necesitas conexión para abrir algo compartido.", true); return; }
   if (!c) { setEstado("No hay nada compartido con el código " + m[1] + ".", true); return; }
+  if (!compartidoValido(c)) { setEstado("El contenido compartido no tiene un formato válido.", true); return; }
   // Varias plantillas juntas: vista previa y guardarlas (o añadirlas a un día)
   if (c.items[0] && c.items[0].paquete) {
     const x = c.items[0], lunesP = lunesVista();
@@ -5272,18 +5491,19 @@ $("loginForm").addEventListener("submit", async e => {
   if (!email || password.length < 6) { $("loginError").textContent = "Escribe tu email y una contraseña de al menos 6 caracteres."; return; }
   $("loginBtn").disabled = true; $("loginError").textContent = "";
   try {
+    const accesoPrevio = localStorage.getItem(PREFIJO + "sesion-v1"), generacionAcceso = generacionSesion;
     const ruta = creando ? "/auth/v1/signup" : "/auth/v1/token?grant_type=password";
     const r = await fetch(SUPA + ruta, { method: "POST", headers: { apikey: CLAVE, "Content-Type": "application/json" }, body: JSON.stringify({ email, password }) });
     const j = await r.json().catch(() => ({}));
-    if (!r.ok || !j.access_token) throw new Error(traducir(j.msg || j.error_description || j.message || ""));
-    if (leer("entrenos-dueno") !== j.user.id) {
-      db = {}; Object.keys(TABLAS).forEach(t => { db[t] = {}; }); versionDatos++; cursores = {}; enEspera = {}; perfil = null; porta = null;
-      guardarLocal(); guardarEspera(); escribir("perfil-v1", null); escribir("portapapeles-v1", null); escribir("entrenos-dueno", j.user.id);
+    if (generacionSesion !== generacionAcceso || localStorage.getItem(PREFIJO + "sesion-v1") !== accesoPrevio) throw new Error("La sesión ha cambiado en otra pestaña. Vuelve a abrir la aplicación.");
+    if (r.ok && creando && !j.access_token) {
+      $("password").value = "";
+      $("loginError").textContent = "Revisa tu correo para confirmar la cuenta. Después podrás entrar y esperar la aprobación.";
+      return;
     }
-    guardarSesion(j);
+    if (!r.ok || !j.access_token) throw new Error(traducir(j.msg || j.error_description || j.message || ""));
     $("password").value = "";
-    try { await cargarPerfil(); } catch {}
-    mostrarApp();
+    entrarConSesion(j);
   } catch (err) {
     $("loginError").textContent = navigator.onLine === false ? "Necesitas conexión para entrar la primera vez." : err.message;
   } finally {
@@ -5312,17 +5532,13 @@ async function entrarDesdeEnlace() {
   if (p.get("error")) { $("login").hidden = false; $("loginError").textContent = /expired/i.test(p.get("error_code") || p.get("error_description") || "") ? "El enlace ha caducado o ya se usó. Pide otro con «¿Has olvidado tu contraseña?»." : "No se ha podido usar el enlace. Pide otro."; return; }
   try {
     const token = p.get("access_token");
+    if (!token || !p.get("refresh_token")) throw new Error("Enlace incompleto");
+    const accesoPrevio = localStorage.getItem(PREFIJO + "sesion-v1"), generacionAcceso = generacionSesion;
     const r = await fetch(SUPA + "/auth/v1/user", { headers: { apikey: CLAVE, Authorization: "Bearer " + token } });
     if (!r.ok) throw new Error();
     const user = await r.json();
-    if (leer("entrenos-dueno") !== user.id) {
-      db = {}; Object.keys(TABLAS).forEach(t => { db[t] = {}; }); versionDatos++; cursores = {}; enEspera = {}; perfil = null; porta = null;
-      guardarLocal(); guardarEspera(); escribir("perfil-v1", null); escribir("portapapeles-v1", null); escribir("entrenos-dueno", user.id);
-    }
-    guardarSesion({ access_token: token, refresh_token: p.get("refresh_token"), expires_in: +p.get("expires_in") || 3600, user });
-    try { await cargarPerfil(); } catch {}
-    mostrarApp();
-    abrirClave(true);
+    if (generacionSesion !== generacionAcceso || localStorage.getItem(PREFIJO + "sesion-v1") !== accesoPrevio) throw new Error("Sesión cambiada");
+    entrarConSesion({ access_token: token, refresh_token: p.get("refresh_token"), expires_in: +p.get("expires_in") || 3600, user }, p.get("type") === "recovery");
   } catch {
     $("login").hidden = false;
     $("loginError").textContent = "El enlace no es válido o ha caducado. Pide otro con «¿Has olvidado tu contraseña?».";
@@ -5354,21 +5570,59 @@ $("claveGuardar").addEventListener("click", async () => {
     $("claveAviso").textContent = navigator.onLine === false ? "Necesitas conexión para cambiar la contraseña." : err.message;
   } finally { $("claveGuardar").disabled = false; }
 });
-function cerrarSesion(msg) {
-  sesion = null; escribir("sesion-v1", null);
+function detenerSesionLocal(msg) {
+  // Conserva los cambios de esta cuenta y vacía las interfaces sensibles.
+  if (sesion && sesion.user_id === cuentaLocal) { volcarExtra(); guardarLocal(); }
+  clearTimeout(timerSync); clearTimeout(timerExtra);
+  invalidarPeticiones();
+  sesion = null; perfil = null; usuarios = []; historial = []; rehechos = [];
+  if (typeof ent !== "undefined") ent = null;
+  if (typeof bloqueoPantalla !== "undefined" && bloqueoPantalla) { bloqueoPantalla.release().catch(() => {}); bloqueoPantalla = null; }
+  document.querySelectorAll("dialog[open]").forEach(d => d.close());
   $("app").hidden = true; $("pendiente").hidden = true; $("login").hidden = false;
   $("loginError").textContent = msg || "";
 }
+async function cerrarSesion(msg, revocar = false) {
+  const anterior = sesion;
+  detenerSesionLocal(msg);
+  const generacion = generacionSesion;
+  if (leerGeneral("sesion-v1")?.user_id === anterior?.user_id) escribir("sesion-v1", null);
+  if (!revocar || !anterior?.access_token) return;
+  const controller = new AbortController(), timer = setTimeout(() => controller.abort(), 10000);
+  try {
+    const r = await fetch(SUPA + "/auth/v1/logout?scope=local", { method: "POST", signal: controller.signal,
+      headers: { apikey: CLAVE, Authorization: "Bearer " + anterior.access_token } });
+    if (!r.ok) throw new Error("logout " + r.status);
+  } catch {
+    if (!sesion && generacionSesion === generacion) $("loginError").textContent = "La sesión se ha cerrado en este dispositivo. No se ha podido confirmar el cierre en el servidor por un problema de conexión.";
+  } finally { clearTimeout(timer); }
+}
+window.addEventListener("storage", e => {
+  if (e.key !== PREFIJO + "sesion-v1" && e.key !== null) return;
+  const actualizada = leerGeneral("sesion-v1");
+  if (sesion && actualizada?.user_id === sesion.user_id) { sesion = actualizada; return; }
+  detenerSesionLocal("La sesión ha cambiado en otra pestaña.");
+  // Recarga todos los estados auxiliares bajo la cuenta correcta; nunca se mezclan.
+  if (actualizada) location.reload();
+});
+function entrarConSesion(j, recuperando = false) {
+  invalidarPeticiones();
+  guardarSesion(j);
+  // Las copias antiguas conservan su propietario. No se reasignan al nuevo usuario.
+  if (recuperando) history.replaceState(null, "", location.pathname + "#cambio-clave");
+  location.reload();
+}
 $("salirBtn").addEventListener("click", () => {
+  volcarExtra();
   if (hayPendientes()) { setEstado("Hay cambios sin subir. Conéctate a internet antes de cerrar sesión.", true); return; }
-  cerrarSesion("");
+  cerrarSesion("", true);
 });
 function mostrarPendiente() {
   $("login").hidden = true; $("app").hidden = true; $("pendiente").hidden = false;
   $("pendEmail").textContent = sesion.email || "";
 }
 $("pendReintentar").addEventListener("click", () => { $("pendAviso").textContent = "Comprobando…"; sincronizar().then(() => { $("pendAviso").textContent = perfil && perfil.aprobado ? "" : "Tu cuenta sigue pendiente."; }); });
-$("pendSalir").addEventListener("click", () => cerrarSesion(""));
+$("pendSalir").addEventListener("click", () => cerrarSesion("", true));
 // ---------- Último acceso (solo lo ve el administrador): se anota como mucho una vez cada 10 minutos ----------
 function dispositivo() {
   const ua = navigator.userAgent, app = matchMedia("(display-mode: standalone)").matches || navigator.standalone;
@@ -5418,7 +5672,7 @@ function reproducirApertura() {
   }, 1080);
 }
 function mostrarApp(reapertura = false) {
-  if (perfil && perfil.aprobado === false) { mostrarPendiente(); return; }
+  if (!perfil || perfil.aprobado !== true) { mostrarPendiente(); sincronizar(); return; }
   $("login").hidden = true; $("pendiente").hidden = true; $("app").hidden = false;
   verPestana(leer("pestana-v1") || "semana");
   if (reapertura) reproducirApertura();
@@ -5624,9 +5878,10 @@ const celda = v => { let t = String(v ?? ""); if (/^[=+\-@]/.test(t)) t = "'" + 
 const decimal = n => n ? String(Math.round(n * 100) / 100).replace(".", ",") : "";
 const csv = filas => "﻿" + filas.map(f => f.map(celda).join(";")).join("\r\n");   // con ; y coma decimal, como lo espera Excel en español
 function exportarJSON() {
+  volcarExtra();
   const datos = {};
   Object.keys(TABLAS).forEach(t => { datos[t] = Object.values(db[t]).map(f => { const c = { ...f }; delete c.sucio; return c; }); });
-  descargarArchivo("fuerza-y-ritmo-copia-" + iso(new Date()) + ".json", JSON.stringify({ app: "Fuerza y Ritmo", version: 1, exportado: new Date().toISOString(), email: (sesion && sesion.email) || "", datos }), "application/json");
+  descargarArchivo("fuerza-y-ritmo-copia-" + iso(new Date()) + ".json", JSON.stringify({ app: "Fuerza y Ritmo", version: 1, exportado: new Date().toISOString(), email: (sesion && sesion.email) || "", datos, conflictos: leer("conflictos-copia-v1") || [] }), "application/json");
 }
 function exportarSeries() {
   const filas = [["Fecha", "Día", "Sesión", "Ejercicio", "Tipo", "Estado", "Peso (kg)", "% 1RM", "Reps", "Distancia (m)", "Tiempo", "Ritmo", "Descanso", "Recuperación (m)", "Bloque", "Esfuerzo del día (RPE)", "Sensaciones del día"]];
@@ -5730,7 +5985,7 @@ function restaurar(archivo) {
     const cambios = [];
     Object.keys(TABLAS).forEach(t => (Array.isArray(j.datos[t]) ? j.datos[t] : []).forEach(f => {
       const k = f && f[TABLAS[t].clave];
-      if (!k || (t === "ejercicios" && f.compartido && f.user_id && f.user_id !== sesion.user_id)) return;   // el catálogo común no es tuyo
+      if (!claveDatoValida(k) || (t === "ejercicios" && f.compartido && f.user_id && f.user_id !== sesion.user_id)) return;   // el catálogo común no es tuyo
       const local = db[t][k];
       if (!local || (local.borrado && !f.borrado) || Date.parse(f.actualizado) > Date.parse(local.actualizado)) cambios.push([t, f]);
     }));
@@ -6277,18 +6532,34 @@ function textoPromptSesion() {
 }
 // ---------- Importar un documento de entrenamiento (PDF, Word, Excel, CSV, texto o foto) ----------
 let docIA = null;   // { nombre, texto, sinTexto } mientras el prompt es para convertir un documento
-const cargarScript = url => new Promise((ok, mal) => {
-  if (document.querySelector('script[src="' + url + '"]')) return ok();
-  const sc = document.createElement("script"); sc.src = url; sc.onload = ok; sc.onerror = () => mal(new Error("No se ha podido cargar el lector (¿sin conexión?)."));
-  document.head.appendChild(sc);
-});
+const LECTORES_DOCUMENTOS = {
+  "./vendor/mammoth.browser.min.js": "sha384-8NWE3bZDrmRI4IePMoQaEoLhAQ1MmRMJkdNgnGiHRFanTqsFKr0TmK6aSZvFJ/PO",
+  "./vendor/xlsx.full.min.js": "sha384-EnyY0/GSHQGSxSgMwaIPzSESbqoOLSexfnSMN2AP+39Ckmn92stwABZynq1JyzdT"
+};
+const lectoresCargando = new Map();
+function cargarScript(url) {
+  if (!Object.prototype.hasOwnProperty.call(LECTORES_DOCUMENTOS, url)) return Promise.reject(new Error("Lector de documentos no autorizado."));
+  if (lectoresCargando.has(url)) return lectoresCargando.get(url);
+  const promesa = new Promise((ok, mal) => {
+    const sc = document.createElement("script");
+    sc.integrity = LECTORES_DOCUMENTOS[url]; sc.crossOrigin = "anonymous";
+    sc.onload = ok;
+    sc.onerror = () => { sc.remove(); lectoresCargando.delete(url); mal(new Error("No se ha podido cargar el lector. Comprueba la conexión y vuelve a intentarlo.")); };
+    sc.src = url; document.head.appendChild(sc);
+  });
+  lectoresCargando.set(url, promesa);
+  return promesa;
+}
 async function textoDocumento(f) {
+  if (f.size > 20 * 1024 * 1024) throw new Error("El documento supera los 20 MB. Divide el archivo antes de importarlo.");
   const n = f.name.toLowerCase();
   if (/^image\//.test(f.type) || /\.(jpe?g|png|heic|webp)$/.test(n)) return "";
   if (/\.pdf$/.test(n) || f.type === "application/pdf") {
-    await cargarScript("https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js");
-    pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
-    const pdf = await pdfjsLib.getDocument({ data: await f.arrayBuffer() }).promise, partes = [];
+    const pdfjsLib = await import("./vendor/pdf.min.mjs");
+    pdfjsLib.GlobalWorkerOptions.workerSrc = new URL("./vendor/pdf.worker.min.mjs", location.href).href;
+    const cargaPDF = pdfjsLib.getDocument({ data: await f.arrayBuffer(), isEvalSupported: false, enableScripting: false });
+    try {
+    const pdf = await cargaPDF.promise, partes = [];
     for (let i = 1; i <= Math.min(pdf.numPages, 40); i++) {
       const c = await (await pdf.getPage(i)).getTextContent();
       // Une los trozos por líneas (cambia la altura del texto = línea nueva)
@@ -6297,13 +6568,14 @@ async function textoDocumento(f) {
       partes.push(linea, "");
     }
     return partes.join("\n");
+    } finally { await cargaPDF.destroy(); }
   }
   if (/\.docx$/.test(n)) {
-    await cargarScript("https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js");
-    return (await mammoth.extractRawText({ arrayBuffer: await f.arrayBuffer() })).value;
+    await cargarScript("./vendor/mammoth.browser.min.js");
+    return (await mammoth.extractRawText({ arrayBuffer: await f.arrayBuffer() }, { externalFileAccess: false })).value;
   }
   if (/\.(xlsx|xls|ods)$/.test(n)) {
-    await cargarScript("https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js");
+    await cargarScript("./vendor/xlsx.full.min.js");
     const lib = XLSX.read(await f.arrayBuffer());
     return lib.SheetNames.map(h => "## Hoja «" + h + "»\n" + XLSX.utils.sheet_to_csv(lib.Sheets[h], { FS: " | " }).replace(/(\s*\|\s*)+$/gm, "")).join("\n\n");
   }
@@ -7454,7 +7726,7 @@ $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); 
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
 // VERSION_APP es interna (sube en cada publicación para que los móviles se actualicen); la que se ve es siempre la 26
-const VERSION_APP = "v213" + (BETA ? " beta" : "");
+const VERSION_APP = "v217" + (BETA ? " beta" : "");
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";
@@ -7484,9 +7756,11 @@ $("sugEnviar").addEventListener("click", async () => {
 async function enviarSugerencias() {
   if (!sugPend.length || !sesion) return true;
   try {
-    const r = await api("/rest/v1/sugerencias?on_conflict=id", { method: "POST", headers: { Prefer: "resolution=ignore-duplicates,return=minimal" }, body: JSON.stringify(sugPend) });
+    const enviadas = sugPend.slice(), ids = new Set(enviadas.map(x => x.id));
+    const filas = enviadas.map(x => ({ ...x, user_id: sesion.user_id, email: sesion.email || "" }));
+    const r = await api("/rest/v1/sugerencias?on_conflict=id", { method: "POST", headers: { Prefer: "resolution=ignore-duplicates,return=minimal" }, body: JSON.stringify(filas) });
     if (!r.ok) return false;
-    sugPend = [];
+    sugPend = sugPend.filter(x => !ids.has(x.id));
     escribir("sugerencias-pend-v1", sugPend);
     return true;
   } catch { return false; }
@@ -8298,8 +8572,11 @@ $("ayudaBtn").addEventListener("click", abrirAyuda);
 $("dlgAyuda").querySelectorAll("details").forEach(d => d.addEventListener("toggle", () => { if (d.open) verAlAbrir(d); }));
 
 
-if (/type=recovery|error_code=/.test(location.hash)) entrarDesdeEnlace();
-else if (sesion) mostrarApp(true); else $("login").hidden = false;
+if (new URLSearchParams(location.hash.slice(1)).has("access_token") || /type=recovery|error_code=/.test(location.hash)) entrarDesdeEnlace();
+else if (sesion) {
+  mostrarApp(true);
+  if (location.hash === "#cambio-clave") { history.replaceState(null, "", location.pathname); abrirClave(true); }
+} else $("login").hidden = false;
 
 // Cuando el día está fijado, la zona superior queda limpia de contenido desplazado.
 (() => {
