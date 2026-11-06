@@ -26,7 +26,7 @@
   window.addEventListener("pageshow", actualizar);
 })();
 </script>
-<link rel="stylesheet" href="estilos.css?v=v218">
+<link rel="stylesheet" href="estilos.css?v=v220">
 </head>
 <body>
 
@@ -515,12 +515,16 @@
       <p class="aviso-estim">Las rutinas que propone una IA son sugerencias generales, no un plan médico ni personalizado. Revísalas y adáptalas a cómo te encuentres.</p>
     </div>
     <div id="iaPegar" class="ia-paso" hidden>
-      <label class="campo">Respuesta de la IA <textarea id="iaRespuesta" rows="9" placeholder="Pega aquí la respuesta completa de la IA (empieza por «RUTINA:»)"></textarea></label>
+      <label class="campo">Texto del entrenamiento · puedes editarlo <textarea id="iaRespuesta" rows="9" placeholder="Pega aquí la respuesta completa de la IA (empieza por «RUTINA:»)"></textarea></label>
       <p class="aviso" id="iaError" role="status"></p>
-      <div class="d-botones"><button type="button" class="anadir" id="iaRevisar">Revisar</button></div>
+      <div class="d-botones"><button type="button" class="nav-btn" id="iaDocumentoAyuda" hidden>Preparar conversión con mi IA</button><button type="button" class="anadir" id="iaRevisar">Revisar entrenamiento</button></div>
     </div>
     <div id="iaVistaCaja" class="ia-paso" hidden>
       <h3 id="iaVistaTit" class="ia-tit"></h3>
+      <details id="iaEditorCaja"><summary>Editar entrenamiento y asignar días</summary>
+        <p class="nota">Puedes cambiar nombres, cantidades, descansos y días antes de guardar. Los tiempos se editan en segundos.</p>
+        <div id="iaEditor"></div>
+      </details>
       <div id="iaVista" class="ia-vista"></div>
       <div class="fila" id="iaMesoOp" hidden>
         <label class="campo">Empieza la semana del <input id="iaInicio" type="date"></label>
@@ -530,14 +534,15 @@
       <div class="d-botones">
         <button type="button" class="nav-btn" id="iaPlantillas">Usar como plantillas</button>
         <button type="button" class="nav-btn" id="iaLista">Guardar en una lista</button>
-        <button type="button" class="anadir" id="iaMeso" hidden>Crear mesociclo</button>
+        <button type="button" class="anadir" id="iaMeso" hidden>Revisar mesociclo y calendario</button>
       </div>
       <div id="iaDiaOp" hidden>
+        <label class="campo" id="iaDiaSesionL">Sesión que quieres añadir <select id="iaDiaSesion"></select></label>
         <div class="fila">
           <label class="campo">Añadir al día <input id="iaDiaFecha" type="date"></label>
           <label class="campo chk"><input type="checkbox" id="iaDiaPlantilla"> Guardarla también como plantilla</label>
         </div>
-        <div class="d-botones"><button type="button" class="anadir" id="iaAnadirDia">Añadir al día</button></div>
+        <div class="d-botones"><button type="button" class="anadir" id="iaAnadirDia">Añadir al calendario</button></div>
       </div>
     </div>
   </div>
@@ -662,7 +667,7 @@
       <p>En <b>Entrenamientos → Crear o importar</b> eliges objetivo, días, nivel, material y limitaciones. Copia el prompt, pégalo en ChatGPT, Claude u otra IA y pega su respuesta en el paso 2.</p>
       <p>La app te muestra una vista previa y lo guarda como plantillas, en una <b>lista de entrenamientos</b> (si cambia cada semana, cada semana va en su bloque) o como mesociclo. Crea los ejercicios que falten. Si algo no encaja, te dice qué línea falla.</p>
       <p><b>Entrenamiento suelto:</b> en «¿Qué quieres?» elige «Entrenamiento suelto», el tipo de sesión (pierna, torso, series, umbral, tirada larga, natación, «Otro»…), la duración y la intensidad. Tus molestias activas y tus ritmos van en el prompt. Al pegar la respuesta, elige el día y pulsa <b>Añadir al día</b> (y, si quieres, guárdala también como plantilla).</p>
-      <p><b>Importar un documento:</b> en Entrenamientos → Crear o importar, «Importar documento…» admite PDF, Word (.docx), Excel (.xlsx), CSV, texto o una foto. La app saca el texto (los lectores se descargan solo al importar) y te prepara un prompt que pide a la IA convertirlo sin inventar nada; lo pegas en tu IA y pegas su respuesta en el paso 2, con vista previa antes de guardar. Si el documento ya está en el formato de la app, se lee directamente. Un PDF escaneado o una foto no tienen texto que leer: la app te lo dice y te prepara el prompt para que adjuntes el archivo a la IA.</p>
+      <p><b>Importar un documento:</b> en Entrenamientos → Crear o importar, «Importar documento…» admite PDF, Word (.docx), Excel (.xlsx), CSV, texto o una foto. La app extrae el texto y lo abre para revisarlo y editarlo. Reconoce el formato de la app y estructuras sencillas con sesiones y ejercicios como «Sentadilla: 3x10». Si no reconoce alguna línea, la conserva para corregirla o preparar una conversión con tu IA. Después puedes editar las cantidades, elegir una sesión y fecha para el calendario, o asignar días y revisar un mesociclo antes de rellenarlo. Un PDF escaneado o una foto no tienen texto que leer: la app te lo dice y te prepara el prompt para que adjuntes el archivo a la IA.</p>
       <p><b>Media maratón y maratón:</b> además de 5 y 10 km. Puedes poner tu marca objetivo y la fecha de la carrera (las semanas se cuentan hasta ella). El prompt incluye tus marcas previstas de Marcas (VDOT y Riegel) y pide descarga y tapering antes de la carrera. Las tiradas largas pueden llevar ritmos distintos por tramos.</p>
       <p>En <b>Entrenamientos → Mis entrenamientos → Rutinas tipo</b> tienes algunos ejemplos listos. Todo se copia a tus plantillas y lo puedes editar como cualquier otra.</p>
       <p>Son sugerencias generales, no un plan médico ni personalizado.</p>
@@ -924,6 +929,6 @@
 <div class="toast" id="toast" role="status" hidden><span id="toastTxt"></span><button type="button" id="toastBtn">Deshacer</button></div>
 <div class="fiesta" id="fiesta" aria-hidden="true"></div>
 
-<script src="app.js?v=v218"></script>
+<script src="app.js?v=v220"></script>
 </body>
 </html>

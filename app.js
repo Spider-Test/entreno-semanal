@@ -824,6 +824,148 @@ function volcarExtra() {
 }
 const hayPendientes = () => Object.keys(TABLAS).some(t => Object.values(db[t]).some(v => v.sucio));
 
+// El error de guardado debe explicar la causa sin mostrar filas, tokens ni datos personales.
+async function errorGuardado(tabla, respuesta) {
+  const e = await respuesta.clone().json().catch(() => ({}));
+  const codigo = /^[A-Z0-9]{5,12}$/.test(e.code || "") ? e.code : "";
+  const mensaje = String(e.message || "");
+  let causa = "";
+  if (codigo === "22P02") {
+    const tipo = (mensaje.match(/(?:type|syntax for)\s+(integer|bigint|smallint|numeric|boolean|uuid|json|date|timestamp)/i) || [])[1];
+    causa = "Hay un valor con formato no válido" + (tipo ? " para " + tipo : "") + ".";
+  } else if (codigo === "23503") causa = "Una serie hace referencia a un ejercicio u otro registro que no está disponible en la nube.";
+  else if (codigo === "23502") {
+    const campo = (mensaje.match(/column "([a-z_]+)"/i) || [])[1];
+    causa = "Falta un dato obligatorio" + (TABLAS[tabla].campos.includes(campo) ? ": " + campo : "") + ".";
+  } else if (codigo === "23514") causa = "Un valor no cumple las condiciones de la base de datos.";
+  else if (codigo === "22003") causa = "Un valor numérico supera el límite de la base de datos.";
+  else if (codigo === "22007" || codigo === "22008") causa = "Una fecha u hora tiene un formato no válido.";
+  else if (codigo === "PGRST204" || codigo === "42703") {
+    const campo = TABLAS[tabla].campos.find(c => mensaje.includes("'" + c + "'") || mensaje.includes('"' + c + '"') || mensaje.includes(tabla + "." + c));
+    causa = "La base de datos no reconoce un campo de esta versión" + (campo ? ": " + campo : "") + ".";
+  } else if (codigo === "42501") causa = "La cuenta no tiene permiso para guardar este registro.";
+  return new Error("No se pudo guardar " + tabla + " (" + respuesta.status + (codigo ? " · " + codigo : "") + "). " + (causa ? causa + " " : "") + "Los cambios siguen pendientes. Conserva este aviso para resolver la causa.");
+}
+
+// Conversión local y conservadora: solo se aceptan líneas que el lector ya entiende.
+// Lo ambiguo permanece en el editor; nunca se inventan ejercicios ni se descartan líneas.
+function prepararTextoImportado(texto, nombre) {
+  const limpio = String(texto || "").replace(/\r/g, "").replace(/\*\*|__/g, "");
+  if (/^\s*RUTINA\s*:/im.test(limpio)) return limpio;
+  const lineas = limpio.split("\n"), salida = ["RUTINA: " + (nombre || "Entrenamiento importado").replace(/\.[^.]+$/, "").slice(0, 60)];
+  let sesion = false, ejercicios = 0;
+  for (const original of lineas) {
+    const l = original.trim();
+    if (!l || /^```/.test(l) || /^[-=]{3,}$/.test(l)) continue;
+    const sinMarca = l.replace(/^\s*(?:[-•*]|\d+[.)])\s+/, "");
+    const ej = leerEjercicio(sinMarca, true);
+    if (!ej.error) {
+      if (!sesion) { salida.push("## Sesión"); sesion = true; }
+      salida.push("- " + sinMarca); ejercicios++; continue;
+    }
+    if (/^(?:#{1,3}\s*)?SEMANA\s+\d+\s*:?$/i.test(l)) { salida.push(l.replace(/^#+\s*/, "").replace(/:$/, "")); sesion = false; continue; }
+    if (/^SEMANAS\s*:|^NOTA\s*:/i.test(l)) { salida.push(l); continue; }
+    const encabezado = l.replace(/^#{1,6}\s*/, "").replace(/:$/, "");
+    if (/^(calentamiento|parte principal|vuelta a la calma|enfriamiento|movilidad)$/i.test(encabezado) && sesion) {
+      salida.push("### " + encabezado); continue;
+    }
+    if (/^#{1,3}\s+/.test(l) || /^(lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|domingo)\b/i.test(encabezado)) {
+      const dia = encabezado.match(/^(lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|domingo)\b\s*[-:–]?\s*(.*)$/i);
+      salida.push("## " + (dia ? (dia[2] || dia[1]) + " @ " + dia[1] : encabezado)); sesion = true; continue;
+    }
+    // Una introducción o tabla libre requiere revisión humana, no una conversión parcial.
+    return limpio;
+  }
+  return ejercicios ? salida.join("\n") : limpio;
+}
+
+function validarEdicionIA() {
+  for (const inp of $("iaEditor").querySelectorAll("input")) {
+    if (!inp.checkValidity()) {
+      $("iaEditorCaja").open = true;
+      let padre = inp.parentElement;
+      while (padre && padre !== $("iaEditor")) { if (padre.tagName === "DETAILS") padre.open = true; padre = padre.parentElement; }
+      inp.reportValidity(); return false;
+    }
+  }
+  if (!rutinaIA?.nombre.trim() || sesionesImportadas().some(({s}) => !s.nombre.trim() || s.items.some(it => (it.bloque ? it.tramos : [it]).some(t => !t.ejercicio.trim())))) {
+    $("iaAvisoDias").textContent = "Completa el nombre del plan, de las sesiones y de los ejercicios.";
+    $("iaEditorCaja").open = true; return false;
+  }
+  return true;
+}
+function sesionesImportadas() {
+  return rutinaIA ? rutinaIA.bloques.flatMap((b, semana) => b.sesiones.map(s => ({ s, semana }))) : [];
+}
+function actualizarDestinoIA() {
+  const sesiones = sesionesImportadas(), sel = $("iaDiaSesion"), anterior = sel.value;
+  sel.textContent = "";
+  sesiones.forEach(({ s, semana }, i) => {
+    const op = document.createElement("option"); op.value = String(i);
+    op.textContent = (rutinaIA.multi ? "Semana " + (semana + 1) + " · " : "") + s.nombre; sel.appendChild(op);
+  });
+  if ([...sel.options].some(op => op.value === anterior)) sel.value = anterior;
+  $("iaDiaSesionL").hidden = sesiones.length < 2;
+  $("iaDiaOp").hidden = !sesiones.length;
+  $("iaMesoOp").hidden = !sesiones.length;
+  $("iaMeso").hidden = !sesiones.length;
+  $("iaAvisoDias").textContent = sesiones.some(({ s }) => !s.dias.length)
+    ? "Puedes añadir una sesión a una fecha. Para un mesociclo, asigna días a todas las sesiones en Editar entrenamiento."
+    : "Revisa las sesiones y sus días. El mesociclo se abre para elegir y revisar el calendario antes de rellenarlo.";
+}
+function editarRutinaIA() {
+  const r = rutinaIA, cont = $("iaEditor"); cont.textContent = "";
+  if (!r) return;
+  const refrescar = () => {
+    r.conDias = r.bloques.some(b => b.sesiones.some(s => s.dias.length));
+    $("iaVistaTit").textContent = r.nombre; vistaRutina(r, $("iaVista")); actualizarDestinoIA();
+  };
+  const campo = (padre, titulo, valor, cambio, numerico = false, entero = false) => {
+    const lab = document.createElement("label"); lab.className = "campo"; lab.textContent = titulo;
+    const inp = document.createElement("input"); inp.type = numerico ? "number" : "text";
+    if (numerico) { inp.min = "0"; inp.max = "1000000"; inp.step = entero ? "1" : "any"; inp.inputMode = "decimal"; }
+    else inp.maxLength = 300;
+    inp.value = valor ?? "";
+    inp.addEventListener("input", () => {
+      const v = numerico ? Number(inp.value) : inp.value;
+      if (numerico && (!Number.isFinite(v) || v < 0 || v > 1000000 || (entero && !Number.isInteger(v)))) { inp.setCustomValidity("Escribe un número válido entre 0 y 1000000."); return; }
+      inp.setCustomValidity(""); cambio(v); refrescar();
+    });
+    lab.appendChild(inp); padre.appendChild(lab); return inp;
+  };
+  campo(cont, "Nombre del plan", r.nombre, v => { r.nombre = v.slice(0, 60); });
+  campo(cont, "Notas del plan", r.nota, v => { r.nota = v; });
+  r.bloques.forEach((b, w) => b.sesiones.forEach(s => {
+    const caja = document.createElement("details"); caja.open = sesionesImportadas().length === 1;
+    const titulo = document.createElement("summary"); titulo.textContent = (r.multi ? "Semana " + (w + 1) + " · " : "") + s.nombre;
+    caja.appendChild(titulo); cont.appendChild(caja);
+    campo(caja, "Nombre de la sesión", s.nombre, v => { s.nombre = v.slice(0, 50); titulo.textContent = (r.multi ? "Semana " + (w + 1) + " · " : "") + s.nombre; });
+    const dias = document.createElement("fieldset"), leyenda = document.createElement("legend"); leyenda.textContent = "Días de esta sesión (para el mesociclo)"; dias.appendChild(leyenda);
+    NOMBRES.forEach((nombre, d) => {
+      const lab = document.createElement("label"), check = document.createElement("input"); lab.className = "campo chk";
+      check.type = "checkbox"; check.checked = s.dias.includes(d);
+      check.addEventListener("change", () => { s.dias = check.checked ? [...s.dias, d].sort((a,b) => a-b) : s.dias.filter(x => x !== d); refrescar(); });
+      lab.append(check, document.createTextNode(" " + nombre)); dias.appendChild(lab);
+    }); caja.appendChild(dias);
+    s.items.forEach(it => {
+      const ejercicio = document.createElement("details"), tit = document.createElement("summary"); tit.textContent = it.bloque ? "Bloque" : it.ejercicio;
+      ejercicio.appendChild(tit); caja.appendChild(ejercicio);
+      campo(ejercicio, "Parte del entrenamiento", it.seccion || "", v => { it.seccion = v.slice(0, 40); });
+      (it.bloque ? it.tramos : [it]).forEach(t => {
+        campo(ejercicio, "Ejercicio", t.ejercicio, v => { t.ejercicio = v.slice(0, 80); if (!it.bloque) tit.textContent = v; });
+        t.series.forEach((serie, i) => {
+          const fila = document.createElement("details"), st = document.createElement("summary"); st.textContent = "Serie " + (i + 1); fila.appendChild(st); ejercicio.appendChild(fila);
+          const campos = t.tipo === "fuerza" ? [["reps","Repeticiones"],["peso","Peso (kg)"],["pct","% del 1RM"],["tiempo","Tiempo (segundos)"]]
+            : t.tipo === "movilidad" ? [["reps","Repeticiones"],["tiempo","Tiempo (segundos)"]] : [["distancia","Distancia (metros)"],["tiempo","Tiempo (segundos)"],["rec_dist","Recuperación (metros)"]];
+          campos.push(["descanso","Descanso (segundos)"]);
+          campos.forEach(([k, n]) => campo(fila, n, serie[k] || 0, v => { serie[k] = v; }, true, ["reps", "tiempo", "descanso"].includes(k)));
+          campo(fila, "Indicaciones", serie.nota || "", v => { serie.nota = v; });
+        });
+      });
+    });
+  }));
+}
+
 let sincronizando = false, repetir = false;
 async function sincronizar() {
   if (!sesion) return;
@@ -857,7 +999,7 @@ async function sincronizar() {
         const w = await api("/rest/v1/" + t + "?on_conflict=" + TABLAS[t].conflicto, {
           method: "POST", headers: { Prefer: "resolution=merge-duplicates,return=minimal" }, body: JSON.stringify(filas)
         });
-        if (!w.ok) throw new Error("No se pudo guardar " + t + " (" + w.status + "). Los cambios siguen pendientes.");
+        if (!w.ok) throw await errorGuardado(t, w);
         filas.forEach(f => { const v = db[t][f[TABLAS[t].clave]]; if (v && v.actualizado === f.actualizado) v.sucio = false; });
         guardarLocal();
       }
@@ -6562,19 +6704,17 @@ async function importarDocumento(f) {
   let texto = "";
   try { texto = (await textoDocumento(f) || "").replace(/\r/g, "").replace(/[ \t]{2,}/g, " ").replace(/\n{3,}/g, "\n\n").trim(); }
   catch (e) { setEstado(e.message || "No se ha podido leer el documento.", true); return; }
-  // Si ya viene en el formato de la app, se lee directamente, sin IA
-  const directo = texto && leerRutina(texto);
-  if (directo && !directo.error) {
-    abrirIA("pegar");
-    $("iaRespuesta").value = texto;
+  abrirIA(texto.trim() ? "pegar" : "prompt");
+  docIA = { nombre: f.name, texto: texto.slice(0, 15000), cortado: texto.length > 15000, sinTexto: !texto.trim() };
+  if (texto.trim()) {
+    $("iaRespuesta").value = prepararTextoImportado(texto, f.name);
+    $("iaDocumentoAyuda").hidden = false;
     $("iaRevisar").click();
-    setEstado("«" + f.name + "» ya estaba en el formato de la app: revisa la vista previa.");
-    return;
+    setEstado("Documento leído. Revisa el texto y el entrenamiento antes de guardarlo.");
+  } else {
+    pintarCamposIA();
+    setEstado("El archivo no contiene texto extraíble. Puedes adjuntarlo a tu IA con el prompt preparado.");
   }
-  abrirIA("prompt");
-  docIA = { nombre: f.name, texto: texto.slice(0, 15000), cortado: texto.length > 15000, sinTexto: texto.replace(/\s/g, "").length < 40 };
-  pintarCamposIA();
-  setEstado(docIA.sinTexto ? "«" + f.name + "» no tiene texto que leer: adjúntalo a tu IA junto con el prompt." : "Prompt preparado con el texto de «" + f.name + "».");
 }
 function textoPromptDocumento() {
   const d = docIA, formato = (() => { const p = docIA; docIA = null; const t = textoPrompt(); docIA = p; return t.slice(t.indexOf("Responde SOLO")); })();
@@ -6608,6 +6748,8 @@ function pasoIA(paso) {
 function abrirIA(paso) {
   rutinaIA = null;
   docIA = null;
+  $("iaDocumentoAyuda").hidden = true;
+  $("iaEditorCaja").open = false;
   $("iaVistaTit").textContent = "";
   $("iaError").textContent = "";
   $("dlgIA").setAttribute("aria-label", paso === "vista" ? "Rutina tipo" : "Crear con IA");
@@ -6620,16 +6762,13 @@ function pintarVistaIA() {
   $("iaVistaCaja").hidden = !r;
   if (!r) return;
   vistaRutina(r, $("iaVista"));
-  $("iaMesoOp").hidden = !r.conDias;
-  $("iaMeso").hidden = !r.conDias;
-  $("iaInicio").value = lunesSiguiente();
+  $("iaInicio").value = $("iaInicio").value || lunesSiguiente();
   $("iaMesoSem").value = semanasRutina(r);
-  const n = r.bloques.reduce((a, b) => a + b.sesiones.length, 0);
+  const n = sesionesImportadas().length;
   $("iaPlantillas").textContent = n === 1 ? "Guardar como plantilla" : "Usar como plantillas (" + n + ")";
-  // Entrenamiento suelto: se puede añadir directamente a un día (y también guardarlo como plantilla)
-  $("iaDiaOp").hidden = n !== 1;
   $("iaDiaFecha").value = $("iaDiaFecha").value || iso(new Date());
-  $("iaAvisoDias").textContent = r.conDias ? (r.bloques.some(b => b.sesiones.some(s => !s.dias.length)) ? "Las sesiones sin día solo se guardan como plantilla." : "") : "Ninguna sesión tiene día: se guardan como plantillas para usarlas cuando quieras.";
+  actualizarDestinoIA();
+  editarRutinaIA();
 }
 $("iaPasos").addEventListener("click", ev => { const b = ev.target.closest("[data-paso]"); if (b) { pasoIA(b.dataset.paso); if (b.dataset.paso === "prompt") $("iaTexto").value = textoPrompt(); } });
 ["iaObjetivo", "iaDias", "iaNivel", "iaSemanas", "iaMaterial", "iaMeta", "iaLimites", "iaModo", "iaSesTipo", "iaSesOtro", "iaDuracion", "iaIntensidad", "iaMarca", "iaFechaCarrera"].forEach(id => ["input", "change"].forEach(ev => $(id).addEventListener(ev, pintarCamposIA)));
@@ -6651,37 +6790,51 @@ $("iaRevisar").addEventListener("click", () => {
     pintarVistaIA();
     return;
   }
-  const r = leerRutina(txt);
+  const preparado = prepararTextoImportado(txt, docIA?.nombre || "Entrenamiento importado");
+  const r = leerRutina(preparado);
+  if (!r.error) $("iaRespuesta").value = preparado;
   rutinaIA = r.error ? null : r;
-  $("iaError").textContent = r.error || "";
+  $("iaError").textContent = r.error ? r.error + " Puedes editar el texto aquí. Usa ## para cada sesión y - Ejercicio [fuerza]: 3x10 para sus ejercicios." : "";
   $("iaVistaTit").textContent = r.error ? "" : r.nombre;
   pintarVistaIA();
 });
 $("iaRespuesta").addEventListener("input", () => { rutinaIA = null; $("iaError").textContent = ""; pintarVistaIA(); });
-$("iaPlantillas").addEventListener("click", () => { if (!rutinaIA) return; $("dlgIA").close(); guardarRutina(rutinaIA, false); });
+$("iaPlantillas").addEventListener("click", () => { if (!rutinaIA || !validarEdicionIA()) return; $("dlgIA").close(); guardarRutina(rutinaIA, false); });
 $("iaLista").addEventListener("click", () => {
-  if (!rutinaIA) return;
+  if (!rutinaIA || !validarEdicionIA()) return;
   const r = rutinaIA;
   $("dlgIA").close();
   elegirLista("¿En qué lista guardo «" + r.nombre + "»?", l => guardarRutina(r, false, null, null, l));
 });
 $("iaMeso").addEventListener("click", () => {
-  if (!rutinaIA) return;
+  if (!rutinaIA || !validarEdicionIA()) return;
+  if (sesionesImportadas().some(({s}) => !s.dias.length)) {
+    $("iaAvisoDias").textContent = "Asigna al menos un día a cada sesión antes de crear el mesociclo.";
+    $("iaEditorCaja").open = true; return;
+  }
   const sem = parseInt($("iaMesoSem").value, 10), ini = $("iaInicio").value;
-  if (!ini || !(sem >= 1 && sem <= 26)) { $("iaAvisoDias").textContent = "Elige la fecha de inicio y entre 1 y 26 semanas."; return; }
+  if (!ini || !(sem >= 1 && sem <= 26) || (rutinaIA.multi && sem < rutinaIA.bloques.length)) { $("iaAvisoDias").textContent = "Elige el inicio y entre 1 y 26 semanas, suficientes para incluir todas las semanas importadas."; return; }
   $("dlgIA").close();
   guardarRutina(rutinaIA, true, iso(lunesDe(deIso(ini))), sem);
 });
 $("iaAnadirDia").addEventListener("click", () => {
   const r = rutinaIA, f = $("iaDiaFecha").value;
-  if (!r || !f) return;
-  const s = r.bloques[0].sesiones[0];
-  if ($("iaDiaPlantilla").checked) guardarRutina(r, false);
+  if (!r || !f || !validarEdicionIA()) return;
+  const s = sesionesImportadas()[Number($("iaDiaSesion").value)]?.s;
+  if (!s) return;
+  if ($("iaDiaPlantilla").checked) guardarRutina({ ...r, multi: false, bloques: [{ sesiones: [s] }] }, false);
   pegarItems(f, desdeCompartido(s.items), s.nombre);
   persistir();
   $("dlgIA").close();
   abrirDia(f);
   setEstado("«" + s.nombre + "» añadida al " + fechaCorta(f));
+});
+$("iaDocumentoAyuda").addEventListener("click", () => {
+  if (!docIA) return;
+  // Usa el texto que el usuario está viendo/editando, nunca una selección oculta.
+  const texto = $("iaRespuesta").value;
+  docIA = { ...docIA, texto: texto.slice(0,15000), cortado: texto.length > 15000, sinTexto: !texto.trim() };
+  pasoIA("prompt"); pintarCamposIA();
 });
 $("iaAbrir").addEventListener("click", () => abrirIA("prompt"));
 $("iaDocArchivo").addEventListener("change", ev => { const f = ev.target.files[0]; ev.target.value = ""; if (f) importarDocumento(f); });
@@ -7702,7 +7855,7 @@ $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); 
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
 // VERSION_APP es interna (sube en cada publicación para que los móviles se actualicen); la que se ve es siempre la 26
-const VERSION_APP = "v218" + (BETA ? " beta" : "");
+const VERSION_APP = "v220" + (BETA ? " beta" : "");
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";
