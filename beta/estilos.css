@@ -2206,3 +2206,17 @@ input:focus, textarea:focus, select:focus { border-color: var(--accent); box-sha
     background: color-mix(in srgb, var(--accent-soft) 96%, transparent) !important;
   }
 }
+
+/* La barra de secciones de Entrenamientos queda siempre sólida y acompaña al contenido. */
+@media (max-width: 760px) {
+  #navSemana, #vistaSemana .dia-nav, #organizarNav,
+  #organizarNav.organizar-nav.plan-nav {
+    position: static !important;
+    top: auto !important;
+    opacity: 1 !important;
+    filter: none !important;
+    background: var(--card) !important;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+}
