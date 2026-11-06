@@ -1755,3 +1755,135 @@ input:focus, textarea:focus, select:focus { border-color: var(--accent); box-sha
   html, body { overscroll-behavior-y: none; }
 }
 
+
+
+/* Móvil: cabecera compacta y controles de acordeón accesibles al recorrer contenido abierto. */
+@media (max-width: 760px) {
+  :root { --sticky-cabecera: calc(max(10px, env(safe-area-inset-top, 0px)) + 48px); }
+
+  #app > .cabecera {
+    justify-content: flex-end;
+    min-height: 0;
+    padding-bottom: 4px;
+    background: transparent !important;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+  #app > .cabecera h1 { display: none; }
+  #app > .cabecera .ayuda-btn {
+    width: 36px;
+    height: 36px;
+    margin-left: auto;
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--card) 88%, transparent);
+  }
+
+  /* Día abierto: fecha y navegación sin una tarjeta grande ni un botón Semana que ocupe media fila. */
+  #vistaSemana .dia-nav:not([hidden]) {
+    position: sticky;
+    top: var(--sticky-cabecera);
+    z-index: 14;
+    grid-template-columns: max-content 40px minmax(52px, auto) 40px;
+    gap: 4px;
+    padding: 5px 8px;
+    border: 0;
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--bg) 90%, transparent);
+    box-shadow: none;
+    -webkit-backdrop-filter: blur(14px);
+    backdrop-filter: blur(14px);
+  }
+  #vistaSemana .dia-nav-t {
+    padding: 0 2px 4px;
+    font-size: clamp(17px, 4.6vw, 20px);
+  }
+  #vistaSemana #volverSemana {
+    width: auto;
+    min-width: 0;
+    height: 38px;
+    min-height: 38px;
+    padding: 0 5px;
+    border: 0;
+    background: transparent;
+    font-size: 13px;
+  }
+  #vistaSemana #diaAnt, #vistaSemana #diaSig {
+    width: 40px;
+    height: 40px;
+    min-height: 40px;
+    border: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--card) 82%, transparent);
+    font-size: 22px;
+  }
+  #vistaSemana #diaHoy {
+    width: auto;
+    min-width: 52px;
+    height: 38px;
+    min-height: 38px;
+    padding: 0 11px;
+    border-radius: 999px;
+    font-size: 14px;
+  }
+  #vistaSemana .dia-nav:has(#diaHoy[hidden]) {
+    grid-template-columns: max-content 40px 40px;
+    grid-template-areas: "titulo titulo titulo" "semana anterior siguiente";
+  }
+
+  /* Los títulos de los días, categorías y partes se quedan accesibles sin acumular cabeceras. */
+  #vistaSemana:not(.solo-dia) { --sticky-entreno: calc(var(--sticky-cabecera) + 44px); }
+  #vistaSemana.solo-dia { --sticky-entreno: calc(var(--sticky-cabecera) + 84px); }
+  #vistaSemana:not(.solo-dia) .dia:not(.plegado) > .dia-cab { top: var(--sticky-cabecera); }
+  #vistaSemana .dia:not(.plegado) .dia-cuerpo-in { overflow: clip; }
+  #vistaSemana .parte-caja:not(.p-plegada) > .parte-cab {
+    position: sticky;
+    top: var(--sticky-entreno);
+    z-index: 10;
+    background: color-mix(in srgb, var(--pc) 20%, var(--card));
+    box-shadow: 0 4px 10px rgba(12, 26, 18, 0.12);
+  }
+  #vistaSemana .grupo:not(.g-plegado) > .grupo-cab {
+    position: sticky;
+    top: var(--sticky-entreno);
+    z-index: 9;
+    padding: 4px 6px;
+    border-radius: 8px;
+    background: var(--card);
+    box-shadow: 0 3px 8px rgba(12, 26, 18, 0.10);
+  }
+  #vistaSemana .parte-caja .grupo:not(.g-plegado) > .grupo-cab {
+    top: calc(var(--sticky-entreno) + 42px);
+  }
+
+  #vistaEjercicios .cat-sec:not(.cerrada) > .sec-toggle,
+  #vistaMarcas .cat-sec:not(.cerrada) > .sec-toggle {
+    top: var(--sticky-cabecera);
+  }
+  #vistaListas .lista-sec:not(.cerrada) > .lista-cab {
+    position: sticky;
+    top: calc(var(--sticky-cabecera) + 58px);
+    z-index: 12;
+    padding: 4px 8px;
+    border-radius: 10px;
+    background: var(--card);
+    box-shadow: 0 4px 10px rgba(12, 26, 18, 0.12);
+  }
+  #vistaPlan > .plan-sec:not(.cerrada) > .sec-toggle,
+  #vistaPlan > .plan-sec:not(.cerrada) > .sec-cab:has(> .sec-toggle) {
+    position: sticky;
+    top: var(--sticky-cabecera);
+    z-index: 12;
+    background: var(--card);
+    box-shadow: 0 4px 10px rgba(12, 26, 18, 0.10);
+  }
+  #vistaSemana .sem-resumenes > details[open] > summary,
+  #vistaMarcas .informe-sec[open] > .informe-toggle {
+    position: sticky;
+    top: var(--sticky-cabecera);
+    z-index: 10;
+    background: inherit;
+  }
+}
