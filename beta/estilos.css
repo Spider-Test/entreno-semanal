@@ -1703,3 +1703,20 @@ input:focus, textarea:focus, select:focus { border-color: var(--accent); box-sha
   .lesiones-sem:not([open]) .rs-l { font-size: 11px; }
 }
 
+/* Barra inferior: mismos bordes y resaltado segmentado que el selector de Entrenamientos. */
+.tabbar { gap: 4px; }
+.tabbar button { min-width: 0; border: 1px solid transparent; padding: 3px 2px; }
+@media (max-width: 760px) {
+  .tabbar { gap: 3px; padding: 4px 6px; }
+  .tabbar button { flex: 1 1 0; max-width: none; min-height: 52px; border-radius: 20px; }
+  .tabbar button span { font-size: clamp(8px, 2.7vw, 11px); line-height: 1.05; letter-spacing: 0; }
+  .tabbar svg { width: 23px; height: 23px; }
+  .tabbar button[aria-selected="true"] {
+    border-color: color-mix(in srgb, var(--verde) 35%, transparent) !important;
+    background: linear-gradient(135deg, color-mix(in srgb, var(--verde) 25%, var(--azul)), color-mix(in srgb, var(--verde) 12%, var(--azul))) !important;
+    color: var(--verde);
+    box-shadow: inset 0 -3px 0 var(--verde), 0 3px 8px color-mix(in srgb, var(--verde) 13%, transparent);
+  }
+  .tabbar button:focus-visible { outline: 2px solid var(--verde); outline-offset: 1px; }
+}
+
