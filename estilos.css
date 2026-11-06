@@ -2406,3 +2406,24 @@ input:focus, textarea:focus, select:focus { border-color: var(--accent); box-sha
 .ia-otras > summary, .ia-indicaciones > summary { cursor: pointer; padding: 8px 0; color: var(--muted); }
 .ia-indicaciones > p { padding: 8px 0; }
 .ia-acciones { padding: 8px 0 0; }
+
+/* Edición en la misma vista previa: tarjetas conservadas, controles bajo cada ejercicio. */
+#iaVista .ia-parte-editor { border: 1px solid var(--line); border-radius: 12px; padding: 10px; margin: 12px 0; background: var(--card); min-width: 0; }
+#iaVista .ia-parte-editor > summary { padding: 6px 0; font-weight: 700; cursor: pointer; overflow-wrap: anywhere; }
+.ia-editor-cab, .ia-editor-acciones { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.ia-editor-cab > b { flex: 1 1 180px; overflow-wrap: anywhere; }
+.ia-editor-acciones { margin: 4px 0 10px; }
+.ia-ej-editor { padding: 8px 0; border-top: 1px solid var(--line); min-width: 0; }
+.ia-ej-editor > p { margin: 0 0 10px; line-height: 1.5; overflow-wrap: anywhere; }
+.ia-editar-ej { width: 100%; white-space: normal; }
+.ia-ej-campos { display: flex; flex-direction: column; gap: 12px; padding-top: 12px; }
+.ia-serie-editor { min-width: 0; margin: 0; border: 1px solid var(--line); border-radius: 10px; padding: 10px; }
+.ia-serie-editor legend { font-weight: 700; padding: 0 5px; }
+.ia-serie-campos { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; }
+.ia-ej-campos .campo { min-width: 0; margin: 0; }
+.ia-ej-campos input:not([type="checkbox"]), .ia-ej-campos textarea { width: 100%; min-width: 0; box-sizing: border-box; }
+.ia-ej-campos .chk { margin: 10px 0; }
+@media(max-width: 350px) { .ia-serie-campos { grid-template-columns: minmax(0,1fr); } }
+
+/* Los menús de nombres siempre están visibles, sin depender de hover. */
+#vistaSemana .dia-cab > .menu-btn, #vistaSemana .grupo-cab > .menu-btn, #vistaSemana .parte-cab > .menu-btn { opacity: 1 !important; visibility: visible !important; }

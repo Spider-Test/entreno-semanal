@@ -1050,7 +1050,7 @@ function leerRutinaNumerada(texto, nombre) {
     }
   }
   const titulo = String(nombre || "Entrenamiento importado").replace(/\.[^.]+$/, "").replace(/[_]+/g, " ").slice(0,60);
-  return { nombre: titulo, nota: "Las indicaciones originales se conservan en las notas de las series. Revisa los descansos al editar en el calendario.", semanas: 0, bloques: [{ sesiones: [{ nombre: titulo, dias: [], items }] }], multi: false, conDias: false };
+  return { nombre: titulo, nota: "Las indicaciones originales se conservan en las notas de las series. Puedes revisar y editar los descansos aquí antes de guardar.", semanas: 0, bloques: [{ sesiones: [{ nombre: titulo, dias: [], items }] }], multi: false, conDias: false };
 }
 
 function prepararTextoImportado(texto, nombre) {
@@ -1087,8 +1087,15 @@ function prepararTextoImportado(texto, nombre) {
 function validarEdicionIA() {
   try { comprobarSesion(contextoIA); }
   catch { $("iaAvisoDias").textContent = "La sesión ha cambiado. Vuelve a importar desde tu cuenta."; return false; }
+  if (!validarCamposBorradorIA()) return false;
   if (!rutinaIA?.nombre.trim() || sesionesImportadas().some(({s}) => !s.nombre.trim() || s.items.some(it => (it.bloque ? it.tramos : [it]).some(t => !t.ejercicio.trim())))) {
-    $("iaAvisoDias").textContent = "Completa los nombres en el texto del documento antes de continuar."; return false;
+    $("iaAvisoDias").textContent = "Completa los nombres del entrenamiento y sus ejercicios antes de guardar."; return false;
+  }
+  if (sesionesImportadas().some(({s}) => !s.items.length || (s.partesBorrador || []).some(p => !s.items.some(it => it.seccion === p)))) {
+    $("iaAvisoDias").textContent = "Añade un ejercicio a las partes vacías o quítalas antes de guardar."; return false;
+  }
+  if (sesionesImportadas().some(({s}) => s.items.some(it => (it.bloque ? it.tramos : [it]).some(e => e.series.some(v => v.rango_min && v.rango_max && v.rango_min > v.rango_max))))) {
+    $("iaAvisoDias").textContent = "Las repeticiones mínimas no pueden superar las máximas."; return false;
   }
   return true;
 }
@@ -1107,7 +1114,7 @@ function actualizarDestinoIA() {
   $("iaDiaOp").hidden = !sesiones.length;
 
   $("iaMeso").hidden = !sesiones.length;
-  $("iaAvisoDias").textContent = "Revisa las partes y elige dónde guardar el entrenamiento.";
+  $("iaAvisoDias").textContent = "Puedes renombrar las partes y editar ejercicios y series antes de guardar.";
   actualizarGuardadoIA(true);
 }
 
@@ -1624,6 +1631,11 @@ function menuDia(dia) {
   const series = seriesDelDia(dia.id), html = db.entrenos[dia.id]?.html || "";
   const titulo = NOMBRES[dia.i] + " " + fmt(deIso(dia.id));
   abrirMenu(titulo, "", [
+    gruposDelDia(dia.id).length > 0 && { texto: "Cambiar nombre de un entrenamiento…", accion: () => {
+      const gs = gruposDelDia(dia.id);
+      if (gs.length === 1) cambiarNombreEntreno(dia,gs[0]);
+      else abrirMenu("¿Qué entrenamiento quieres renombrar?", "", gs.map(g => ({ texto:g || "Entreno 1",accion:()=>cambiarNombreEntreno(dia,g) })));
+    } },
     (series.length || (enEspera[dia.id] || []).length) && { texto: "📅 Mover el entrenamiento a otro día…", accion: () => elegirDiaDestino(lunesDe(deIso(dia.id)), "¿A qué día muevo el entrenamiento del " + titulo.toLowerCase() + "?", f => moverADia(dia, null, f)) },
     (series.length || aTexto(html).trim()) && { texto: "Copiar día", accion: () => copiar(titulo, html, series, "dia") },
     hayItemsCopiados() && { texto: "📋 Pegar «" + porta.nombre + "» en este día", accion: () => pegar(dia) },
@@ -1663,19 +1675,13 @@ function cabeceraParte(dia, grupo, p, color, nNombradas, partes, seriesItem) {
       pintarDia(dia);
     };
     abrirMenu(p.nombre, ss.length ? ss.length + (ss.length === 1 ? " serie" : " series") : "Parte vacía", [
+      { texto: "Cambiar nombre de la parte…", accion: () => cambiarNombreParte(dia, grupo, p.nombre) },
       { texto: "+ Ejercicio en esta parte", accion: () => abrirSelector(dia, null, grupo, p.nombre) },
       ...(() => { const otros = [...dia.bloquesEl.querySelectorAll(":scope > .grupo")].map(x => x.dataset.grupo || "").filter(x => x !== grupo);
         return otros.length ? [{ texto: "Mover la parte a otro entreno…", accion: () => abrirMenu("¿A qué entreno?", "La parte «" + p.nombre + "» pasa entera, con sus ejercicios y bloques", otros.map(x => ({ texto: x || "Entreno 1", accion: () => moverParteAEntreno(dia, grupo, p.nombre, x, ss) }))) }] : []; })(),
       { texto: "+ Bloque en esta parte", accion: () => abrirBloque(dia, grupo, p.nombre) },
       partes.slice(0, k).some(x => x.nombre) && { texto: "Subir parte", accion: () => mover(-1) },
       partes.slice(k + 1).some(x => x.nombre) && { texto: "Bajar parte", accion: () => mover(1) },
-      { texto: "Cambiar nombre…", accion: async () => {
-        const n = await pedirNombre("Nombre de la parte", p.nombre);
-        if (!n || n === p.nombre) return;
-        ss.forEach(x => cambiar("series", { ...x, seccion: n }, true));
-        renombrarParteLocal(dia.id, grupo, p.nombre, n);
-        persistir(); pintarDia(dia);
-      } },
       { texto: "Quitar la parte (sus ejercicios quedan sin parte)", accion: () => {
         ss.forEach(x => cambiar("series", { ...x, seccion: "" }, true));
         renombrarParteLocal(dia.id, grupo, p.nombre, "");
@@ -1697,8 +1703,9 @@ function renombrarParteLocal(fecha, grupo, viejo, n) {
   const k = fecha + "|" + grupo, l = (partesVacias[k] || []).filter(x => x !== viejo);
   if (n) l.push(n);
   if (l.length) partesVacias[k] = [...new Set(l)]; else delete partesVacias[k];
-  Object.keys(esperaParte).forEach(e => { if (e.startsWith(fecha + "|") && esperaParte[e] === viejo) { if (n) esperaParte[e] = n; else delete esperaParte[e]; } });
-  guardarSesiones();
+  Object.keys(esperaParte).forEach(e => { if (e.startsWith(fecha + "|") && (esperaGrupo[e] || "") === grupo && esperaParte[e] === viejo) { if (n) esperaParte[e] = n; else delete esperaParte[e]; } });
+  Object.entries(bloquesVacios).forEach(([e,b]) => { if (e.startsWith(fecha + "|") && (b.g || "") === grupo && b.p === viejo) b.p = n || ""; });
+  guardarSesiones(); guardarVacios();
 }
 // Con varios entrenos en el día, los botones de abajo del día preguntan a cuál (antes iba siempre al primero)
 function enQueEntreno(dia, titulo, hacer) {
@@ -1940,10 +1947,56 @@ function fusionarEntrenos(dia, primero, segundo, nombre, separarCalentamientos) 
   };
   return true;
 }
+function gruposDelDia(fecha) {
+  return [...new Set(seriesDelDia(fecha).map(s => s.grupo || "")
+    .concat(sesionesVacias[fecha] || [])
+    .concat((enEspera[fecha] || []).map(id => esperaGrupo[fecha + "|" + id] || ""))
+    .concat(Object.entries(bloquesVacios).filter(([k]) => k.startsWith(fecha + "|")).map(([,b]) => b.g || "")))];
+}
+async function cambiarNombreEntreno(dia, grupo) {
+  const fecha = dia.id, ctx = contextoSesion();
+  const nombre = await pedirNombre("Nombre del entrenamiento", grupo, "Solo cambia el nombre de este entrenamiento del día. Se conservan sus partes, series y progreso.");
+  try { comprobarSesion(ctx); } catch { return; }
+  if (!nombre || nombre === grupo) return;
+  if (dia.id !== fecha || !gruposDelDia(fecha).includes(grupo)) { setEstado("El entrenamiento ha cambiado. Abre su menú de nuevo.", true); return; }
+  if (gruposDelDia(fecha).some(g => g !== grupo && norm(g) === norm(nombre))) { setEstado("Ya hay un entrenamiento con ese nombre en este día. Elige otro para mantenerlos separados.", true); return; }
+  const partes = nombresPartes(fecha, grupo), viejo = fecha + "|" + grupo, nuevo = fecha + "|" + nombre;
+  seriesDelDia(fecha).filter(s => (s.grupo || "") === grupo).forEach(s => cambiar("series", { ...s, grupo: nombre }, true));
+  sesionesVacias[fecha] = (sesionesVacias[fecha] || []).map(g => g === grupo ? nombre : g);
+  (enEspera[fecha] || []).forEach(id => { const k = fecha + "|" + id; if ((esperaGrupo[k] || "") === grupo) esperaGrupo[k] = nombre; });
+  if (partesVacias[viejo]) { partesVacias[nuevo] = partesVacias[viejo]; delete partesVacias[viejo]; }
+  Object.entries(bloquesVacios).forEach(([k,b]) => { if (k.startsWith(fecha + "|") && (b.g || "") === grupo) b.g = nombre; });
+  if (Object.hasOwn(gruposPlegados, viejo)) { gruposPlegados[nuevo] = gruposPlegados[viejo]; delete gruposPlegados[viejo]; }
+  partes.forEach(p => {
+    const a = "p|" + viejo + "|" + p, b = "p|" + nuevo + "|" + p;
+    if (Object.hasOwn(gruposPlegados,a)) { gruposPlegados[b] = gruposPlegados[a]; delete gruposPlegados[a]; }
+  });
+  if (ent?.dia.id === fecha && ent.grupo === grupo) ent.grupo = nombre;
+  guardarSesiones(); guardarVacios(); escribir("grupos-plegados-v1", gruposPlegados); persistir(); pintarDia(dia);
+  setEstado("Entrenamiento renombrado: " + nombre);
+}
+async function cambiarNombreParte(dia, grupo, parte) {
+  const fecha = dia.id, ctx = contextoSesion();
+  const nombre = await pedirNombre("Nombre de la parte", parte, "Se conservarán todos los ejercicios y series de esta parte.");
+  try { comprobarSesion(ctx); } catch { return; }
+  if (!nombre || nombre === parte) return;
+  if (dia.id !== fecha) { setEstado("El día ha cambiado. Abre la parte de nuevo.",true); return; }
+  const nombres = nombresPartes(fecha,grupo).concat((enEspera[fecha] || []).filter(id => (esperaGrupo[fecha+"|"+id] || "") === grupo).map(id => esperaParte[fecha+"|"+id] || ""));
+  if (!nombres.includes(parte)) { setEstado("La parte ha cambiado. Abre su menú de nuevo.",true); return; }
+  if (nombres.some(p => p !== parte && norm(p) === norm(nombre))) { setEstado("Ya existe esa parte en este entrenamiento. Elige otro nombre.",true); return; }
+  seriesDelDia(fecha).filter(s => (s.grupo || "") === grupo && (s.seccion || "") === parte).forEach(s => cambiar("series",{ ...s,seccion:nombre },true));
+  renombrarParteLocal(fecha,grupo,parte,nombre);
+  const a = "p|"+fecha+"|"+grupo+"|"+parte, b = "p|"+fecha+"|"+grupo+"|"+nombre;
+  if (Object.hasOwn(gruposPlegados,a)) { gruposPlegados[b]=gruposPlegados[a]; delete gruposPlegados[a]; }
+  escribir("grupos-plegados-v1",gruposPlegados); persistir(); pintarDia(dia);
+  setEstado("Parte renombrada: " + nombre);
+}
+
 function menuGrupo(dia, grupo) {
   const series = seriesDelDia(dia.id).filter(s => (s.grupo || "") === grupo);
   const nGrupos = new Set(seriesDelDia(dia.id).map(s => s.grupo || "")).size;
-  abrirMenu(grupo, resumenItems(itemsDe(series)), [
+  abrirMenu(grupo || "Entrenamiento", resumenItems(itemsDe(series)), [
+    { texto: "Cambiar nombre del entrenamiento…", accion: () => cambiarNombreEntreno(dia, grupo) },
     series.length && { texto: series.every(hecha) ? "✓ Completado · Ver entrenamiento" : "▶ Iniciar solo este entrenamiento", accion: () => empezarEntreno(dia, grupo) },
     { texto: "📅 Mover a otro día…", accion: () => elegirDiaDestino(lunesDe(deIso(dia.id)), "¿A qué día muevo «" + (grupo || "Entreno 1") + "»?", f => moverADia(dia, grupo, f)) },
     ...(() => { const otros = [...dia.bloquesEl.querySelectorAll(":scope > .grupo")].map(x => x.dataset.grupo || "").filter(x => x !== grupo);
@@ -1967,15 +2020,6 @@ function menuGrupo(dia, grupo) {
     series.length && { texto: "Guardar en una lista de entrenamientos…", accion: () => guardarEnLista(grupo || "Entrenamiento", series) },
     { texto: "Guardar como plantilla…", accion: () => guardarPlantilla(grupo, series) },
     { texto: "Compartir con un amigo…", accion: () => compartir(grupo, itemsDe(series)) },
-    { texto: "Cambiar nombre de la sesión…", accion: async () => {
-      const n = await pedirNombre("Nombre del entreno", grupo);
-      if (!n) return;
-      series.forEach(s => cambiar("series", { ...s, grupo: n }, true));
-      sesionesVacias[dia.id] = (sesionesVacias[dia.id] || []).map(x => x === grupo ? n : x);
-      Object.keys(esperaGrupo).forEach(k => { if (k.startsWith(dia.id + "|") && esperaGrupo[k] === grupo) esperaGrupo[k] = n; });
-      if (!grupo) (enEspera[dia.id] || []).forEach(id => { if (!esperaGrupo[dia.id + "|" + id]) esperaGrupo[dia.id + "|" + id] = n; });
-      guardarSesiones(); persistir(); pintarDia(dia);
-    } },
     { texto: "Quitar este entreno del día", peligro: true, confirmar: series.length ? "Pulsa otra vez: se borran " + series.length + " series" : "Pulsa otra vez para quitarlo", accion: () => {
       series.forEach(s => cambiar("series", { ...s, borrado: true }, true));
       sesionesVacias[dia.id] = (sesionesVacias[dia.id] || []).filter(x => x !== grupo);
@@ -2210,7 +2254,7 @@ function pintarDiaSinAncla(dia) {
     const caja = document.createElement("div");
     caja.className = "grupo";
     caja.dataset.grupo = g.nombre;
-    if (g.nombre || varios) {
+    { // También el entrenamiento sin nombre tiene cabecera y menú para renombrarlo.
       const cab = document.createElement("div");
       cab.className = "grupo-cab";
       cab.innerHTML = true   // cualquier entreno con cabecera se puede plegar (también si es el único del día)
@@ -6487,8 +6531,50 @@ function guardarRutina(r, comoMeso, inicio, semanas, enLista) {
     setEstado(n + (n === 1 ? " plantilla guardada" : " plantillas guardadas") + " desde «" + r.nombre + "»");
   }
 }
+// Editor del borrador importado: no escribe en db hasta elegir un destino y guardar.
+const ejerciciosEditandoIA = new WeakSet();
+function validarCamposBorradorIA() {
+  for (const campo of $("iaVista").querySelectorAll("input, textarea, select")) {
+    if (!campo.checkValidity()) {
+      for (let p = campo.parentElement; p && p !== $("iaVista"); p = p.parentElement) if (p.tagName === "DETAILS") p.open = true;
+      campo.reportValidity(); return false;
+    }
+  }
+  return true;
+}
 function vistaRutina(r, cont) {
   cont.textContent = "";
+  const repintar = () => vistaRutina(r, cont);
+  const boton = (texto, accion, clase = "enlace") => {
+    const b = document.createElement("button"); b.type = "button"; b.className = clase;
+    b.textContent = texto; b.addEventListener("click", accion); return b;
+  };
+  const renombrar = async (titulo, valor, aplicar) => {
+    if (!validarCamposBorradorIA()) return;
+    const ctx = contextoSesion(), nombre = await pedirNombre(titulo, valor);
+    try { comprobarSesion(ctx); } catch { return; }
+    if (!nombre || rutinaIA !== r) return;
+    aplicar(nombre.trim()); repintar();
+  };
+  const campo = (padre, texto, objeto, clave, numerico = false, entero = false) => {
+    const lab = document.createElement("label"); lab.className = "campo"; lab.textContent = texto;
+    const input = document.createElement(clave === "nota" ? "textarea" : "input");
+    if (numerico) { input.type = "number"; input.min = "0"; input.max = "1000000"; input.step = entero ? "1" : "any"; input.inputMode = "decimal"; input.required = true; }
+    else { input.maxLength = clave === "nota" ? 300 : 80; input.required = clave !== "nota"; }
+    input.value = objeto[clave] ?? (numerico ? 0 : "");
+    input.addEventListener("input", () => {
+      input.setCustomValidity(!numerico && input.required && !input.value.trim() ? "Escribe un nombre." : "");
+      if (numerico) { if (input.checkValidity()) objeto[clave] = Number(input.value); }
+      else objeto[clave] = input.value;
+    });
+    lab.appendChild(input); padre.appendChild(lab); return input;
+  };
+  const marca = (padre, texto, serie, clave) => {
+    const lab = document.createElement("label"); lab.className = "campo chk";
+    const input = document.createElement("input"); input.type = "checkbox"; input.checked = !!serie[clave];
+    input.addEventListener("change", () => { serie[clave] = input.checked; });
+    lab.append(input, document.createTextNode(texto)); padre.appendChild(lab);
+  };
   if (r.nota) {
     const info = document.createElement("details"), titulo = document.createElement("summary");
     info.className = "ia-indicaciones"; titulo.textContent = "Indicaciones del documento";
@@ -6497,11 +6583,82 @@ function vistaRutina(r, cont) {
   r.bloques.forEach((b, w) => {
     if (r.multi) { const h = document.createElement("p"); h.className = "bc-t"; h.textContent = "Semana " + (w + 1); cont.appendChild(h); }
     b.sesiones.forEach(s => {
-      const d = document.createElement("div");
-      d.className = "rutina-ses";
-      const t = document.createElement("b");
-      t.textContent = s.nombre + (s.dias.length ? " · " + textoDias(s.dias) : "");
-      d.append(t, listaItems(s.items));
+      const d = document.createElement("div"); d.className = "rutina-ses";
+      const cab = document.createElement("div"); cab.className = "ia-editor-cab";
+      const t = document.createElement("b"); t.textContent = s.nombre + (s.dias.length ? " · " + textoDias(s.dias) : "");
+      cab.append(t, boton("Cambiar nombre", () => renombrar("Nombre del entrenamiento", s.nombre, n => {
+        s.nombre = n.slice(0,60); actualizarDestinoIA();
+      }))); d.appendChild(cab);
+      const partes = [...new Set(s.items.map(it => it.seccion || "").concat(s.partesBorrador || []))];
+      partes.forEach(parte => {
+        const items = s.items.filter(it => (it.seccion || "") === parte);
+        const caja = document.createElement("details"); caja.className = "rutina-parte-det ia-parte-editor"; caja.open = true;
+        const summary = document.createElement("summary"); summary.textContent = (parte || "Sin parte") + " · " + contarSeries(items) + " series";
+        caja.appendChild(summary);
+        const acciones = document.createElement("div"); acciones.className = "ia-editor-acciones";
+        acciones.appendChild(boton("Renombrar parte", () => renombrar("Nombre de la parte", parte, n => {
+          n = n.slice(0,40);
+          if (n !== parte && partes.includes(n)) { $("iaAvisoDias").textContent = "Ya existe una parte con ese nombre. Elige uno diferente."; return; }
+          items.forEach(it => { it.seccion = n; });
+          s.partesBorrador = (s.partesBorrador || []).map(p => p === parte ? n : p);
+        })));
+        if (!items.length) acciones.appendChild(boton("Quitar parte vacía", () => { s.partesBorrador = (s.partesBorrador || []).filter(p => p !== parte); repintar(); }));
+        caja.appendChild(acciones);
+        items.forEach(it => {
+          const fila = document.createElement("div"); fila.className = "ia-ej-editor";
+          const titulo = document.createElement("p"); titulo.textContent = textoItemRutina(it); fila.appendChild(titulo);
+          const editando = ejerciciosEditandoIA.has(it);
+          fila.appendChild(boton(editando ? "Terminar edición" : "Editar ejercicio y series", () => {
+            if (!validarCamposBorradorIA()) return;
+            if (editando) ejerciciosEditandoIA.delete(it); else ejerciciosEditandoIA.add(it); repintar();
+          }, "nav-btn ia-editar-ej"));
+          if (editando) {
+            const campos = document.createElement("div"); campos.className = "ia-ej-campos";
+            (it.bloque ? it.tramos : [it]).forEach(e => {
+              campo(campos, "Nombre del ejercicio", e, "ejercicio");
+              e.series.forEach((serie, i) => {
+                const fs = document.createElement("fieldset"); fs.className = "ia-serie-editor";
+                const legend = document.createElement("legend"); legend.textContent = "Serie " + (i + 1); fs.appendChild(legend);
+                const grid = document.createElement("div"); grid.className = "ia-serie-campos";
+                const camposSerie = e.tipo === "fuerza" ? [["reps","Repeticiones"],["peso","Peso · kg"],["pct","Carga · % RM"],["tiempo","Tiempo · segundos"]]
+                  : e.tipo === "movilidad" ? [["reps","Repeticiones"],["tiempo","Tiempo · segundos"]]
+                  : [["distancia","Distancia · metros"],["tiempo","Tiempo · segundos"],["rec_dist","Recuperación · metros"]];
+                camposSerie.push(["descanso","Descanso · segundos"]);
+                if (serie.rango_min || serie.rango_max) camposSerie.push(["rango_min","Repeticiones mínimas"],["rango_max","Repeticiones máximas"]);
+                camposSerie.forEach(([k,n]) => campo(grid,n,serie,k,true,["reps","tiempo","descanso","rango_min","rango_max"].includes(k)));
+                fs.appendChild(grid);
+                marca(fs,"Calentamiento",serie,"calentamiento");
+                if (e.tipo === "fuerza") { marca(fs,"Método Bilbo",serie,"bilbo"); marca(fs,"Máximas repeticiones",serie,"max_reps"); }
+                marca(fs,"Por lado",serie,"por_lado");
+                campo(fs,"Indicaciones",serie,"nota");
+                if (!it.bloque && e.series.length > 1) fs.appendChild(boton("Quitar esta serie", () => { e.series.splice(i,1); repintar(); }));
+                campos.appendChild(fs);
+              });
+              if (!it.bloque) campos.appendChild(boton("+ Serie", () => {
+                if (!validarCamposBorradorIA()) return;
+                e.series.push({ ...e.series[e.series.length-1] }); repintar();
+              }));
+            });
+            fila.appendChild(campos);
+          }
+          caja.appendChild(fila);
+        });
+        caja.appendChild(boton("+ Ejercicio", async () => {
+          if (!validarCamposBorradorIA()) return;
+          const ctx = contextoSesion(), nombre = await pedirNombre("Nombre del ejercicio", "");
+          try { comprobarSesion(ctx); } catch { return; }
+          if (!nombre || rutinaIA !== r) return;
+          const tipo = adivinarTipo(nombre), valor = { peso:0,reps:tipo === "fuerza" ? 10 : 0,distancia:0,tiempo:0,descanso:0,nota:"",calentamiento:/^calentamiento$/i.test(parte) };
+          const it = { ejercicio:nombre.slice(0,80),tipo,seccion:parte,series:[valor] };
+          s.items.push(it); ejerciciosEditandoIA.add(it); repintar();
+        }));
+        d.appendChild(caja);
+      });
+      d.appendChild(boton("+ Parte", () => renombrar("Nombre de la nueva parte", "", n => {
+        n = n.slice(0,40);
+        if (partes.includes(n)) { $("iaAvisoDias").textContent = "Ya existe esa parte."; return; }
+        (s.partesBorrador = s.partesBorrador || []).push(n);
+      })));
       cont.appendChild(d);
     });
   });
@@ -6933,7 +7090,7 @@ function orientarImportacionIA() {
   pasoIA("vista");
   $("iaVistaTit").textContent = rutinaIA.nombre.replace(/_/g, " ");
   $("iaAvisoDias").textContent = tipo === "entrenamiento"
-    ? "Revisa las partes y elige dónde guardarlo. Después podrás cambiar nombres, añadir partes y ejercicios desde el calendario."
+    ? "Edita las partes y los ejercicios aquí. Los cambios no se guardan hasta que elijas dónde añadir el entrenamiento."
     : "Hay varias sesiones, pero no se indica una duración en semanas. Elige una sesión para el calendario o abre el editor de mesociclo para organizar el plan.";
   $("iaVistaCaja").scrollIntoView({ block: "start" });
 }
@@ -8100,7 +8257,7 @@ $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); 
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
 // VERSION_APP es interna (sube en cada publicación para que los móviles se actualicen); la que se ve es siempre la 26
-const VERSION_APP = "v230" + (BETA ? " beta" : "");
+const VERSION_APP = "v234" + (BETA ? " beta" : "");
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";
