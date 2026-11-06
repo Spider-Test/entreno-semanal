@@ -2201,9 +2201,9 @@ input:focus, textarea:focus, select:focus { border-color: var(--accent); box-sha
       background: color-mix(in srgb, var(--bg) 28%, transparent);
       -webkit-backdrop-filter: blur(12px);
       backdrop-filter: blur(12px);
-      /* Transición suave en ambos extremos de la franja. */
-      -webkit-mask-image: linear-gradient(to bottom, transparent, #000 6px, transparent);
-      mask-image: linear-gradient(to bottom, transparent, #000 6px, transparent);
+      /* Entrada y salida progresivas: sin un salto de densidad en los bordes. */
+      -webkit-mask-image: linear-gradient(to bottom, transparent 0%, rgba(0, 0, 0, 0.048) 10%, rgba(0, 0, 0, 0.173) 20%, rgba(0, 0, 0, 0.327) 30%, rgba(0, 0, 0, 0.452) 40%, rgba(0, 0, 0, 0.5) 50%, rgba(0, 0, 0, 0.452) 60%, rgba(0, 0, 0, 0.327) 70%, rgba(0, 0, 0, 0.173) 80%, rgba(0, 0, 0, 0.048) 90%, transparent 100%);
+      mask-image: linear-gradient(to bottom, transparent 0%, rgba(0, 0, 0, 0.048) 10%, rgba(0, 0, 0, 0.173) 20%, rgba(0, 0, 0, 0.327) 30%, rgba(0, 0, 0, 0.452) 40%, rgba(0, 0, 0, 0.5) 50%, rgba(0, 0, 0, 0.452) 60%, rgba(0, 0, 0, 0.327) 70%, rgba(0, 0, 0, 0.173) 80%, rgba(0, 0, 0, 0.048) 90%, transparent 100%);
     }
   }
   @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
@@ -2289,3 +2289,49 @@ input:focus, textarea:focus, select:focus { border-color: var(--accent); box-sha
 .pr-semana-lista li:last-child { border-bottom: 0; }
 .pr-semana-marca { color: var(--fg); font-weight: 600; }
 .pr-semana-fecha { color: var(--muted); font-size: 13px; }
+
+
+/* Consulta móvil: solo el día queda fijo; los demás desplegables siguen su contenido. */
+@media (max-width: 760px) {
+  #app details[open] > summary,
+  #app .cat-sec:not(.cerrada) > .sec-toggle,
+  #app .cat-sec:not(.cerrada) > .sec-cab,
+  #app .lista-sec:not(.cerrada) > .lista-cab,
+  #app .plan-sec:not(.cerrada) > .sec-toggle,
+  #app .plan-sec:not(.cerrada) > .sec-cab:has(> .sec-toggle),
+  #app .grupo > .grupo-cab,
+  #app .grupo:not(.g-plegado):not(:has(.parte-caja:not(.p-plegada))) > .grupo-cab,
+  #app .parte-caja > .parte-cab,
+  #app .parte-caja:not(.p-plegada) > .parte-cab {
+    position: static !important; top: auto !important;
+    /* Un elemento flex/grid conserva su capa aunque deje de ser sticky. */
+    z-index: auto !important; box-shadow: none;
+  }
+  #app #vistaSemana .dia { overflow: clip; }
+  /* Las capas internas del entrenamiento permanecen debajo de la fecha fija. */
+  #app #vistaSemana .dia-cuerpo { isolation: isolate; }
+  #app #vistaSemana .dia:not(.plegado) > .dia-cab {
+    position: sticky !important; top: var(--sticky-cabecera) !important; z-index: 15;
+    background: var(--card) !important; background-image: none !important;
+    -webkit-backdrop-filter: none !important; backdrop-filter: none !important;
+    box-shadow: 0 1px 0 var(--line);
+  }
+  #app #vistaSemana.solo-dia .dia-abrir { visibility: visible; }
+}
+/* La cabecera ocupa el marco completo del resumen y sus datos conservan el margen interior. */
+#vistaSemana .sem-resumenes > details.resumen-sem { padding-left: 0; padding-right: 0; }
+#vistaSemana .sem-resumenes > details.resumen-sem > summary {
+  margin: 0; padding-left: 12px; padding-right: 12px; border-radius: inherit !important;
+}
+#vistaSemana .sem-resumenes > details.resumen-sem[open] > summary {
+  border-bottom-left-radius: 0 !important; border-bottom-right-radius: 0 !important;
+  border-bottom: 1px solid var(--line);
+}
+#vistaSemana .sem-resumenes > details.resumen-sem > .records { padding-left: 12px; padding-right: 12px; }
+#vistaSemana .sem-resumenes > details.resumen-sem > .molestias-semana { padding-left: 12px; padding-right: 12px; }
+
+/* El resumen de una letra solo hace falta mientras sus ejercicios están plegados. */
+#vistaSemana .letra-caja:not(.l-plegada) > .letra-cab .l-nombres { display: none !important; }
+#vistaSemana .letra-cab .g-prog { margin-left: auto; }
+/* Esta cubierta aparece únicamente cuando un día queda fijado al desplazarse. */
+#cubiertaDia { position: fixed; inset: 0 0 auto; width: 100%; background: var(--bg); z-index: 999; pointer-events: none; }

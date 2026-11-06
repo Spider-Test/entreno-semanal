@@ -1819,6 +1819,7 @@ function pintarDiaSinAncla(dia) {
         cabL.innerHTML = '<span class="flecha-dia" aria-hidden="true">▸</span><span class="etq-orden"></span><span class="l-nombres"></span><span class="g-prog"></span>';
         cabL.querySelector(".etq-orden").textContent = letra;
         cabL.querySelector(".l-nombres").textContent = nombres.join(" + ");
+        cabL.setAttribute("aria-label", "Bloque " + letra + ": " + nombres.join(" + ") + (ss.length ? ". " + ss.filter(hecha).length + " de " + ss.length + " series completadas" : ""));
         cabL.querySelector(".g-prog").textContent = ss.length ? ss.filter(hecha).length + "/" + ss.length : "";
         items[0].el.before(lc);
         lc.appendChild(cabL);
@@ -7451,7 +7452,7 @@ $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); 
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
 // VERSION_APP es interna (sube en cada publicación para que los móviles se actualicen); la que se ve es siempre la 26
-const VERSION_APP = "v201" + (BETA ? " beta" : "");
+const VERSION_APP = "v209" + (BETA ? " beta" : "");
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";
@@ -8297,6 +8298,38 @@ $("dlgAyuda").querySelectorAll("details").forEach(d => d.addEventListener("toggl
 
 if (/type=recovery|error_code=/.test(location.hash)) entrarDesdeEnlace();
 else if (sesion) mostrarApp(true); else $("login").hidden = false;
+
+// Cuando el día está fijado, la zona superior queda limpia de contenido desplazado.
+(() => {
+  const cubierta = document.createElement("div");
+  cubierta.id = "cubiertaDia"; cubierta.hidden = true;
+  cubierta.setAttribute("aria-hidden", "true"); document.body.appendChild(cubierta);
+  let pendiente = false;
+  const actualizar = () => {
+    pendiente = false;
+    let altura = 0;
+    if (matchMedia("(max-width: 760px)").matches && !document.querySelector("dialog[open]")) {
+      document.querySelectorAll('#vistaSemana .dia:not(.plegado):not([hidden]) > .dia-cab').forEach(cab => {
+        if (!cab.getClientRects().length) return;
+        const estilo = getComputedStyle(cab), rect = cab.getBoundingClientRect(), top = parseFloat(estilo.top);
+        if (estilo.position === "sticky" && Number.isFinite(top) && top > 0 && rect.top > 0 && rect.top <= top + 1)
+          altura = Math.ceil(rect.top);
+      });
+    }
+    const oculta = altura === 0;
+    if (cubierta.hidden !== oculta) cubierta.hidden = oculta;
+    if (!oculta && cubierta.style.height !== altura + "px") cubierta.style.height = altura + "px";
+  };
+  const pedir = () => { if (!pendiente) { pendiente = true; requestAnimationFrame(actualizar); } };
+  window.addEventListener("scroll", pedir, { passive: true });
+  window.addEventListener("resize", pedir);
+  document.addEventListener("click", pedir, true);
+  document.addEventListener("toggle", pedir, true);
+  document.addEventListener("close", pedir, true);
+  const app = document.getElementById("app");
+  if (app) new MutationObserver(pedir).observe(app, { childList: true, subtree: true, attributes: true, attributeFilter: ["class", "hidden", "open"] });
+  actualizar();
+})();
 
 // Aviso en la propia app cuando hay una versión publicada más nueva que la que se está usando
 async function comprobarVersionNueva() {
