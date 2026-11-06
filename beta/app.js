@@ -138,10 +138,21 @@ function leerDescanso(txt) {
   if (isNaN(n)) return NaN;
   return Math.round(n <= 15 ? n * 60 : n);
 }
-// Recuperación: tiempo ("1:30", "2") o distancia ("300 m", "300m")
+// Recuperación: tiempo, distancia, o ambas (p. ej. «300 m · 1:30» de una carrera importada)
 function leerRecuperacion(txt) {
   const t = (txt || "").trim();
-  const m = t.match(/^(\d+(?:[.,]\d+)?)\s*m(etros)?$/i);
+  const partes = t.split(/\s*(?:·|\+)\s*/).filter(Boolean);
+  if (partes.length === 2) {
+    let distancia = null, tiempo = null;
+    for (const parte of partes) {
+      const md = parte.match(/^(\d+(?:[.,]\d+)?)\s*m(?:etros?)?$/i);
+      if (md && distancia === null) distancia = parseFloat(md[1].replace(",", "."));
+      else if (!md && tiempo === null) tiempo = leerDescanso(parte);
+      else return null;
+    }
+    return distancia > 0 && tiempo > 0 && !isNaN(tiempo) ? { descanso: tiempo, rec_dist: distancia } : null;
+  }
+  const m = t.match(/^(\d+(?:[.,]\d+)?)\s*m(?:etros?)?$/i);
   if (m) return { descanso: 0, rec_dist: parseFloat(m[1].replace(",", ".")) };
   const d = leerDescanso(t);
   return isNaN(d) ? null : { descanso: d, rec_dist: 0 };
@@ -364,8 +375,8 @@ function serieTexto(s) {
   if (esRango(s)) return hecha(s) ? reps + " reps" + lado + peso.replace(/^ \(/, " (de " + rangoTxt(s) + " · ").replace(/^$/, " (de " + rangoTxt(s) + ")") : rangoTxt(s) + " reps" + lado + peso;
   return (s.ciclo_id ? "Bilbo · " : "") + (reps === "máx" ? "máx reps" : reps + " reps") + lado + peso;
 }
-const descTexto = s => n0(s.rec_dist) > 0 ? "rec. " + fmtDist(s.rec_dist) : n0(s.descanso) > 0 ? "desc. " + fmtTiempo(s.descanso) : "";
-const recTexto = s => n0(s.rec_dist) > 0 ? num(s.rec_dist) + " m" : n0(s.descanso) > 0 ? fmtTiempo(s.descanso) : "";
+const descTexto = s => n0(s.rec_dist) > 0 && n0(s.descanso) > 0 ? "rec. " + fmtDist(s.rec_dist) + " · " + fmtTiempo(s.descanso) : n0(s.rec_dist) > 0 ? "rec. " + fmtDist(s.rec_dist) : n0(s.descanso) > 0 ? "desc. " + fmtTiempo(s.descanso) : "";
+const recTexto = s => n0(s.rec_dist) > 0 && n0(s.descanso) > 0 ? num(s.rec_dist) + " m · " + fmtTiempo(s.descanso) : n0(s.rec_dist) > 0 ? num(s.rec_dist) + " m" : n0(s.descanso) > 0 ? fmtTiempo(s.descanso) : "";
 const ordenSerie = (a, b) => a.fecha < b.fecha ? -1 : a.fecha > b.fecha ? 1 : a.orden - b.orden;
 // Índice de las series vivas, por día y por ejercicio: se rehace solo cuando cambian los datos (versionDatos).
 // Quien lo usa recibe copias, así puede ordenar o filtrar sin estropear el índice.
@@ -2719,7 +2730,7 @@ function tarjetaBloque(dia, bloqueId, series) {
     const entreEj = porRonda.flatMap(l => l.slice(0, -1)), entreR = porRonda.slice(0, -1).map(l => l[l.length - 1]), alFinal = [porRonda[porRonda.length - 1].slice(-1)[0]];
     const actual = l => { const t = l.map(recTexto); return t.every(x => x === t[0]) ? t[0] : ""; };
     const poner = async (lista, titulo) => {
-      const t = await pedirNombre(titulo, actual(lista) || "", "Tiempo («1,30» = 1 min 30 s, «3» = 3 min, «90» = 90 s) o metros trotando («300 m»). «0» lo quita.");
+      const t = await pedirNombre(titulo, actual(lista) || "", "Tiempo («1,30»), metros trotando («300 m») o ambos («300 m · 1:30»). «0» lo quita.");
       if (t === null) return;
       const rec = /^\s*0\s*$/.test(t) ? { descanso: 0, rec_dist: 0 } : leerRecuperacion(t);
       if (!rec) { setEstado("No entiendo «" + t + "»: prueba 1,30, 90 o 300 m"); return; }
@@ -5731,7 +5742,7 @@ function leerRutina(texto) {
 function textoValor(v, tipo) {
   const base = esDistancia(tipo) ? (v.distancia ? fmtDist(v.distancia) + (v.tiempo ? " en " + fmtTiempo(v.tiempo) : "") : fmtDuracion(v.tiempo))
     : (v.tiempo && !v.reps ? fmtDuracion(v.tiempo) : (v.reps || "máx")) + (v.pct ? " · " + num(v.pct) + " %" : "") + (v.peso ? " · " + num(v.peso) + " kg" : "");
-  return base + (v.rec_dist ? " · rec. " + fmtDist(v.rec_dist) : v.descanso ? " · desc. " + fmtTiempo(v.descanso) : "");
+  return base + (descTexto(v) ? " · " + descTexto(v) : "");
 }
 const textoItemRutina = it => it.bloque
   ? "(" + it.tramos.map(t => t.ejercicio + " " + textoValor(t.series[0], t.tipo)).join(" + ") + ") ×" + it.tramos[0].series.length
@@ -7286,7 +7297,7 @@ $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); 
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
 // VERSION_APP es interna (sube en cada publicación para que los móviles se actualicen); la que se ve es siempre la 26
-const VERSION_APP = "v155" + (BETA ? " beta" : "");
+const VERSION_APP = "v156" + (BETA ? " beta" : "");
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";

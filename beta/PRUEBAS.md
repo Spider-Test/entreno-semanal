@@ -1,7 +1,7 @@
 # Lista de pruebas antes de cada versión
 
 Se pasa entera en la **beta** (`https://spider-test.github.io/fuerza-y-ritmo/beta/`) antes de pasar nada a la principal.
-**No hagas pruebas que escriban datos hasta comprobar que `app.js` apunta al proyecto Supabase de pruebas aislado.** Esta copia conserva la conexión que ya traía y no se ha confirmado que sea el proyecto nuevo; la versión beta anterior compartía la base de datos con la principal.
+**La beta y la versión oficial comparten actualmente la base de datos principal de Supabase.** Los cambios hechos desde cualquiera de las dos se guardan en los mismos datos. No apuntar la beta al proyecto de pruebas hasta copiar el progreso necesario y preparar allí el esquema, las políticas RLS y las cuentas.
 
 Apunta en cada versión: fecha, versión, dispositivo (iPhone / Mac / Android) y si pasa (✓) o falla (✗, con qué).
 
