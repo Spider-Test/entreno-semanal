@@ -2106,7 +2106,7 @@ input:focus, textarea:focus, select:focus { border-color: var(--accent); box-sha
 
 
 
-/* Cabecera superior opaca y días con acentos suaves para que la semana se lea menos monótona. */
+/* Cabecera superior opaca en móvil. */
 @media (max-width: 760px) {
   #app > .cabecera {
     background: var(--bg) !important;
@@ -2115,30 +2115,38 @@ input:focus, textarea:focus, select:focus { border-color: var(--accent); box-sha
     backdrop-filter: none !important;
   }
 }
-#vistaSemana .semana > .dia:nth-child(7n + 1) { --dia-tinte: #55799d; }
-#vistaSemana .semana > .dia:nth-child(7n + 2) { --dia-tinte: #42877f; }
-#vistaSemana .semana > .dia:nth-child(7n + 3) { --dia-tinte: #81709a; }
-#vistaSemana .semana > .dia:nth-child(7n + 4) { --dia-tinte: #ad794d; }
-#vistaSemana .semana > .dia:nth-child(7n + 5) { --dia-tinte: #a96664; }
-#vistaSemana .semana > .dia:nth-child(7n + 6) { --dia-tinte: #4b8974; }
-#vistaSemana .semana > .dia:nth-child(7n) { --dia-tinte: #738092; }
-#vistaSemana .semana > .dia > .dia-cab {
-  background: color-mix(in srgb, var(--dia-tinte) 10%, var(--card));
-  border-bottom-color: color-mix(in srgb, var(--dia-tinte) 20%, var(--line));
-}
-#vistaSemana .semana > .dia .dia-nombre {
-  color: color-mix(in srgb, var(--dia-tinte) 72%, var(--fg));
-  font-weight: 850;
-  letter-spacing: 0.065em;
-}
-@media (prefers-color-scheme: dark) {
-  #vistaSemana .semana > .dia > .dia-cab {
-    background: color-mix(in srgb, var(--dia-tinte) 18%, var(--card));
-    border-bottom-color: color-mix(in srgb, var(--dia-tinte) 30%, var(--line));
+
+/* Corrección de base: superficies opacas arriba y cabeceras de día uniformes. */
+@media (max-width: 760px) {
+  #navSemana,
+  #vistaSemana .dia-nav:not([hidden]),
+  #organizarNav.organizar-nav {
+    background: var(--bg) !important;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+  #vistaSemana:not(.solo-dia) .dia:not(.plegado) > .dia-cab,
+  #vistaSemana .parte-caja:not(.p-plegada) > .parte-cab,
+  #vistaSemana .grupo:not(.g-plegado) > .grupo-cab,
+  #vistaSemana .parte-caja .grupo:not(.g-plegado) > .grupo-cab,
+  #vistaSemana .sem-resumenes > details[open] > summary,
+  #vistaEjercicios .cat-sec:not(.cerrada) > .sec-toggle,
+  #vistaMarcas .cat-sec:not(.cerrada) > .sec-toggle,
+  #vistaMarcas .informe-sec[open] > .informe-toggle,
+  #vistaListas .lista-sec:not(.cerrada) > .lista-cab,
+  #vistaPlan > .plan-sec:not(.cerrada) > .sec-toggle,
+  #vistaPlan > .plan-sec:not(.cerrada) > .sec-cab:has(> .sec-toggle) {
+    background: var(--card) !important;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
   }
 }
-#vistaSemana .semana > .dia.hoy > .dia-cab {
-  background: color-mix(in srgb, var(--accent) 15%, var(--card));
-  border-bottom-color: color-mix(in srgb, var(--accent) 30%, var(--line));
+#vistaSemana .semana > .dia > .dia-cab {
+  background: color-mix(in srgb, var(--bg) 54%, var(--card)) !important;
+  border-bottom-color: var(--line) !important;
 }
-#vistaSemana .semana > .dia.hoy .dia-nombre { color: var(--accent); font-weight: 900; }
+#vistaSemana .semana > .dia .dia-nombre {
+  color: color-mix(in srgb, var(--fg) 78%, var(--muted)) !important;
+  font-weight: 850;
+  letter-spacing: 0.06em;
+}
