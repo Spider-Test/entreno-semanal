@@ -2128,7 +2128,44 @@ input:focus, textarea:focus, select:focus { border-color: var(--accent); box-sha
   letter-spacing: 0.06em;
 }
 
-/* La barra de secciones de Entrenamientos queda siempre sólida y acompaña al contenido. */
+/* Versión principal: superficies superiores sólidas; evita que el contenido se difumine detrás. */
+@media (max-width: 760px) {
+  #app > .cabecera,
+  #navSemana,
+  #vistaSemana .dia-nav:not([hidden]),
+  #organizarNav.organizar-nav,
+  #vistaSemana:not(.solo-dia) .dia:not(.plegado) > .dia-cab,
+  #vistaSemana .parte-caja:not(.p-plegada) > .parte-cab,
+  #vistaSemana .grupo:not(.g-plegado) > .grupo-cab,
+  #vistaSemana .parte-caja .grupo:not(.g-plegado) > .grupo-cab,
+  #vistaSemana .sem-resumenes > details[open] > summary,
+  #vistaEjercicios .cat-sec:not(.cerrada) > .sec-toggle,
+  #vistaMarcas .cat-sec:not(.cerrada) > .sec-toggle,
+  #vistaMarcas .informe-sec[open] > .informe-toggle,
+  #vistaListas .lista-sec:not(.cerrada) > .lista-cab,
+  #vistaPlan > .plan-sec:not(.cerrada) > .sec-toggle,
+  #vistaPlan > .plan-sec:not(.cerrada) > .sec-cab:has(> .sec-toggle) {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+  #navSemana,
+  #vistaSemana .dia-nav:not([hidden]),
+  #organizarNav.organizar-nav { background: var(--bg) !important; }
+  #vistaSemana:not(.solo-dia) .dia:not(.plegado) > .dia-cab,
+  #vistaSemana .parte-caja:not(.p-plegada) > .parte-cab,
+  #vistaSemana .grupo:not(.g-plegado) > .grupo-cab,
+  #vistaSemana .parte-caja .grupo:not(.g-plegado) > .grupo-cab,
+  #vistaSemana .sem-resumenes > details[open] > summary,
+  #vistaEjercicios .cat-sec:not(.cerrada) > .sec-toggle,
+  #vistaMarcas .cat-sec:not(.cerrada) > .sec-toggle,
+  #vistaMarcas .informe-sec[open] > .informe-toggle,
+  #vistaListas .lista-sec:not(.cerrada) > .lista-cab,
+  #vistaPlan > .plan-sec:not(.cerrada) > .sec-toggle,
+  #vistaPlan > .plan-sec:not(.cerrada) > .sec-cab:has(> .sec-toggle) { background: var(--card) !important; }
+  #vistaSemana:not(.solo-dia) .dia.hoy:not(.plegado) > .dia-cab { background: var(--accent-soft) !important; }
+}
+
+/* La navegación superior nunca debe quedarse fija ni difuminar el texto que pasa detrás. */
 @media (max-width: 760px) {
   #navSemana, #vistaSemana .dia-nav, #organizarNav,
   #organizarNav.organizar-nav.plan-nav {
@@ -2142,7 +2179,7 @@ input:focus, textarea:focus, select:focus { border-color: var(--accent); box-sha
   }
 }
 
-/* PWA instalada: separa la primera fila de la zona del reloj/Isla dinámica y mantiene la navegación nítida. */
+/* PWA instalada en móvil: reserva el área del reloj/Isla dinámica para que no cubra la primera fila. */
 @media (max-width: 760px) and (display-mode: standalone) {
   body { padding-top: calc(env(safe-area-inset-top, 0px) + 8px) !important; }
   #navSemana, #vistaSemana .dia-nav, #organizarNav,
@@ -2247,24 +2284,33 @@ input:focus, textarea:focus, select:focus { border-color: var(--accent); box-sha
 }
 
 
-/* Controles del día con espacio real entre botones y tamaños coherentes. */
+/* Navegación del día compacta, con fecha legible y controles de menor peso visual. */
 @media (max-width: 760px) {
   #vistaSemana .dia-nav:not([hidden]) {
-    grid-template-columns: max-content minmax(0, 1fr) 44px 56px 44px;
+    grid-template-columns: max-content minmax(0, 1fr) 44px 52px 44px;
     grid-template-areas: "semana titulo anterior hoy siguiente";
-    gap: 8px; padding: 6px 0; align-items: center; box-shadow: none;
+    gap: 4px; padding: 2px 0; align-items: center; box-shadow: none;
   }
   #vistaSemana .dia-nav-t {
-    min-width: 0; padding: 0; white-space: normal; overflow: visible;
-    text-overflow: clip; font-size: 14px; line-height: 1.2;
+    min-width: 0; padding: 0 0 0 8px; white-space: normal; overflow: visible;
+    text-overflow: clip; font-family: var(--body); font-size: 15px; font-weight: 650;
+    text-transform: none; letter-spacing: 0; line-height: 1.25; text-align: left;
   }
-  #vistaSemana #volverSemana { min-width: 0; width: auto; padding: 0; }
+  #vistaSemana #volverSemana {
+    min-width: 0; width: auto; min-height: 44px; padding: 0; font-size: 12px; font-weight: 600;
+  }
   #vistaSemana #diaAnt, #vistaSemana #diaSig, #vistaSemana #diaHoy {
     box-sizing: border-box; height: 44px; min-height: 44px; margin: 0;
     padding: 0; border-radius: 10px; transform: none; box-shadow: none !important;
   }
-  #vistaSemana #diaAnt, #vistaSemana #diaSig { width: 44px; min-width: 44px; }
-  #vistaSemana #diaHoy { width: 56px; min-width: 56px; font-size: 14px; }
+  #vistaSemana #diaAnt, #vistaSemana #diaSig {
+    width: 44px; min-width: 44px; border: 0; background: transparent; font-size: 22px;
+  }
+  #vistaSemana #diaHoy {
+    width: 52px; min-width: 52px; font-size: 13px; font-weight: 650;
+    background: var(--accent-soft) !important; color: var(--accent) !important;
+    border: 1px solid var(--line) !important;
+  }
   #vistaSemana .dia-nav:has(#diaHoy[hidden]) {
     grid-template-columns: max-content minmax(0, 1fr) 44px 44px;
     grid-template-areas: "semana titulo anterior siguiente";
