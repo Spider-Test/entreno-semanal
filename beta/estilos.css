@@ -1463,10 +1463,43 @@ html[data-tam="125"] { --zoom: 1.25; }
   .sem-resumenes { grid-template-columns: minmax(0, 1fr); gap: 8px; }
   .sem-resumenes > details,
   .sem-resumenes > details[open] { grid-column: 1; width: 100%; min-width: 0; }
+  /* Resumen y molestias funcionan como paneles informativos, distintos de las tarjetas neutras de cada día. */
+  .resumen-sem {
+    border: 1px solid color-mix(in srgb, var(--accent) 32%, var(--line));
+    border-left: 5px solid var(--accent);
+    background: linear-gradient(110deg, var(--accent-soft), var(--card) 76%);
+  }
+  .resumen-sem[open] { box-shadow: 0 4px 14px rgba(20, 35, 27, 0.10); }
+  .resumen-sem summary { min-height: 60px; padding: 11px 12px; }
+  .resumen-sem summary::before { color: var(--accent); font-size: 16px; font-weight: 800; }
+  .resumen-sem .rs-t { color: var(--accent); }
+  .lesiones-sem {
+    border-color: color-mix(in srgb, var(--error) 30%, var(--line));
+    border-left-color: var(--error);
+    background: linear-gradient(110deg, var(--error-soft), var(--card) 76%);
+  }
+  .lesiones-sem summary::before { color: var(--error); }
+  .lesiones-sem .rs-t { color: var(--fg); }
+  .lesiones-sem .rs-l { color: var(--error); }
   .resumen-sem summary { display: grid; grid-template-columns: 14px minmax(0, 1fr); align-items: start; gap: 3px 8px; }
   .resumen-sem summary::before { grid-row: 1 / span 2; align-self: center; }
   .rs-t { font-size: 14px; line-height: 1.25; }
   .rs-l { grid-column: 2; line-height: 1.4; overflow-wrap: anywhere; }
   .lesiones-sem summary { align-items: start; }
+}
+
+/* Ejercicios en móvil: la categoría abierta mantiene su control plegable a mano al recorrer la lista. */
+@media (max-width: 760px) {
+  #vistaEjercicios .cat-sec:not(.cerrada) > .sec-toggle {
+    position: sticky;
+    top: calc(env(safe-area-inset-top, 0px) + 52px);
+    z-index: 12;
+    margin: -8px -14px 4px;
+    padding: 8px 14px;
+    border: 1px solid var(--line);
+    border-radius: 13px 13px 10px 10px;
+    background: var(--card);
+    box-shadow: 0 4px 12px rgba(18, 28, 22, 0.14);
+  }
 }
 
