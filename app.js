@@ -60,7 +60,7 @@ let perfil = leer("perfil-v1");                 // {aprobado, es_admin, email}
 let usuarios = leer("usuarios-v1") || [];        // solo para el administrador (se guarda para no verla vacía al abrir)
 let db = leer("datos-v2") || { entrenos: leer("entrenos-v1") || {} };
 Object.keys(TABLAS).forEach(t => { db[t] = db[t] || {}; });
-let cursores = leer("cursores-v3") || {};       // última marca de servidor leída por tabla (v3: relee todo al añadir campos)
+let cursores = leer("cursores-v4") || {};       // v4 fuerza una reconciliación completa para recuperar filas que faltan en la copia local
 let enEspera = leer("bloques-v1") || {};
 // Entrenos del día aún sin series (fecha -> nombres) y en qué entreno va cada ejercicio añadido sin series (fecha|id -> nombre)
 let gruposPlegados = {};   // los grupos y partes empiezan plegados en cada apertura
@@ -75,7 +75,7 @@ const guardarSesiones = () => { escribir("sesiones-v1", sesionesVacias); escribi
 // Nombres de las partes de un entreno: las que tienen series y las creadas vacías
 const nombresPartes = (fecha, grupo) => [...new Set(seriesDelDia(fecha).filter(s => (s.grupo || "") === grupo).map(s => s.seccion || "").concat(partesVacias[fecha + "|" + grupo] || []))];        // fecha -> ejercicios añadidos que aún no tienen series
 let porta = leer("portapapeles-v1");            // lo último copiado: {nombre, html, items}
-const guardarLocal = () => { escribir("datos-v2", db); escribir("cursores-v3", cursores); };
+const guardarLocal = () => { escribir("datos-v2", db); escribir("cursores-v4", cursores); };
 const guardarEspera = () => escribir("bloques-v1", enEspera);
 
 const estado = $("estado");
@@ -7344,7 +7344,7 @@ $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); 
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
 // VERSION_APP es interna (sube en cada publicación para que los móviles se actualicen); la que se ve es siempre la 26
-const VERSION_APP = "v175" + (BETA ? " beta" : "");
+const VERSION_APP = "v177" + (BETA ? " beta" : "");
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";
