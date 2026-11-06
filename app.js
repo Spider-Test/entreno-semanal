@@ -1902,6 +1902,20 @@ function pintarDiaSinAncla(dia) {
       add.children[1].addEventListener("click", () => abrirBloque(dia, g.nombre));
       plegarAdd(add, !g.ids.length);
       caja.appendChild(add);
+
+      // Con varias sesiones en el día, cada tarjeta inicia solo su propio entrenamiento.
+      const activo = dia.id === iso(new Date()) || dia.id === diaAbierto;
+      const pendientes = deG.filter(s => !hecha(s)).length;
+      if (activo && pendientes) {
+        const iniciar = document.createElement("button");
+        iniciar.type = "button";
+        iniciar.className = "primario empezar empezar-grupo";
+        const hechasGrupo = deG.length - pendientes;
+        iniciar.textContent = hechasGrupo ? "▶ Seguir este entreno (" + hechasGrupo + "/" + deG.length + ")" : "▶ Empezar este entreno";
+        iniciar.setAttribute("aria-label", (hechasGrupo ? "Seguir" : "Empezar") + " el entreno " + (g.nombre || "sin nombre"));
+        iniciar.addEventListener("click", () => empezarEntreno(dia, g.nombre));
+        caja.appendChild(iniciar);
+      }
     }
     cont.appendChild(caja);
   });
@@ -6964,6 +6978,15 @@ function anilloSvg(f) {
   return '<svg viewBox="0 0 36 36" aria-hidden="true"><circle class="a-fondo" cx="18" cy="18" r="15"/><circle class="a-hecho" cx="18" cy="18" r="15" stroke-dasharray="' +
     (f * c).toFixed(1) + " " + c.toFixed(1) + '" transform="rotate(-90 18 18)"/></svg>';
 }
+function gruposEnDia(fecha, del = seriesDelDia(fecha)) {
+  const grupos = new Set(del.map(s => s.grupo || ""));
+  (sesionesVacias[fecha] || []).forEach(g => grupos.add(g || ""));
+  (enEspera[fecha] || []).forEach(id => grupos.add(esperaGrupo[fecha + "|" + id] || ""));
+  const pref = fecha + "|";
+  Object.keys(partesVacias).forEach(k => { if (k.startsWith(pref) && (partesVacias[k] || []).length) grupos.add(k.slice(pref.length)); });
+  Object.keys(bloquesVacios).forEach(k => { if (k.startsWith(pref)) grupos.add((bloquesVacios[k] || {}).g || ""); });
+  return grupos;
+}
 function pintarCabDia(dia) {
   const del = seriesDelDia(dia.id), h = del.filter(hecha).length, e = db.entrenos[dia.id] || {};
   dia.anillo.hidden = !del.length;
@@ -6982,7 +7005,7 @@ function pintarCabDia(dia) {
   dia.resumenEl.textContent = nombre ? (km ? km + " · " : "") + nombre.slice(0, 140)
     : [km, del.length ? h + "/" + del.length + " series" : "", n0(e.rpe) ? "esfuerzo " + e.rpe + "/10" : ""].filter(Boolean).join(" · ") || "Nada apuntado";
   dia.resumenEl.title = nombre;
-  dia.empezarEl.hidden = !del.length || h === del.length || !(dia.id === iso(new Date()) || dia.id === diaAbierto);
+  dia.empezarEl.hidden = !del.length || h === del.length || gruposEnDia(dia.id, del).size > 1 || !(dia.id === iso(new Date()) || dia.id === diaAbierto);
   dia.empezarEl.textContent = h ? "▶ Seguir entreno (" + h + "/" + del.length + ")" : "▶ Empezar entreno";
 }
 function pintarProgresoSemana() {
@@ -7105,8 +7128,8 @@ function deslizable(li, derecha, izquierda) {
 // ---------- Modo entreno: una serie cada vez, en grande, con el descanso integrado ----------
 let ent = null, bloqueoPantalla = null;
 // Mismo orden que en pantalla: por sesión y, dentro, ejercicio a ejercicio o bloque ronda a ronda
-function colaEntreno(fecha) {
-  const delDia = seriesDelDia(fecha), grupos = [], cola = [];
+function colaEntreno(fecha, grupo = null) {
+  const delDia = seriesDelDia(fecha).filter(s => grupo === null || (s.grupo || "") === grupo), grupos = [], cola = [];
   delDia.forEach(s => { if (!grupos.includes(s.grupo || "")) grupos.push(s.grupo || ""); });
   grupos.forEach(g => {
     const deG = delDia.filter(s => (s.grupo || "") === g), claves = [];
@@ -7120,8 +7143,8 @@ function colaEntreno(fecha) {
   return cola;
 }
 const serieEnt = () => ent && db.series[ent.cola[ent.i]];
-function empezarEntreno(dia) {
-  const cola = colaEntreno(dia.id);
+function empezarEntreno(dia, grupo = null) {
+  const cola = colaEntreno(dia.id, grupo);
   if (!cola.length) return;
   const i = cola.findIndex(id => !hecha(db.series[id]));
   ent = { dia, cola, i: Math.max(0, i), fin: 0, timer: null, audio: null, campos: [] };
@@ -7321,7 +7344,7 @@ $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); 
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
 // VERSION_APP es interna (sube en cada publicación para que los móviles se actualicen); la que se ve es siempre la 26
-const VERSION_APP = "v174" + (BETA ? " beta" : "");
+const VERSION_APP = "v175" + (BETA ? " beta" : "");
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";
