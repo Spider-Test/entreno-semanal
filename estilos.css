@@ -968,12 +968,14 @@ html.ampliado label, html.ampliado summary, html.ampliado .tarjeta, html.ampliad
     justify-content: flex-end;
     min-height: 0;
     padding-bottom: 4px;
-    background: transparent !important;
+    background: var(--bg) !important;
+    background-image: none !important;
     border: 0;
+    border-bottom: 1px solid var(--line);
     border-radius: 0;
     box-shadow: none;
-    -webkit-backdrop-filter: none;
-    backdrop-filter: none;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
   }
   #app > .cabecera h1 { display: none; }
   #app > .cabecera .ayuda-btn {
@@ -2102,3 +2104,41 @@ input:focus, textarea:focus, select:focus { border-color: var(--accent); box-sha
   .tabbar button { min-height: 52px; }
 }
 
+
+
+/* Cabecera superior opaca y días con acentos suaves para que la semana se lea menos monótona. */
+@media (max-width: 760px) {
+  #app > .cabecera {
+    background: var(--bg) !important;
+    background-image: none !important;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+}
+#vistaSemana .semana > .dia:nth-child(7n + 1) { --dia-tinte: #55799d; }
+#vistaSemana .semana > .dia:nth-child(7n + 2) { --dia-tinte: #42877f; }
+#vistaSemana .semana > .dia:nth-child(7n + 3) { --dia-tinte: #81709a; }
+#vistaSemana .semana > .dia:nth-child(7n + 4) { --dia-tinte: #ad794d; }
+#vistaSemana .semana > .dia:nth-child(7n + 5) { --dia-tinte: #a96664; }
+#vistaSemana .semana > .dia:nth-child(7n + 6) { --dia-tinte: #4b8974; }
+#vistaSemana .semana > .dia:nth-child(7n) { --dia-tinte: #738092; }
+#vistaSemana .semana > .dia > .dia-cab {
+  background: color-mix(in srgb, var(--dia-tinte) 10%, var(--card));
+  border-bottom-color: color-mix(in srgb, var(--dia-tinte) 20%, var(--line));
+}
+#vistaSemana .semana > .dia .dia-nombre {
+  color: color-mix(in srgb, var(--dia-tinte) 72%, var(--fg));
+  font-weight: 850;
+  letter-spacing: 0.065em;
+}
+@media (prefers-color-scheme: dark) {
+  #vistaSemana .semana > .dia > .dia-cab {
+    background: color-mix(in srgb, var(--dia-tinte) 18%, var(--card));
+    border-bottom-color: color-mix(in srgb, var(--dia-tinte) 30%, var(--line));
+  }
+}
+#vistaSemana .semana > .dia.hoy > .dia-cab {
+  background: color-mix(in srgb, var(--accent) 15%, var(--card));
+  border-bottom-color: color-mix(in srgb, var(--accent) 30%, var(--line));
+}
+#vistaSemana .semana > .dia.hoy .dia-nombre { color: var(--accent); font-weight: 900; }
