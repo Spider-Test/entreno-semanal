@@ -824,6 +824,76 @@ function volcarExtra() {
 }
 const hayPendientes = () => Object.keys(TABLAS).some(t => Object.values(db[t]).some(v => v.sucio));
 
+// Fechas pendientes: no adivinar el día ni sustituir un entrenamiento por el día actual.
+function fechaSerieValida(v) {
+  if (typeof v !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return false;
+  const [a, m, d] = v.split("-").map(Number);
+  if (a < 1000 || a > 9999 || m < 1 || m > 12 || d < 1 || d > 31) return false;
+  const fecha = new Date(a, m - 1, d);
+  return fecha.getFullYear() === a && fecha.getMonth() === m - 1 && fecha.getDate() === d;
+}
+function marcaSerieValida(v) {
+  return typeof v === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})$/.test(v)
+    && fechaSerieValida(v.slice(0,10)) && Number.isFinite(Date.parse(v));
+}
+function seriesConFechaIncorrecta() {
+  return Object.values(db.series).filter(s => s.sucio && (!fechaSerieValida(s.fecha) || !marcaSerieValida(s.actualizado)));
+}
+function mostrarFechasPendientes() {
+  const pendientes = seriesConFechaIncorrecta();
+  let boton = $("revisarFechasSeries");
+  if (!boton && pendientes.length) {
+    boton = document.createElement("button"); boton.id = "revisarFechasSeries"; boton.type = "button"; boton.className = "enlace";
+    estado.after(boton); boton.addEventListener("click", abrirFechasPendientes);
+  }
+  if (boton) { boton.hidden = !pendientes.length; boton.textContent = "Revisar fechas pendientes (" + pendientes.length + ")"; }
+  return pendientes.length;
+}
+function abrirFechasPendientes() {
+  if (!sesion || sesion.user_id !== cuentaLocal) return;
+  const pendientes = seriesConFechaIncorrecta().slice(0, 20);
+  if (!pendientes.length) { mostrarFechasPendientes(); return; }
+  const ctx = contextoSesion(), dlg = document.createElement("dialog"); dlg.setAttribute("aria-label", "Corregir fechas de series");
+  const cab = document.createElement("div"); cab.className = "d-cab";
+  const titulo = document.createElement("h3"); titulo.className = "d-tit"; titulo.textContent = "Revisar fechas";
+  const cerrar = document.createElement("button"); cerrar.type = "button"; cerrar.className = "cerrar"; cerrar.textContent = "✕"; cerrar.setAttribute("aria-label", "Cerrar"); cerrar.onclick = () => dlg.close(); cab.append(titulo, cerrar);
+  const cuerpo = document.createElement("div"); cuerpo.className = "d-cuerpo";
+  const info = document.createElement("p"); info.textContent = "Estas series siguen guardadas en el dispositivo. Elige el día correcto para cada fecha inválida. Se conservará una copia antes de corregir. Si hay más de 20, podrás revisar las siguientes después."; cuerpo.appendChild(info);
+  const entradas = pendientes.map(s => {
+    const bloque = document.createElement("fieldset"), leyenda = document.createElement("legend");
+    leyenda.textContent = (nombreEj(s.ejercicio_id) || "Ejercicio") + (s.grupo ? " · " + s.grupo : "") + (s.borrado ? " · eliminado pendiente de sincronizar" : ""); bloque.appendChild(leyenda);
+    const detalle = document.createElement("p"); detalle.textContent = "Serie: " + (s.reps || 0) + " rep. · " + (s.peso || 0) + " kg · " + (s.distancia || 0) + " m"; bloque.appendChild(detalle);
+    const lab = document.createElement("label"); lab.className = "campo"; lab.textContent = "Fecha del entrenamiento";
+    const fecha = document.createElement("input"); fecha.type = "date"; fecha.required = true; fecha.min = "1000-01-01"; fecha.max = "9999-12-31";
+    fecha.value = fechaSerieValida(s.fecha) ? s.fecha : ""; fecha.disabled = fechaSerieValida(s.fecha);
+    lab.appendChild(fecha); bloque.appendChild(lab);
+    if (!marcaSerieValida(s.actualizado)) {
+      const aviso = document.createElement("p"); aviso.textContent = "La marca de última edición no es válida. Al confirmar se registrará esta corrección como una nueva edición, conservando la fecha del entrenamiento."; bloque.appendChild(aviso);
+    }
+    cuerpo.appendChild(bloque);
+    return { id: s.id, original: JSON.stringify(s), fecha };
+  });
+  const aviso = document.createElement("p"); aviso.className = "aviso"; aviso.setAttribute("role", "status"); cuerpo.appendChild(aviso);
+  const guardar = document.createElement("button"); guardar.type = "button"; guardar.className = "anadir"; guardar.textContent = "Guardar correcciones y sincronizar";
+  guardar.onclick = () => {
+    try { comprobarSesion(ctx); } catch { aviso.textContent = "La cuenta ha cambiado. Cierra esta ventana."; return; }
+    if (sincronizando) { aviso.textContent = "Espera a que termine la sincronización y vuelve a pulsar."; return; }
+    for (const e of entradas) {
+      if (!fechaSerieValida(e.fecha.value)) { e.fecha.reportValidity(); aviso.textContent = "Selecciona una fecha válida para cada serie."; return; }
+      const actual = db.series[e.id];
+      if (!actual || JSON.stringify(actual) !== e.original || actual.conflicto) { aviso.textContent = "Una serie ha cambiado o tiene un conflicto. Cierra y abre de nuevo la revisión; resuelve primero los conflictos pendientes."; return; }
+    }
+    const copia = { creado: new Date().toISOString(), series: entradas.map(e => ({ original: JSON.parse(e.original), fechaElegida: e.fecha.value })) };
+    const copias = leer("fechas-series-copias-v1") || [];
+    if (!escribir("fechas-series-copias-v1", [...copias, copia])) { aviso.textContent = "No hay espacio para conservar la copia. Exporta tus datos desde Ajustes antes de corregir."; return; }
+    entradas.forEach(e => cambiar("series", { ...db.series[e.id], fecha: e.fecha.value }, true));
+    // Guardar antes de intentar la red; nunca marcar como sincronizadas sin respuesta correcta.
+    guardarLocal(); dlg.close(); mostrarFechasPendientes(); pintarTodo(); sincronizar();
+  };
+  cuerpo.appendChild(guardar); dlg.append(cab, cuerpo); document.body.appendChild(dlg);
+  dlg.addEventListener("close", () => dlg.remove(), { once: true }); dlg.showModal();
+}
+
 // El error de guardado debe explicar la causa sin mostrar filas, tokens ni datos personales.
 async function errorGuardado(tabla, respuesta) {
   const e = await respuesta.clone().json().catch(() => ({}));
@@ -839,7 +909,11 @@ async function errorGuardado(tabla, respuesta) {
     causa = "Falta un dato obligatorio" + (TABLAS[tabla].campos.includes(campo) ? ": " + campo : "") + ".";
   } else if (codigo === "23514") causa = "Un valor no cumple las condiciones de la base de datos.";
   else if (codigo === "22003") causa = "Un valor numérico supera el límite de la base de datos.";
-  else if (codigo === "22007" || codigo === "22008") causa = "Una fecha u hora tiene un formato no válido.";
+  else if (codigo === "22007" || codigo === "22008") {
+    const tipo = (mensaje.match(/type (date|timestamp with time zone|timestamp without time zone|timestamp|time)/i) || [])[1];
+    causa = "El servidor rechaza un formato de fecha u hora" + (tipo ? " (" + tipo + ")" : "") + ".";
+    if (tabla === "series" && !seriesConFechaIncorrecta().length) causa += " Las fechas de las series tienen formato válido en la app; falta revisar la causa en el servidor.";
+  }
   else if (codigo === "PGRST204" || codigo === "42703") {
     const campo = TABLAS[tabla].campos.find(c => mensaje.includes("'" + c + "'") || mensaje.includes('"' + c + '"') || mensaje.includes(tabla + "." + c));
     causa = "La base de datos no reconoce un campo de esta versión" + (campo ? ": " + campo : "") + ".";
@@ -995,6 +1069,9 @@ async function sincronizar() {
         const pend = Object.values(db[t]).filter(v => v.sucio);
         if (!pend.length) continue;
         if (pend.some(v => v.conflicto)) { mostrarConflictos(); throw new Error("Revisa los cambios pendientes antes de sincronizar."); }
+        if (t === "series" && mostrarFechasPendientes()) {
+          throw new Error("Hay series con una fecha o marca de edición incorrecta. Pulsa Revisar fechas pendientes para corregirlas; los datos se conservan.");
+        }
         const filas = pend.map(v => { const f = {}; TABLAS[t].campos.forEach(c => { f[c] = v[c] ?? (c in DEFECTOS ? DEFECTOS[c] : 0); }); f.user_id = t === "ejercicios" ? (v.user_id || sesion.user_id) : sesion.user_id; return f; });   // los ejercicios del catálogo conservan a su dueño
         const w = await api("/rest/v1/" + t + "?on_conflict=" + TABLAS[t].conflicto, {
           method: "POST", headers: { Prefer: "resolution=merge-duplicates,return=minimal" }, body: JSON.stringify(filas)
@@ -5999,7 +6076,7 @@ function exportarJSON() {
   volcarExtra();
   const datos = {};
   Object.keys(TABLAS).forEach(t => { datos[t] = Object.values(db[t]).map(f => { const c = { ...f }; delete c.sucio; return c; }); });
-  descargarArchivo("fuerza-y-ritmo-copia-" + iso(new Date()) + ".json", JSON.stringify({ app: "Fuerza y Ritmo", version: 1, exportado: new Date().toISOString(), email: (sesion && sesion.email) || "", datos, conflictos: leer("conflictos-copia-v1") || [] }), "application/json");
+  descargarArchivo("fuerza-y-ritmo-copia-" + iso(new Date()) + ".json", JSON.stringify({ app: "Fuerza y Ritmo", version: 1, exportado: new Date().toISOString(), email: (sesion && sesion.email) || "", datos, conflictos: leer("conflictos-copia-v1") || [], correccionesFechas: leer("fechas-series-copias-v1") || [] }), "application/json");
 }
 function exportarSeries() {
   const filas = [["Fecha", "Día", "Sesión", "Ejercicio", "Tipo", "Estado", "Peso (kg)", "% 1RM", "Reps", "Distancia (m)", "Tiempo", "Ritmo", "Descanso", "Recuperación (m)", "Bloque", "Esfuerzo del día (RPE)", "Sensaciones del día"]];
@@ -7855,7 +7932,7 @@ $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); 
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
 // VERSION_APP es interna (sube en cada publicación para que los móviles se actualicen); la que se ve es siempre la 26
-const VERSION_APP = "v220" + (BETA ? " beta" : "");
+const VERSION_APP = "v222" + (BETA ? " beta" : "");
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";
