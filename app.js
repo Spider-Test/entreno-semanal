@@ -5177,7 +5177,14 @@ function pintarTodo() {
 }
 
 // Sincronizar al abrir, al volver a la app, al recuperar conexión y cada 30 s
-document.addEventListener("visibilitychange", () => { if (!document.hidden) { registrarAcceso(); if (!$("vistaSemana").hidden && !escribiendoSerie()) pintarSemana(); sincronizar(); } });
+let segundoPlanoDesde = 0;
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) { segundoPlanoDesde = Date.now(); return; }
+  const instalada = matchMedia("(display-mode: standalone)").matches || navigator.standalone;
+  if (instalada && sesion && !$("app").hidden && segundoPlanoDesde && Date.now() - segundoPlanoDesde > 1200) reproducirApertura();
+  segundoPlanoDesde = 0;
+  registrarAcceso(); if (!$("vistaSemana").hidden && !escribiendoSerie()) pintarSemana(); sincronizar();
+});
 addEventListener("online", sincronizar);
 setInterval(() => { if (!document.hidden) sincronizar(); }, 30000);
 
@@ -5334,10 +5341,27 @@ async function cargarInicios() {
     if (!$("vistaPlan").hidden) pintarPlan();
   } catch {}
 }
-function mostrarApp() {
+let temporizadorApertura;
+function reproducirApertura() {
+  const panel = $("aperturaApp");
+  if (!panel || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  clearTimeout(temporizadorApertura);
+  panel.hidden = false;
+  panel.setAttribute("aria-hidden", "false");
+  panel.classList.remove("activa");
+  void panel.offsetWidth;
+  panel.classList.add("activa");
+  temporizadorApertura = setTimeout(() => {
+    panel.classList.remove("activa");
+    panel.hidden = true;
+    panel.setAttribute("aria-hidden", "true");
+  }, 1080);
+}
+function mostrarApp(reapertura = false) {
   if (perfil && perfil.aprobado === false) { mostrarPendiente(); return; }
   $("login").hidden = true; $("pendiente").hidden = true; $("app").hidden = false;
   verPestana(leer("pestana-v1") || "semana");
+  if (reapertura) reproducirApertura();
   setEstado("Sincronizando…");
   sincronizar();
   registrarAcceso();
@@ -7297,7 +7321,7 @@ $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); 
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
 // VERSION_APP es interna (sube en cada publicación para que los móviles se actualicen); la que se ve es siempre la 26
-const VERSION_APP = "v156" + (BETA ? " beta" : "");
+const VERSION_APP = "v173" + (BETA ? " beta" : "");
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";
@@ -8063,7 +8087,7 @@ document.querySelectorAll("#vistaPlan > .plan-sec[data-sec]").forEach(sec => {
 const GRUPOS_PLAN = {
   crear: ["importar", "ia", "compartido"],
   entrenos: ["plantillas", "mesociclos", "rutinas"],
-  cuenta: ["copia", "ajustes", "sugerencias", "usuarios"]
+  cuenta: ["copia", "ajustes", "ayuda", "sugerencias", "usuarios"]
 };
 function aplicarGrupoPlan() {
   const grupo = leer("plan-grupo-v1") || "crear", secciones = GRUPOS_PLAN[grupo] || GRUPOS_PLAN.crear;
@@ -8141,7 +8165,7 @@ $("ayudaBtn").addEventListener("click", abrirAyuda);
 $("dlgAyuda").querySelectorAll("details").forEach(d => d.addEventListener("toggle", () => { if (d.open) verAlAbrir(d); }));
 
 if (/type=recovery|error_code=/.test(location.hash)) entrarDesdeEnlace();
-else if (sesion) mostrarApp(); else $("login").hidden = false;
+else if (sesion) mostrarApp(true); else $("login").hidden = false;
 
 // Aviso en la propia app cuando hay una versión publicada más nueva que la que se está usando
 async function comprobarVersionNueva() {
