@@ -2238,9 +2238,9 @@ input:focus, textarea:focus, select:focus { border-color: var(--accent); box-sha
       background: color-mix(in srgb, var(--bg) 28%, transparent);
       -webkit-backdrop-filter: blur(12px);
       backdrop-filter: blur(12px);
-      /* Transición suave en ambos extremos de la franja. */
-      -webkit-mask-image: linear-gradient(to bottom, transparent, #000 6px, transparent);
-      mask-image: linear-gradient(to bottom, transparent, #000 6px, transparent);
+      /* Entrada y salida progresivas: sin un salto de densidad en los bordes. */
+      -webkit-mask-image: linear-gradient(to bottom, transparent 0%, rgba(0, 0, 0, 0.048) 10%, rgba(0, 0, 0, 0.173) 20%, rgba(0, 0, 0, 0.327) 30%, rgba(0, 0, 0, 0.452) 40%, rgba(0, 0, 0, 0.5) 50%, rgba(0, 0, 0, 0.452) 60%, rgba(0, 0, 0, 0.327) 70%, rgba(0, 0, 0, 0.173) 80%, rgba(0, 0, 0, 0.048) 90%, transparent 100%);
+      mask-image: linear-gradient(to bottom, transparent 0%, rgba(0, 0, 0, 0.048) 10%, rgba(0, 0, 0, 0.173) 20%, rgba(0, 0, 0, 0.327) 30%, rgba(0, 0, 0, 0.452) 40%, rgba(0, 0, 0, 0.5) 50%, rgba(0, 0, 0, 0.452) 60%, rgba(0, 0, 0, 0.327) 70%, rgba(0, 0, 0, 0.173) 80%, rgba(0, 0, 0, 0.048) 90%, transparent 100%);
     }
   }
   @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
