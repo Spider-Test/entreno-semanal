@@ -2214,20 +2214,21 @@ input:focus, textarea:focus, select:focus { border-color: var(--accent); box-sha
 /* Franja de cristal solo en la app instalada en iOS; los títulos quedan debajo. */
 @media (max-width: 760px) {
   html.ios-instalada {
-    --sticky-cabecera: calc(env(safe-area-inset-top, 0px) + 36px);
+    --sticky-cabecera: calc(env(safe-area-inset-top, 0px) + 42px);
     background: var(--bg);
   }
   html.ios-instalada #vistaSemana:not(.solo-dia) { --sticky-entreno: var(--sticky-cabecera) !important; }
   html.ios-instalada #vistaSemana.solo-dia { --sticky-entreno: calc(var(--sticky-cabecera) + 44px) !important; }
   html.ios-instalada body {
     background: var(--bg);
-    padding-top: calc(env(safe-area-inset-top, 0px) + 44px) !important;
+    padding-top: calc(env(safe-area-inset-top, 0px) + 50px) !important;
   }
   html.ios-instalada body::before {
     content: "";
     position: fixed;
-    inset: 0 0 auto;
-    height: calc(env(safe-area-inset-top, 0px) + 36px);
+    /* Empieza debajo del área de estado: evita superponer las dos capas. */
+    inset: calc(env(safe-area-inset-top, 0px) + 6px) 0 auto;
+    height: 36px;
     z-index: 1000;
     background: var(--bg);
     pointer-events: none;
@@ -2237,9 +2238,9 @@ input:focus, textarea:focus, select:focus { border-color: var(--accent); box-sha
       background: color-mix(in srgb, var(--bg) 28%, transparent);
       -webkit-backdrop-filter: blur(12px);
       backdrop-filter: blur(12px);
-      /* Toda la extensión bajo el área segura se desvanece gradualmente. */
-      -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 36px), transparent);
-      mask-image: linear-gradient(to bottom, #000 calc(100% - 36px), transparent);
+      /* Transición suave en ambos extremos de la franja. */
+      -webkit-mask-image: linear-gradient(to bottom, transparent, #000 6px, transparent);
+      mask-image: linear-gradient(to bottom, transparent, #000 6px, transparent);
     }
   }
   @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
