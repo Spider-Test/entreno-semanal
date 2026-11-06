@@ -2174,17 +2174,19 @@ input:focus, textarea:focus, select:focus { border-color: var(--accent); box-sha
 }
 
 
-/* iPhone instalado: fondo superior uniforme; conserva la separación de los títulos respecto al área de estado. */
-@media (max-width: 760px) and (display-mode: standalone) {
-  :root { --sticky-cabecera: calc(env(safe-area-inset-top, 0px) + 36px); }
-  #vistaSemana:not(.solo-dia) { --sticky-entreno: var(--sticky-cabecera) !important; }
-  #vistaSemana.solo-dia { --sticky-entreno: calc(var(--sticky-cabecera) + 44px) !important; }
-  html { background: var(--bg); }
-  body {
+/* Franja de cristal solo en la app instalada en iOS; los títulos quedan debajo. */
+@media (max-width: 760px) {
+  html.ios-instalada {
+    --sticky-cabecera: calc(env(safe-area-inset-top, 0px) + 36px);
+    background: var(--bg);
+  }
+  html.ios-instalada #vistaSemana:not(.solo-dia) { --sticky-entreno: var(--sticky-cabecera) !important; }
+  html.ios-instalada #vistaSemana.solo-dia { --sticky-entreno: calc(var(--sticky-cabecera) + 44px) !important; }
+  html.ios-instalada body {
     background: var(--bg);
     padding-top: calc(env(safe-area-inset-top, 0px) + 44px) !important;
   }
-  body::before {
+  html.ios-instalada body::before {
     content: "";
     position: fixed;
     inset: 0 0 auto;
@@ -2192,5 +2194,19 @@ input:focus, textarea:focus, select:focus { border-color: var(--accent); box-sha
     z-index: 1000;
     background: var(--bg);
     pointer-events: none;
+  }
+  @supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    html.ios-instalada body::before {
+      background: color-mix(in srgb, var(--bg) 78%, transparent);
+      -webkit-backdrop-filter: blur(20px) saturate(140%);
+      backdrop-filter: blur(20px) saturate(140%);
+    }
+  }
+  @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+    html.ios-instalada body::before {
+      background: var(--bg);
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
+    }
   }
 }

@@ -13,6 +13,19 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icono-180.png">
 <link rel="icon" type="image/png" href="icono-180.png">
+<script id="entorno-ios">
+(() => {
+  const modoApp = window.matchMedia("(display-mode: standalone)");
+  const ua = navigator.userAgent;
+  const esIOS = !/Android/i.test(ua) && (/iPad|iPhone|iPod/.test(ua) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1));
+  const actualizar = () => document.documentElement.classList.toggle("ios-instalada",
+    esIOS && (navigator.standalone === true || modoApp.matches));
+  actualizar();
+  modoApp.addEventListener?.("change", actualizar);
+  window.addEventListener("pageshow", actualizar);
+})();
+</script>
 <link rel="stylesheet" href="estilos.css">
 </head>
 <body>
