@@ -2326,3 +2326,39 @@ input:focus, textarea:focus, select:focus { border-color: var(--accent); box-sha
 .pr-semana-lista li:last-child { border-bottom: 0; }
 .pr-semana-marca { color: var(--fg); font-weight: 600; }
 .pr-semana-fecha { color: var(--muted); font-size: 13px; }
+
+
+/* Consulta móvil: solo el día queda fijo; los demás desplegables siguen su contenido. */
+@media (max-width: 760px) {
+  #app details[open] > summary,
+  #app .cat-sec:not(.cerrada) > .sec-toggle,
+  #app .cat-sec:not(.cerrada) > .sec-cab,
+  #app .lista-sec:not(.cerrada) > .lista-cab,
+  #app .plan-sec:not(.cerrada) > .sec-toggle,
+  #app .plan-sec:not(.cerrada) > .sec-cab:has(> .sec-toggle),
+  #app .grupo > .grupo-cab,
+  #app .grupo:not(.g-plegado):not(:has(.parte-caja:not(.p-plegada))) > .grupo-cab,
+  #app .parte-caja > .parte-cab,
+  #app .parte-caja:not(.p-plegada) > .parte-cab {
+    position: static !important; top: auto !important; box-shadow: none;
+  }
+  #app #vistaSemana .dia { overflow: clip; }
+  #app #vistaSemana .dia:not(.plegado) > .dia-cab {
+    position: sticky !important; top: var(--sticky-cabecera) !important; z-index: 15;
+    background: var(--card) !important; background-image: none !important;
+    -webkit-backdrop-filter: none !important; backdrop-filter: none !important;
+    box-shadow: 0 1px 0 var(--line);
+  }
+  #app #vistaSemana.solo-dia .dia-abrir { visibility: visible; }
+}
+/* La cabecera ocupa el marco completo del resumen y sus datos conservan el margen interior. */
+#vistaSemana .sem-resumenes > details.resumen-sem { padding-left: 0; padding-right: 0; }
+#vistaSemana .sem-resumenes > details.resumen-sem > summary {
+  margin: 0; padding-left: 12px; padding-right: 12px; border-radius: inherit !important;
+}
+#vistaSemana .sem-resumenes > details.resumen-sem[open] > summary {
+  border-bottom-left-radius: 0 !important; border-bottom-right-radius: 0 !important;
+  border-bottom: 1px solid var(--line);
+}
+#vistaSemana .sem-resumenes > details.resumen-sem > .records { padding-left: 12px; padding-right: 12px; }
+#vistaSemana .sem-resumenes > details.resumen-sem > .molestias-semana { padding-left: 12px; padding-right: 12px; }
