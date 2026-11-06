@@ -2247,24 +2247,33 @@ input:focus, textarea:focus, select:focus { border-color: var(--accent); box-sha
 }
 
 
-/* Controles del día con espacio real entre botones y tamaños coherentes. */
+/* Navegación del día compacta, con fecha legible y controles de menor peso visual. */
 @media (max-width: 760px) {
   #vistaSemana .dia-nav:not([hidden]) {
-    grid-template-columns: max-content minmax(0, 1fr) 44px 56px 44px;
+    grid-template-columns: max-content minmax(0, 1fr) 44px 52px 44px;
     grid-template-areas: "semana titulo anterior hoy siguiente";
-    gap: 8px; padding: 6px 0; align-items: center; box-shadow: none;
+    gap: 4px; padding: 2px 0; align-items: center; box-shadow: none;
   }
   #vistaSemana .dia-nav-t {
-    min-width: 0; padding: 0; white-space: normal; overflow: visible;
-    text-overflow: clip; font-size: 14px; line-height: 1.2;
+    min-width: 0; padding: 0 0 0 8px; white-space: normal; overflow: visible;
+    text-overflow: clip; font-family: var(--body); font-size: 15px; font-weight: 650;
+    text-transform: none; letter-spacing: 0; line-height: 1.25; text-align: left;
   }
-  #vistaSemana #volverSemana { min-width: 0; width: auto; padding: 0; }
+  #vistaSemana #volverSemana {
+    min-width: 0; width: auto; min-height: 44px; padding: 0; font-size: 12px; font-weight: 600;
+  }
   #vistaSemana #diaAnt, #vistaSemana #diaSig, #vistaSemana #diaHoy {
     box-sizing: border-box; height: 44px; min-height: 44px; margin: 0;
     padding: 0; border-radius: 10px; transform: none; box-shadow: none !important;
   }
-  #vistaSemana #diaAnt, #vistaSemana #diaSig { width: 44px; min-width: 44px; }
-  #vistaSemana #diaHoy { width: 56px; min-width: 56px; font-size: 14px; }
+  #vistaSemana #diaAnt, #vistaSemana #diaSig {
+    width: 44px; min-width: 44px; border: 0; background: transparent; font-size: 22px;
+  }
+  #vistaSemana #diaHoy {
+    width: 52px; min-width: 52px; font-size: 13px; font-weight: 650;
+    background: var(--accent-soft) !important; color: var(--accent) !important;
+    border: 1px solid var(--line) !important;
+  }
   #vistaSemana .dia-nav:has(#diaHoy[hidden]) {
     grid-template-columns: max-content minmax(0, 1fr) 44px 44px;
     grid-template-areas: "semana titulo anterior siguiente";
@@ -2336,3 +2345,7 @@ input:focus, textarea:focus, select:focus { border-color: var(--accent); box-sha
 #vistaSemana .letra-cab .g-prog { margin-left: auto; }
 /* Esta cubierta aparece únicamente cuando un día queda fijado al desplazarse. */
 #cubiertaDia { position: fixed; inset: 0 0 auto; width: 100%; background: var(--bg); z-index: 999; pointer-events: none; }
+
+/* Los paneles informativos recortan su fondo interior al marco redondeado.
+   Sus cabeceras móviles ya no son fijas; la cabecera del día queda intacta. */
+#vistaSemana .sem-resumenes > details.resumen-sem { overflow: clip; }

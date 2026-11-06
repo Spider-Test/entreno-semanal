@@ -1,0 +1,5 @@
+Bibliotecas locales del lector de documentos. No contienen datos de usuarios.
+PDF.js 6.5.438 (legacy build): https://www.npmjs.com/package/pdfjs-dist
+SheetJS CE 0.20.3: https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js
+Mammoth 1.13.0: https://www.npmjs.com/package/mammoth
+Se conservan las licencias originales. No ejecutar JavaScript del PDF ni importar HTML desde Word/Excel.
