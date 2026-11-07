@@ -5836,7 +5836,44 @@ setInterval(() => { if (!document.hidden) sincronizar(); }, 30000);
 
 // ---------- Inicio de sesión y cuentas pendientes ----------
 let creando = false;
+// Espera complementaria del dispositivo; no sustituye los límites de Supabase.
+const CLAVE_ESPERA_ACCESO = PREFIJO + "espera-acceso-v1";
+let accesoEnCurso = false, relojAcceso = 0, esperaAccesoMemoria = {};
+function leerEsperaAcceso() {
+  let x = esperaAccesoMemoria;
+  try { x = JSON.parse(localStorage.getItem(CLAVE_ESPERA_ACCESO) || "null") || x; } catch {}
+  const ahora = Date.now();
+  if (!x || !Number.isFinite(x.ultimo) || ahora - x.ultimo > 1800000) return {fallos:0, hasta:0, ultimo:ahora};
+  return {fallos:Math.max(0, Math.min(20, Math.floor(Number(x.fallos)||0))), hasta:Math.max(0, Math.min(Number(x.hasta)||0, ahora+900000)), ultimo:x.ultimo};
+}
+function guardarEsperaAcceso(x) {
+  esperaAccesoMemoria = x;
+  try { localStorage.setItem(CLAVE_ESPERA_ACCESO, JSON.stringify(x)); } catch {}
+}
+function segundosEsperaAcceso() { return Math.max(0, Math.ceil((leerEsperaAcceso().hasta-Date.now())/1000)); }
+function pintarEsperaAcceso() {
+  clearTimeout(relojAcceso);
+  const segundos = segundosEsperaAcceso();
+  $("loginBtn").disabled = accesoEnCurso || segundos > 0;
+  $("modoBtn").disabled = accesoEnCurso;
+  $("loginBtn").textContent = segundos ? "Espera " + segundos + " s" : creando ? "Crear cuenta" : "Entrar";
+  if (segundos) relojAcceso = setTimeout(pintarEsperaAcceso, 1000);
+}
+function registrarFalloAcceso() {
+  const x=leerEsperaAcceso(); x.fallos++; x.ultimo=Date.now();
+  if (x.fallos >= 5) x.hasta=Math.max(x.hasta, Date.now()+Math.min(900,60*2**(x.fallos-5))*1000);
+  guardarEsperaAcceso(x);
+}
+function registrarLimiteAcceso(valor) {
+  const n=Number(valor), fecha=Date.parse(valor || "");
+  const segundos=valor && Number.isFinite(n) ? n : Number.isFinite(fecha) ? Math.ceil((fecha-Date.now())/1000) : 60;
+  const x=leerEsperaAcceso(); x.ultimo=Date.now();
+  x.hasta=Math.max(x.hasta, Date.now()+Math.max(1,Math.min(900,segundos))*1000); guardarEsperaAcceso(x);
+}
+addEventListener("storage", e => { if (e.key === CLAVE_ESPERA_ACCESO) pintarEsperaAcceso(); });
+
 $("modoBtn").addEventListener("click", () => {
+  if (accesoEnCurso) return;
   creando = !creando;
   $("loginBtn").textContent = creando ? "Crear cuenta" : "Entrar";
   $("modoBtn").textContent = creando ? "Ya tengo cuenta" : "¿Primera vez? Crear cuenta";
@@ -5845,6 +5882,7 @@ $("modoBtn").addEventListener("click", () => {
     ? "Elige tu email y una contraseña de al menos 6 caracteres. Tu cuenta quedará pendiente hasta que el administrador la apruebe."
     : "Entra con tu email y tu contraseña. Solo hace falta una vez en cada dispositivo.";
   $("loginError").textContent = "";
+  pintarEsperaAcceso();
 });
 const traducir = m => /invalid login/i.test(m) ? "Email o contraseña incorrectos."
   : /already registered|already exists/i.test(m) ? "Ya existe una cuenta con ese email. Pulsa «Ya tengo cuenta» y entra."
@@ -5854,29 +5892,39 @@ const traducir = m => /invalid login/i.test(m) ? "Email o contraseña incorrecto
   : m || "No se ha podido entrar.";
 $("loginForm").addEventListener("submit", async e => {
   e.preventDefault();
-  const email = $("email").value.trim(), password = $("password").value;
+  if (accesoEnCurso) return;
+  if (segundosEsperaAcceso()) { $("loginError").textContent="Demasiados intentos seguidos. Espera a que termine el contador."; pintarEsperaAcceso(); return; }
+  const email = $("email").value.trim(), password = $("password").value, alta = creando;
   if (!email || password.length < 6) { $("loginError").textContent = "Escribe tu email y una contraseña de al menos 6 caracteres."; return; }
-  $("loginBtn").disabled = true; $("loginError").textContent = "";
+  accesoEnCurso = true; pintarEsperaAcceso(); $("loginError").textContent = "";
+  const controlador = new AbortController(), tiempo = setTimeout(() => controlador.abort(), 25000);
   try {
     const accesoPrevio = localStorage.getItem(PREFIJO + "sesion-v1"), generacionAcceso = generacionSesion;
-    const ruta = creando ? "/auth/v1/signup" : "/auth/v1/token?grant_type=password";
-    const r = await fetch(SUPA + ruta, { method: "POST", headers: { apikey: CLAVE, "Content-Type": "application/json" }, body: JSON.stringify({ email, password }) });
+    const ruta = alta ? "/auth/v1/signup" : "/auth/v1/token?grant_type=password";
+    const r = await fetch(SUPA + ruta, { method: "POST", signal:controlador.signal, headers: { apikey: CLAVE, "Content-Type": "application/json" }, body: JSON.stringify({ email, password }) });
     const j = await r.json().catch(() => ({}));
     if (generacionSesion !== generacionAcceso || localStorage.getItem(PREFIJO + "sesion-v1") !== accesoPrevio) throw new Error("La sesión ha cambiado en otra pestaña. Vuelve a abrir la aplicación.");
-    if (r.ok && creando && !j.access_token) {
+    if (r.status === 429) { registrarLimiteAcceso(r.headers.get("Retry-After")); throw new Error("El servidor ha limitado los intentos de acceso. Espera a que termine el contador antes de volver a probar."); }
+    if (r.ok && alta && !j.access_token) {
       $("password").value = "";
       $("loginError").textContent = "Revisa tu correo para confirmar la cuenta. Después podrás entrar y esperar la aprobación.";
       return;
     }
-    if (!r.ok || !j.access_token) throw new Error(traducir(j.msg || j.error_description || j.message || ""));
+    if (!r.ok || !j.access_token) {
+      const m=j.msg || j.error_description || j.message || "";
+      if (!alta && (j.code === "invalid_credentials" || /invalid login credentials/i.test(m))) registrarFalloAcceso();
+      throw new Error(segundosEsperaAcceso() ? "Varios intentos incorrectos. Espera a que termine el contador antes de volver a probar." : traducir(m));
+    }
+    guardarEsperaAcceso({fallos:0,hasta:0,ultimo:Date.now()});
     $("password").value = "";
     entrarConSesion(j);
   } catch (err) {
-    $("loginError").textContent = navigator.onLine === false ? "Necesitas conexión para entrar la primera vez." : err.message;
+    $("loginError").textContent = navigator.onLine === false ? "Necesitas conexión para entrar la primera vez." : err.name === "AbortError" ? "La conexión ha tardado demasiado. Vuelve a intentarlo." : err.message;
   } finally {
-    $("loginBtn").disabled = false;
+    clearTimeout(tiempo); accesoEnCurso=false; pintarEsperaAcceso();
   }
 });
+pintarEsperaAcceso();
 // ---------- Contraseña: «¿Has olvidado tu contraseña?» (enlace por correo) y cambiarla con la sesión abierta ----------
 $("olvideBtn").addEventListener("click", async () => {
   const email = $("email").value.trim();
@@ -8373,7 +8421,7 @@ $("enRpe").addEventListener("click", () => { const d = ent.dia; salirEntreno(); 
 
 // ---------- Sugerencias: se guardan en el dispositivo y se envían en cuanto hay conexión ----------
 // VERSION_APP es interna (sube en cada publicación para que los móviles se actualicen); la que se ve es siempre la 26
-const VERSION_APP = "v236" + (BETA ? " beta" : "");
+const VERSION_APP = "v238" + (BETA ? " beta" : "");
 let sugPend = leer("sugerencias-pend-v1") || [], sugTipo = "idea", sugerencias = [];
 function abrirSug() {
   sugTipo = "idea";
